@@ -1,0 +1,8 @@
+Generated clue/anagram assets
+- target_clue_size: 8000
+- actual_clue_size: 8000
+- clue_real_entries: 1103
+- clue_synthetic_entries: 6897
+- target_anagram_rounds: 4200
+- actual_anagram_rounds: 4200
+- anagram_dictionary_size: 72382
