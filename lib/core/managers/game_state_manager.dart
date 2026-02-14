@@ -19,9 +19,12 @@ class HintUsageResult {
 }
 
 class GameStateManager extends ChangeNotifier {
+  static const int maxHearts = 5;
+  static const Duration heartRefillInterval = Duration(minutes: 5);
+
   late SharedPreferences _prefs;
 
-  int hearts = 5;
+  int hearts = maxHearts;
   int stars = 0;
   String selectedCharacterId = 'CHAR_A';
   final Set<String> unlockedCharacters = {'CHAR_A'};
@@ -41,11 +44,17 @@ class GameStateManager extends ChangeNotifier {
   final Map<String, DateTime> _lastHintUsedAt = {};
   final Map<String, int> _hintUseCount = {};
   Future<void> Function(Map<String, dynamic> payload)? _remoteSyncHandler;
+  DateTime? _heartRefillStartedAt;
+  Timer? _heartRefillTicker;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    hearts = _prefs.getInt('user_hearts') ?? 5;
+    hearts = (_prefs.getInt('user_hearts') ?? maxHearts).clamp(0, maxHearts);
     stars = _prefs.getInt('user_stars') ?? 0;
+    final refillStartedAtMs = _prefs.getInt('heart_refill_started_at_ms');
+    if (refillStartedAtMs != null) {
+      _heartRefillStartedAt = DateTime.fromMillisecondsSinceEpoch(refillStartedAtMs);
+    }
     selectedCharacterId = _prefs.getString('selected_character') ?? 'CHAR_A';
     final unlocked = _prefs.getStringList('unlocked_characters');
     if (unlocked != null && unlocked.isNotEmpty) {
@@ -65,6 +74,11 @@ class GameStateManager extends ChangeNotifier {
       if (parts.length != 2) continue;
       playCounts[parts[0]] = int.tryParse(parts[1]) ?? 0;
     }
+    final recovered = _applyHeartRecoveryCatchUp();
+    if (recovered) {
+      await _save(triggerRemote: false);
+    }
+    _ensureHeartRefillTicker();
   }
 
   void setRemoteSyncHandler(Future<void> Function(Map<String, dynamic>) handler) {
@@ -75,6 +89,7 @@ class GameStateManager extends ChangeNotifier {
     return {
       'hearts': hearts,
       'stars': stars,
+      'heartRefillStartedAtMs': _heartRefillStartedAt?.millisecondsSinceEpoch,
       'selectedCharacterId': selectedCharacterId,
       'unlockedCharacters': unlockedCharacters.toList(),
       'bestStages': bestStages,
@@ -84,8 +99,12 @@ class GameStateManager extends ChangeNotifier {
   }
 
   Future<void> applyRemoteState(Map<String, dynamic> payload) async {
-    hearts = (payload['hearts'] as num?)?.toInt() ?? hearts;
+    hearts = ((payload['hearts'] as num?)?.toInt() ?? hearts).clamp(0, maxHearts);
     stars = (payload['stars'] as num?)?.toInt() ?? stars;
+    final refillStartedAtMs = (payload['heartRefillStartedAtMs'] as num?)?.toInt();
+    _heartRefillStartedAt = refillStartedAtMs == null
+        ? _heartRefillStartedAt
+        : DateTime.fromMillisecondsSinceEpoch(refillStartedAtMs);
     selectedCharacterId = payload['selectedCharacterId'] as String? ?? selectedCharacterId;
 
     final remoteChars = payload['unlockedCharacters'];
@@ -115,6 +134,8 @@ class GameStateManager extends ChangeNotifier {
       }
     }
 
+    _applyHeartRecoveryCatchUp();
+    _ensureHeartRefillTicker();
     await _save(triggerRemote: false);
     notifyListeners();
   }
@@ -122,6 +143,11 @@ class GameStateManager extends ChangeNotifier {
   Future<void> _save({bool triggerRemote = true}) async {
     await _prefs.setInt('user_hearts', hearts);
     await _prefs.setInt('user_stars', stars);
+    if (_heartRefillStartedAt != null) {
+      await _prefs.setInt('heart_refill_started_at_ms', _heartRefillStartedAt!.millisecondsSinceEpoch);
+    } else {
+      await _prefs.remove('heart_refill_started_at_ms');
+    }
     await _prefs.setString('selected_character', selectedCharacterId);
     await _prefs.setStringList('unlocked_characters', unlockedCharacters.toList());
     await _prefs.setStringList(
@@ -154,14 +180,22 @@ class GameStateManager extends ChangeNotifier {
   Future<void> consumeHeart() async {
     if (hearts > 0) {
       hearts -= 1;
+      _heartRefillStartedAt ??= DateTime.now();
+      _ensureHeartRefillTicker();
       await _save();
       notifyListeners();
     }
   }
 
   Future<void> recoverHeart() async {
-    if (hearts < 5) {
+    if (hearts < maxHearts) {
       hearts += 1;
+      if (hearts >= maxHearts) {
+        _heartRefillStartedAt = null;
+      } else {
+        _heartRefillStartedAt = DateTime.now();
+      }
+      _ensureHeartRefillTicker();
       await _save();
       notifyListeners();
     }
@@ -253,5 +287,77 @@ class GameStateManager extends ChangeNotifier {
     await _save();
     notifyListeners();
     return HintUsageResult(ok: true, cost: dynamicCost, message: 'Hint used (-$dynamicCost stars).');
+  }
+
+  Duration get timeUntilNextHeart {
+    if (hearts >= maxHearts) return Duration.zero;
+    final startedAt = _heartRefillStartedAt;
+    if (startedAt == null) return heartRefillInterval;
+    final remain = heartRefillInterval - DateTime.now().difference(startedAt);
+    return remain.isNegative ? Duration.zero : remain;
+  }
+
+  String get nextHeartCountdownText {
+    if (hearts >= maxHearts) return 'FULL';
+    final remain = timeUntilNextHeart;
+    final mm = remain.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final ss = remain.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$mm:$ss';
+  }
+
+  bool _applyHeartRecoveryCatchUp() {
+    var changed = false;
+    final now = DateTime.now();
+    if (hearts >= maxHearts) {
+      if (_heartRefillStartedAt != null) {
+        _heartRefillStartedAt = null;
+        changed = true;
+      }
+      return changed;
+    }
+
+    _heartRefillStartedAt ??= now;
+    final elapsed = now.difference(_heartRefillStartedAt!);
+    final ticks = elapsed.inSeconds ~/ heartRefillInterval.inSeconds;
+    if (ticks <= 0) return changed;
+
+    final recovered = (hearts + ticks).clamp(0, maxHearts);
+    if (recovered != hearts) {
+      hearts = recovered;
+      changed = true;
+    }
+
+    if (hearts >= maxHearts) {
+      _heartRefillStartedAt = null;
+      changed = true;
+    } else {
+      _heartRefillStartedAt = _heartRefillStartedAt!.add(Duration(seconds: ticks * heartRefillInterval.inSeconds));
+      changed = true;
+    }
+    return changed;
+  }
+
+  void _ensureHeartRefillTicker() {
+    _heartRefillTicker?.cancel();
+    _heartRefillTicker = null;
+    if (hearts >= maxHearts) return;
+
+    _heartRefillTicker = Timer.periodic(const Duration(seconds: 1), (_) async {
+      final changed = _applyHeartRecoveryCatchUp();
+      if (changed) {
+        await _save();
+      }
+      notifyListeners();
+      if (hearts >= maxHearts) {
+        _heartRefillTicker?.cancel();
+        _heartRefillTicker = null;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _heartRefillTicker?.cancel();
+    super.dispose();
   }
 }

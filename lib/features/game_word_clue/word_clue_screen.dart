@@ -19,6 +19,7 @@ class WordClueScreen extends StatefulWidget {
 
 class _WordClueScreenState extends State<WordClueScreen> {
   final WordRepository _repo = WordRepository.instance;
+  final RegExp _hangul = RegExp(r'[가-힣]');
   late WordData _round;
   late List<String> _availableTiles;
   final List<String> _picked = [];
@@ -92,9 +93,17 @@ class _WordClueScreenState extends State<WordClueScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primary),
                         ),
                         const SizedBox(height: 8),
+                        const Text(
+                          'Dictionary definition',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 3),
                         Text(_round.meaning, style: const TextStyle(fontWeight: FontWeight.w700)),
                         const SizedBox(height: 4),
-                        Text(_round.korMeaning, style: const TextStyle(color: AppColors.textSecondary)),
+                        Text(
+                          _hangul.hasMatch(_round.korMeaning) ? _round.korMeaning : '의미 정보 준비중',
+                          style: const TextStyle(color: AppColors.textSecondary),
+                        ),
                       ],
                     ),
                   ),

@@ -19,7 +19,7 @@ class CloudSyncManager {
   String? _uid;
   Timer? _debounce;
 
-  // Shared user doc with KP_Puzzles app, but game progress is separated under keGames.
+  // Shared user doc with KP_Puzzles app, while KE game economy/progress stays in keGames.
   static const String _appNamespace = 'keGames';
   static const String _leaderboardPrefix = 'ke_';
 
@@ -42,12 +42,15 @@ class CloudSyncManager {
       final doc = await userRef.get();
       final data = doc.data() ?? <String, dynamic>{};
 
-      final serverTotalStars = (data['totalStars'] as num?)?.toInt();
       final keGames = (data[_appNamespace] as Map<String, dynamic>?) ?? <String, dynamic>{};
-
-      // Shared profile/stars inherited from 26version
-      if (serverTotalStars != null && serverTotalStars > gameState.stars) {
-        gameState.stars = serverTotalStars;
+      final appStars = (keGames['totalStars'] as num?)?.toInt();
+      final appHearts = (keGames['hearts'] as num?)?.toInt();
+      final heartRefillStartedAtMs = (keGames['heartRefillStartedAtMs'] as num?)?.toInt();
+      if (appStars != null) {
+        gameState.stars = appStars;
+      }
+      if (appHearts != null) {
+        gameState.hearts = appHearts.clamp(0, GameStateManager.maxHearts);
       }
 
       // App-specific records (separated)
@@ -69,6 +72,9 @@ class CloudSyncManager {
       final selected = keGames['selectedCharacterId'] as String?;
       if (selected != null && gameState.unlockedCharacters.contains(selected)) {
         gameState.selectedCharacterId = selected;
+      }
+      if (heartRefillStartedAtMs != null) {
+        await gameState.applyRemoteState({'heartRefillStartedAtMs': heartRefillStartedAtMs});
       }
       await gameState.persistLocalOnly();
       gameState.notifyUi();
@@ -92,14 +98,17 @@ class CloudSyncManager {
         final playCounts = (payload['playCounts'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
         final unlockedChars = (payload['unlockedCharacters'] as List?)?.whereType<String>().toList() ?? <String>[];
         final stars = (payload['stars'] as num?)?.toInt() ?? 0;
+        final hearts = (payload['hearts'] as num?)?.toInt() ?? GameStateManager.maxHearts;
+        final heartRefillStartedAtMs = (payload['heartRefillStartedAtMs'] as num?)?.toInt();
         final selectedCharacterId = payload['selectedCharacterId'] as String? ?? 'CHAR_A';
 
         await FirebaseFirestore.instance.collection('users').doc(_uid).set({
-          // Keep common profile economy compatible with 26version.
-          'totalStars': stars,
           'lastActive': FieldValue.serverTimestamp(),
           // Separate KE app records.
           _appNamespace: {
+            'totalStars': stars,
+            'hearts': hearts,
+            'heartRefillStartedAtMs': heartRefillStartedAtMs,
             'bestStages': bestStages,
             'playCounts': playCounts,
             'selectedCharacterId': selectedCharacterId,

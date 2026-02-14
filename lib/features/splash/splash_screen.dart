@@ -113,7 +113,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     const Icon(Icons.auto_stories, size: 72, color: Colors.white),
                     const SizedBox(height: 16),
                     const Text(
-                      'Kavon English Games',
+                      'Kavon Eng Puzzle',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 28,

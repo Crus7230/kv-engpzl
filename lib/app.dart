@@ -9,7 +9,7 @@ class EnglishPuzzleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Kavon English Games',
+      title: 'Kavon Eng Puzzle',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: appRouter,

@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/wordle',
       title: 'WORDLE',
       subtitle: 'Wave difficulty, 6 tries, keyboard feedback',
-      guide: 'Guess the hidden word in six attempts and read instant letter feedback.',
+      guide: '6번 안에 정답 단어를 맞추고, 색상 피드백으로 다음 추측을 좁혀가세요.',
       icon: Icons.grid_view_rounded,
       color: Color(0xFF37B24D),
     ),
@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/word-clue',
       title: 'WORD CLUE',
       subtitle: 'Definition master with touch letter tiles',
-      guide: 'Use definitions to complete each vocabulary word with tile taps.',
+      guide: '제시된 뜻을 보고 알맞은 철자를 눌러 빈칸을 완성하는 모드입니다.',
       icon: Icons.quiz_rounded,
       color: Color(0xFFF08C00),
     ),
@@ -50,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/anagram',
       title: 'ANAGRAM',
       subtitle: 'Core word clear + general word bonus',
-      guide: 'Build words from a seed string to clear core targets and collect bonuses.',
+      guide: '씨앗 글자를 재조합해 핵심 단어를 찾고 보너스 단어로 추가 점수를 얻으세요.',
       icon: Icons.shuffle_rounded,
       color: Color(0xFF7B2CBF),
     ),
@@ -59,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/word-crash',
       title: 'WORD CRASH',
       subtitle: 'Swipe, pop, gravity, combo',
-      guide: 'Link adjacent letters, pop valid words, and chain combos with bomb tiles.',
+      guide: '인접한 글자를 이어 단어를 만들고, 폭탄/콤보를 활용해 큰 점수를 노리세요.',
       icon: Icons.auto_awesome_motion_rounded,
       color: Color(0xFF1C7ED6),
     ),
@@ -182,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _sideButton(icon: Icons.pets_rounded, label: 'Chars', compact: compact, onTap: () => _openCharacterShop(context)),
           _sideButton(icon: Icons.wallpaper_rounded, label: 'Skins', compact: compact, onTap: () => _openSkinPicker(context)),
-          _sideButton(icon: Icons.help_outline_rounded, label: 'Guide', compact: compact, onTap: () => _openGameGuideSheet(context)),
+          _sideButton(icon: Icons.help_outline_rounded, label: '가이드', compact: compact, onTap: () => _openGameGuideSheet(context)),
           _sideButton(icon: Icons.group_rounded, label: 'Friends', compact: compact, onTap: () => _openFriendsSheet(context)),
           _sideButton(icon: Icons.emoji_events_rounded, label: 'Rank', compact: compact, onTap: () => _openRankingSheet(context)),
           _sideButton(icon: Icons.settings_rounded, label: 'Settings', compact: compact, onTap: () => _openSettingsSheet(context)),
@@ -250,7 +250,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          _statChip(icon: Icons.favorite, color: AppColors.error, text: '${gameState.hearts}'),
+          _statChip(
+            icon: Icons.favorite,
+            color: AppColors.error,
+            text: '${gameState.hearts}',
+            subText: gameState.hearts >= GameStateManager.maxHearts
+                ? 'FULL'
+                : '다음 +1 ${gameState.nextHeartCountdownText}',
+          ),
           const SizedBox(width: 8),
           _statChip(icon: Icons.star, color: AppColors.secondary, text: '${gameState.stars}'),
         ],
@@ -262,6 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required Color color,
     required String text,
+    String? subText,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -274,7 +282,21 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(icon, color: color, size: 18),
           const SizedBox(width: 4),
-          Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+              if (subText != null)
+                Text(
+                  subText,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -514,10 +536,10 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.72,
+        height: MediaQuery.of(context).size.height * 0.78,
         child: Column(
           children: [
-            _sheetHeader('Game Guide'),
+            _sheetHeader('게임 가이드'),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.all(12),
@@ -526,13 +548,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemBuilder: (context, index) {
                   final game = _gameDefs[index];
                   return _sheetCard(
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: game.color.withValues(alpha: 0.18),
-                        child: Icon(game.icon, color: game.color),
-                      ),
-                      title: Text(game.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                      subtitle: Text(game.guide),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: game.color.withValues(alpha: 0.18),
+                              child: Icon(game.icon, color: game.color),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                game.title,
+                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(game.guide, style: const TextStyle(fontSize: 13)),
+                        const SizedBox(height: 4),
+                        Text(
+                          _guideTip(game.id),
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildGuideExample(game.id),
+                      ],
                     ),
                   );
                 },
@@ -540,6 +583,168 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  String _guideTip(String gameId) {
+    switch (gameId) {
+      case 'wordle':
+        return '팁: 초반에는 서로 다른 글자를 많이 시도하면 정답 범위를 빠르게 줄일 수 있어요.';
+      case 'word_clue':
+        return '팁: 뜻의 핵심 단어(동작/사물/감정)를 먼저 잡으면 정답 철자를 찾기 쉬워집니다.';
+      case 'anagram':
+        return '팁: 2~3글자 조합부터 빠르게 확인한 뒤, 핵심 단어 길이를 확장해 보세요.';
+      case 'word_crash':
+        return '팁: 긴 단어 + 폭탄 타일 조합을 만들면 연쇄 제거로 점수가 크게 올라갑니다.';
+      default:
+        return '';
+    }
+  }
+
+  Widget _buildGuideExample(String gameId) {
+    switch (gameId) {
+      case 'wordle':
+        return _buildWordleGuideExample();
+      case 'word_clue':
+        return _buildWordClueGuideExample();
+      case 'anagram':
+        return _buildAnagramGuideExample();
+      case 'word_crash':
+        return _buildWordCrashGuideExample();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildWordleGuideExample() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F7EA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFA9DDB2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('예시: 정답이 TRAIN일 때, 추측 TRAIL'),
+          const SizedBox(height: 8),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _GuideTile('T', background: Color(0xFF2F9E44), foreground: Colors.white),
+              _GuideTile('R', background: Color(0xFF2F9E44), foreground: Colors.white),
+              _GuideTile('A', background: Color(0xFF2F9E44), foreground: Colors.white),
+              _GuideTile('I', background: Color(0xFF2F9E44), foreground: Colors.white),
+              _GuideTile('L', background: Color(0xFFADB5BD), foreground: Colors.white),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('초록: 위치/글자 일치  |  회색: 단어에 없음', style: TextStyle(fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWordClueGuideExample() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFF6CE8A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('뜻: 하늘에서 물방울이 떨어지는 현상'),
+          const SizedBox(height: 8),
+          const Row(
+            children: [
+              _GuideTile('R'),
+              SizedBox(width: 4),
+              _GuideTile('A'),
+              SizedBox(width: 4),
+              _GuideTile('I'),
+              SizedBox(width: 4),
+              _GuideTile('N'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _GuideOptionChip('R'),
+              _GuideOptionChip('B'),
+              _GuideOptionChip('I'),
+              _GuideOptionChip('N'),
+              _GuideOptionChip('T'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('아래 글자 타일을 눌러 정답 단어를 완성하세요.', style: TextStyle(fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnagramGuideExample() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3EBFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD4B8FF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('씨앗 글자: C A R E'),
+          const SizedBox(height: 8),
+          const Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _GuideWordBadge('CARE'),
+              _GuideWordBadge('RACE'),
+              _GuideWordBadge('ACRE'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('핵심 단어를 먼저 채우고, 추가 단어로 보너스 점수를 얻으세요.', style: TextStyle(fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWordCrashGuideExample() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF3FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB7D3FA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('인접 타일을 이어 단어 만들기'),
+          const SizedBox(height: 8),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _GuideTile('S'),
+              _GuideTile('T'),
+              _GuideTile('A'),
+              _GuideTile('R'),
+              _GuideTile('B', background: Color(0xFFFFD43B)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('예: STAR 연결 성공 + 폭탄(B) 근처 제거 = 연쇄 점수', style: TextStyle(fontSize: 11)),
+        ],
       ),
     );
   }
@@ -874,7 +1079,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    _rankingListView(future: _ranking.getTotalStarRanking(), valueKey: 'totalStars'),
+                    _rankingListView(future: _ranking.getTotalStarRanking(), valueKey: 'keTotalStars'),
                     _rankingListView(future: _ranking.getGameRanking('wordle'), valueKey: 'score'),
                     _rankingListView(future: _ranking.getGameRanking('word_clue'), valueKey: 'score'),
                     _rankingListView(future: _ranking.getGameRanking('anagram'), valueKey: 'score'),
@@ -915,6 +1120,83 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
       },
+    );
+  }
+}
+
+class _GuideTile extends StatelessWidget {
+  const _GuideTile(
+    this.text, {
+    this.background = Colors.white,
+    this.foreground = AppColors.textPrimary,
+  });
+
+  final String text;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.black12),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.w900,
+          color: foreground,
+        ),
+      ),
+    );
+  }
+}
+
+class _GuideOptionChip extends StatelessWidget {
+  const _GuideOptionChip(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE9C46A)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _GuideWordBadge extends StatelessWidget {
+  const _GuideWordBadge(this.word);
+
+  final String word;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFC7A8FF)),
+      ),
+      child: Text(
+        word,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
     );
   }
 }
@@ -1028,22 +1310,6 @@ class _GameCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           const Icon(Icons.play_arrow_rounded, size: 30, color: Colors.black26),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'PLAY',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                color: color,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ],

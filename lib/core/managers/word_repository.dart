@@ -40,6 +40,13 @@ class WordRepository {
 
   final Random _random = Random();
   static final RegExp _alphaOnly = RegExp(r'^[A-Z]+$');
+  static final RegExp _hangul = RegExp(r'[가-힣]');
+  static const Set<String> _allowedCluePos = {
+    'Noun',
+    'Verb',
+    'Adjective',
+    'Adverb',
+  };
 
   // Fallback pools for test/offline startup before assets are available.
   static const List<String> _defaultWordle4Answers = [
@@ -301,9 +308,10 @@ class WordRepository {
       if (word.isEmpty || !_alphaOnly.hasMatch(word)) continue;
       if (!seen.add(word)) continue;
       final meaning = (map['meaning'] as String? ?? '').trim();
-      final korMeaning = (map['korMeaning'] as String? ?? '').trim();
-      final pos = (map['pos'] as String? ?? 'Word').trim();
-      if (meaning.isEmpty || korMeaning.isEmpty || pos.isEmpty) continue;
+      final pos = _normalizePos((map['pos'] as String? ?? '').trim());
+      if (!_isDictionaryStyleMeaning(meaning)) continue;
+      if (!_allowedCluePos.contains(pos)) continue;
+      final korMeaning = _normalizeKorMeaning((map['korMeaning'] as String? ?? '').trim());
       out.add(
         WordData(
           word: word,
@@ -316,6 +324,32 @@ class WordRepository {
       );
     }
     return out;
+  }
+
+  String _normalizePos(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.startsWith('noun')) return 'Noun';
+    if (lower.startsWith('verb')) return 'Verb';
+    if (lower.startsWith('adjective')) return 'Adjective';
+    if (lower.startsWith('adverb')) return 'Adverb';
+    return 'Word';
+  }
+
+  bool _isDictionaryStyleMeaning(String meaning) {
+    final text = meaning.trim();
+    if (text.length < 16 || text.length > 160) return false;
+    final lower = text.toLowerCase();
+    if (lower.startsWith('used to ')) return false;
+    if (lower.startsWith('used for ')) return false;
+    if (lower.contains('in grammar')) return false;
+    return true;
+  }
+
+  String _normalizeKorMeaning(String raw) {
+    if (raw.isEmpty) return '의미 정보 준비중';
+    if (raw.contains('�')) return '의미 정보 준비중';
+    if (!_hangul.hasMatch(raw)) return '의미 정보 준비중';
+    return raw;
   }
 
   Future<List<AnagramRoundData>> _loadAnagramRoundsJson(String assetPath) async {
