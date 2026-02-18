@@ -86,6 +86,14 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                         GameTopBar(title: 'SENTENCE CODE', stage: _stage, state: state),
                         const SizedBox(height: 10),
                         _characterHintCard(char),
+                        if (_isTutorialStage) ...[
+                          const SizedBox(height: 8),
+                          _tutorialActionHint(
+                            _selectedNumber == null
+                                ? '튜토리얼: 숫자 칸을 선택해 ${_tutorialHintWord() ?? '힌트 단어'}를 먼저 완성하세요.'
+                                : '튜토리얼: 아래 키보드에서 선택한 번호의 알파벳을 맞추세요.',
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         _sentenceCard(),
                         if (_selectedNumber != null) ...[
@@ -103,32 +111,23 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                     ),
             ),
           ),
-          if (_isTutorialStage) _tutorialOverlay(_tutorialCard()),
         ],
       ),
     );
   }
 
-  Widget _tutorialOverlay(Widget child) {
-    final media = MediaQuery.of(context);
-    final compact = media.size.height < 760;
-    final preferBottom = _selectedNumber == null || compact;
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              preferBottom ? 0 : media.padding.top + 80,
-              12,
-              preferBottom ? 12 : 0,
-            ),
-            child: child,
-          ),
-        ),
+  Widget _tutorialActionHint(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD9480F), width: 1.6),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
   }
@@ -238,71 +237,6 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
             ),
           );
         }).toList(),
-      ),
-    );
-  }
-
-  Widget _tutorialCard() {
-    final required = _nextRequiredNumber();
-    final focusNumber = _isTutorialStage && _selectedNumber == null;
-    final tutorialHintWord = _tutorialHintWord();
-    final tutorialHintProgress = tutorialHintWord == null ? null : _maskHintWord(tutorialHintWord);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFB7D3FA)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.school_rounded, size: 18, color: Color(0xFF1D4ED8)),
-              SizedBox(width: 6),
-              Text(
-                '튜토리얼 - 스테이지 1',
-                style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            focusNumber
-                ? '단계: 문장의 숫자 칸을 먼저 선택하세요.'
-                : '단계: 아래 알파벳 키보드로 해당 문자를 맞추세요.',
-            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
-          ),
-          const SizedBox(height: 4),
-          if (tutorialHintWord != null)
-            Text(
-              '1) 먼저 힌트 단어 $tutorialHintWord를 완성합니다.',
-            )
-          else
-            const Text('1) 먼저 힌트 단어를 완성합니다.'),
-          const SizedBox(height: 3),
-          const Text('2) 같은 숫자는 같은 철자입니다.'),
-          const SizedBox(height: 3),
-          const Text('3) 단어에서 맞춘 철자는 문장 숫자 칸에도 바로 적용됩니다.'),
-          const SizedBox(height: 3),
-          const Text('4) Stage 1은 일부 철자가 미리 공개된 고정 튜토리얼입니다.'),
-          if (tutorialHintProgress != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              '현재 힌트 단어 진행: $tutorialHintProgress',
-              style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
-            ),
-          ],
-          if (required != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              '지금 선택할 번호: $required',
-              style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFD9480F)),
-            ),
-          ],
-        ],
       ),
     );
   }

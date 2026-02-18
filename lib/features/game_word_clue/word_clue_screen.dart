@@ -139,6 +139,16 @@ class _WordClueScreenState extends State<WordClueScreen> {
                       ],
                     ),
                   ),
+                  if (_isTutorialStage) ...[
+                    const SizedBox(height: 8),
+                    _tutorialActionHint(
+                      _tutorialStep == 0
+                          ? '튜토리얼: 타일에서 KIND를 순서대로 선택하세요.'
+                          : _tutorialStep == 1
+                              ? '튜토리얼: KIND를 완성하면 자동 판정됩니다.'
+                              : '튜토리얼: 결과를 확인하고 다음 라운드로 이동하세요.',
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 140),
@@ -229,32 +239,23 @@ class _WordClueScreenState extends State<WordClueScreen> {
               ),
             ),
           ),
-          if (_isTutorialStage) _tutorialOverlay(_tutorialCard()),
         ],
       ),
     );
   }
 
-  Widget _tutorialOverlay(Widget child) {
-    final media = MediaQuery.of(context);
-    final compact = media.size.height < 760;
-    final preferBottom = compact && _tutorialStep <= 1;
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              preferBottom ? 0 : media.padding.top + 80,
-              12,
-              preferBottom ? 12 : 0,
-            ),
-            child: child,
-          ),
-        ),
+  Widget _tutorialActionHint(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD9480F), width: 1.6),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
   }
@@ -342,43 +343,6 @@ class _WordClueScreenState extends State<WordClueScreen> {
     if (!mounted) return;
     final msg = result.ok ? 'Hint: first letter is ${_round.word[0]}' : result.message;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  Widget _tutorialCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFB7D3FA)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '튜토리얼 - 스테이지 1',
-            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _tutorialStep == 0
-                ? '1단계: 고정 정답 KIND를 순서대로 조합해 시작하세요.'
-                : _tutorialStep == 1
-                    ? '2단계: 칸을 모두 채우면 자동으로 정답 판정이 진행됩니다.'
-                    : _tutorialStep == 2
-                        ? '3단계: 결과를 확인하세요.'
-                        : '완료: Stage 1은 KIND 고정 튜토리얼입니다.',
-            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
-          ),
-          const SizedBox(height: 4),
-          const Text('1) Stage 1은 단어/타일 순서가 미리 세팅되어 있습니다.'),
-          const Text('2) 잘못된 순서는 하트 차감 없이 안내됩니다.'),
-          const Text('3) 정답 흐름을 익힌 뒤 일반 라운드로 넘어갑니다.'),
-          const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
-        ],
-      ),
-    );
   }
 
   Future<void> _showResultDialog({

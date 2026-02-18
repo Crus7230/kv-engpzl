@@ -67,42 +67,45 @@ class _WordleScreenState extends State<WordleScreen> {
                     stageLabel: 'STAGE ${game.stage}  -  ${game.badgeLabel}',
                     badgeColor: game.badgeColor,
                   ),
+                  if (_isTutorialStage(game.stage) && _tutorialStep <= 1) ...[
+                    const SizedBox(height: 8),
+                    _tutorialActionHint(
+                      _tutorialStep == 0
+                          ? '튜토리얼: 보드에 BOOK을 입력하세요.'
+                          : '튜토리얼: ${game.wordLength}칸을 모두 채우세요.',
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   _board(game, skin),
                   const SizedBox(height: 12),
                   _characterHint(character, game),
+                  if (_isTutorialStage(game.stage) && _tutorialStep == 2) ...[
+                    const SizedBox(height: 8),
+                    _tutorialActionHint('튜토리얼: 이제 ENTER를 누르세요.'),
+                  ],
                   const SizedBox(height: 12),
                   _keyboard(game),
                 ],
               ),
             ),
           ),
-          if (_isTutorialStage(game.stage)) _tutorialOverlay(_tutorialCard(game)),
         ],
       ),
     );
   }
 
-  Widget _tutorialOverlay(Widget child) {
-    final media = MediaQuery.of(context);
-    final compact = media.size.height < 760;
-    final preferBottom = compact && _tutorialStep <= 1;
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              preferBottom ? 0 : media.padding.top + 80,
-              12,
-              preferBottom ? 12 : 0,
-            ),
-            child: child,
-          ),
-        ),
+  Widget _tutorialActionHint(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD9480F), width: 1.6),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
   }
@@ -219,43 +222,6 @@ class _WordleScreenState extends State<WordleScreen> {
             },
             child: const Text('Hint'),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tutorialCard(WordleProvider game) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFB7D3FA)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '튜토리얼 - 스테이지 1',
-            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _tutorialStep == 0
-                ? '1단계: 이번 스테이지 정답은 BOOK입니다. 키보드로 입력하세요.'
-                : _tutorialStep == 1
-                    ? '2단계: ${game.wordLength}칸을 다 채워서 제출 준비를 하세요.'
-                    : _tutorialStep == 2
-                        ? '3단계: ENTER를 눌러 색상 결과를 확인하세요.'
-                        : '완료: Stage 1은 고정 정답 BOOK 튜토리얼입니다.',
-            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
-          ),
-          const SizedBox(height: 4),
-          const Text('1) 초록: 글자와 위치가 모두 맞음'),
-          const Text('2) 노랑: 글자는 맞지만 위치가 다름'),
-          const Text('3) 회색: 정답에 없는 글자'),
-          const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
         ],
       ),
     );

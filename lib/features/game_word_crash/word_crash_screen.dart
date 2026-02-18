@@ -289,6 +289,16 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                       ],
                     ),
                   ),
+                  if (_isTutorialStage) ...[
+                    const SizedBox(height: 8),
+                    _tutorialActionHint(
+                      _tutorialStep == 0
+                          ? '튜토리얼: 보드에서 GAME 경로를 선택하세요.'
+                          : _tutorialStep == 1
+                              ? '튜토리얼: 인접한 4칸으로 GAME을 완성하세요.'
+                              : '튜토리얼: Pop Word 버튼으로 제출하세요.',
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -407,32 +417,23 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
               ),
             ),
           ),
-          if (_isTutorialStage) _tutorialOverlay(_tutorialCard()),
         ],
       ),
     );
   }
 
-  Widget _tutorialOverlay(Widget child) {
-    final media = MediaQuery.of(context);
-    final compact = media.size.height < 760;
-    final preferBottom = compact && _tutorialStep <= 1;
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              preferBottom ? 0 : media.padding.top + 80,
-              12,
-              preferBottom ? 12 : 0,
-            ),
-            child: child,
-          ),
-        ),
+  Widget _tutorialActionHint(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD9480F), width: 1.6),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
   }
@@ -449,44 +450,6 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       child: Text(
         'STAGE $_stage | Clear words ${_goal.targetWords}$obstacle',
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-      ),
-    );
-  }
-
-  Widget _tutorialCard() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFB7D3FA)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '튜토리얼 - 스테이지 1',
-            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _tutorialStep == 0
-                ? '1단계: 고정 보드에서 GAME 경로를 선택하세요.'
-                : _tutorialStep == 1
-                    ? '2단계: 인접한 4칸으로 GAME을 완성하세요.'
-                    : _tutorialStep == 2
-                        ? '3단계: Pop Word를 눌러 제출하세요.'
-                        : '완료: Stage 1은 GAME 고정 튜토리얼입니다.',
-            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
-          ),
-          const SizedBox(height: 4),
-          const Text('1) Stage 1 보드는 고정 세팅입니다.'),
-          const Text('2) 정답 단어 GAME으로 제출이 유도됩니다.'),
-          const Text('3) 튜토리얼 목표는 단어 1개 클리어입니다.'),
-          const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
-        ],
       ),
     );
   }

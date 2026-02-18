@@ -126,6 +126,16 @@ class _AnagramScreenState extends State<AnagramScreen> {
                       ],
                     ),
                   ),
+                  if (_isTutorialStage) ...[
+                    const SizedBox(height: 8),
+                    _tutorialActionHint(
+                      _tutorialStep == 0
+                          ? '튜토리얼: STREAM 글자 타일을 눌러 조합을 시작하세요.'
+                          : _tutorialStep == 1
+                              ? '튜토리얼: 3글자 이상 만든 뒤 STREAM을 완성하세요.'
+                              : '튜토리얼: Submit으로 STREAM을 제출하세요.',
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   const SizedBox(height: 6),
                   Container(
@@ -313,32 +323,23 @@ class _AnagramScreenState extends State<AnagramScreen> {
               ),
             ),
           ),
-          if (_isTutorialStage) _tutorialOverlay(_tutorialCard()),
         ],
       ),
     );
   }
 
-  Widget _tutorialOverlay(Widget child) {
-    final media = MediaQuery.of(context);
-    final compact = media.size.height < 760;
-    final preferBottom = compact && _tutorialStep <= 1;
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              preferBottom ? 0 : media.padding.top + 80,
-              12,
-              preferBottom ? 12 : 0,
-            ),
-            child: child,
-          ),
-        ),
+  Widget _tutorialActionHint(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFD9480F), width: 1.6),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
   }
@@ -355,43 +356,6 @@ class _AnagramScreenState extends State<AnagramScreen> {
           Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
-        ],
-      ),
-    );
-  }
-
-  Widget _tutorialCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFB7D3FA)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '튜토리얼 - 스테이지 1',
-            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _tutorialStep == 0
-                ? '1단계: 고정 시드 STREAM의 글자를 눌러 단어를 만들기 시작하세요.'
-                : _tutorialStep == 1
-                    ? '2단계: 최소 3글자 이상 조합하세요.'
-                    : _tutorialStep == 2
-                        ? '3단계: Submit으로 STREAM 정답을 제출하세요.'
-                        : '완료: Stage 1은 STREAM 고정 퍼즐입니다.',
-            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
-          ),
-          const SizedBox(height: 4),
-          const Text('1) Stage 1은 시드/정답이 고정되어 있습니다.'),
-          const Text('2) 이번 튜토리얼 정답 제출은 STREAM으로 유도됩니다.'),
-          const Text('3) 정답 제출 후 일반 라운드 규칙으로 진행됩니다.'),
-          const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
         ],
       ),
     );
