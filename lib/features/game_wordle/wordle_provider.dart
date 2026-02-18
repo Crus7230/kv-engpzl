@@ -64,11 +64,11 @@ class WordleProvider extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
 
-    final roll = _random.nextDouble();
-    if (roll < 0.4) {
+    final waveLevel = _wordRepository.getWaveDifficultyLevel(stage);
+    if (waveLevel <= 2) {
       waveDifficulty = WaveDifficulty.easy;
-      wordLength = 4;
-    } else if (roll < 0.8) {
+      wordLength = _random.nextDouble() < 0.7 ? 4 : 5;
+    } else if (waveLevel <= 4) {
       waveDifficulty = WaveDifficulty.medium;
       wordLength = 5;
     } else {
