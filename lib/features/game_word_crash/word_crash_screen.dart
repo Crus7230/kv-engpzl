@@ -11,6 +11,7 @@ import '../../core/managers/word_repository.dart';
 import '../../core/widgets/app_safe_area.dart';
 import '../../core/widgets/game_top_bar.dart';
 import '../../core/widgets/readable_result_dialog.dart';
+import '../../core/widgets/tutorial_intro_overlay.dart';
 
 enum CrashTileKind { letter, bomb, booster, blocker }
 
@@ -70,6 +71,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
 
   bool _stageLoaded = false;
   bool _dialogOpen = false;
+  bool _showTutorialIntro = false;
 
   int _stage = 1;
   int _combo = 0;
@@ -77,6 +79,8 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   int _mistakesInStage = 0;
   late CrashStageGoal _goal;
   int _tutorialStep = 0;
+  static const String _guide = '인접한 글자를 연결해 단어를 만들고, 폭탄/콤보를 활용해 고득점을 노리세요.';
+  static const String _guideTip = '긴 단어와 특수 블록을 연계하면 콤보 점수가 크게 올라갑니다.';
   bool get _isTutorialStage => _stage == 1;
 
   @override
@@ -84,6 +88,11 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     super.didChangeDependencies();
     if (_stageLoaded) return;
     _setupStage(context.read<GameStateManager>().getBestStage('word_crash'));
+    final introSeen = context.read<GameStateManager>().hasSeenStage1Intro('word_crash');
+    _showTutorialIntro = _isTutorialStage && !introSeen;
+    if (_showTutorialIntro) {
+      _tutorialStep = -1;
+    }
     _stageLoaded = true;
   }
 
@@ -123,6 +132,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     _combo = 0;
     _wordsClearedInStage = 0;
     _mistakesInStage = 0;
+    _showTutorialIntro = false;
     _tutorialStep = _isTutorialStage ? 0 : 3;
     _resetGrid();
   }
@@ -289,7 +299,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                       ],
                     ),
                   ),
-                  if (_isTutorialStage) ...[
+                  if (_isTutorialStage && !_showTutorialIntro) ...[
                     const SizedBox(height: 8),
                     _tutorialActionHint(
                       _tutorialStep == 0
@@ -417,6 +427,15 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
               ),
             ),
           ),
+          if (_showTutorialIntro)
+            Positioned.fill(
+              child: TutorialIntroOverlay(
+                title: 'WORD CRASH',
+                guide: _guide,
+                tip: _guideTip,
+                onDismiss: _dismissTutorialIntro,
+              ),
+            ),
         ],
       ),
     );
@@ -436,6 +455,16 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
         style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
+  }
+
+  Future<void> _dismissTutorialIntro() async {
+    final state = context.read<GameStateManager>();
+    await state.markStage1IntroSeen('word_crash');
+    if (!mounted) return;
+    setState(() {
+      _showTutorialIntro = false;
+      _tutorialStep = 0;
+    });
   }
 
   Widget _stageGoalCard() {

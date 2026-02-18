@@ -10,6 +10,7 @@ import '../../core/managers/skin_manager.dart';
 import '../../core/widgets/app_safe_area.dart';
 import '../../core/widgets/game_top_bar.dart';
 import '../../core/widgets/readable_result_dialog.dart';
+import '../../core/widgets/tutorial_intro_overlay.dart';
 
 class SentenceCodeScreen extends StatefulWidget {
   const SentenceCodeScreen({super.key});
@@ -27,11 +28,14 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   bool _stageLoaded = false;
   bool _hiddenHintOpened = false;
   bool _dialogOpen = false;
+  bool _showTutorialIntro = false;
   int _stage = 1;
   int? _selectedNumber;
   late SentenceCodeLevel _level;
   late String _sentenceUpper;
   Map<String, int> _letterNumberMap = const {};
+  static const String _guide = '문장 속 알파벳이 번호로 암호화되어 있습니다. 단서 단어를 활용해 전체 문장을 복원하세요.';
+  static const String _guideTip = '반복되는 번호를 먼저 찾아 같은 알파벳을 추론하면 문장 복원 속도가 크게 올라갑니다.';
 
   bool get _isTutorialStage => _stage == 1;
 
@@ -52,6 +56,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     final level = _repo.getLevelForStage(normalizedStage);
     final upper = level.sentence.toUpperCase();
     final presetLetters = _buildTutorialPresetLetters(upper, normalizedStage == 1);
+    final introSeen = context.read<GameStateManager>().hasSeenStage1Intro('sentence_code');
     setState(() {
       _stage = normalizedStage;
       _level = level;
@@ -61,6 +66,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
       _hiddenHintOpened = false;
       _selectedNumber = null;
       _letterNumberMap = _buildLetterNumberMap(upper);
+      _showTutorialIntro = normalizedStage == 1 && !introSeen;
       _loading = false;
     });
   }
@@ -86,7 +92,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                         GameTopBar(title: 'SENTENCE CODE', stage: _stage, state: state),
                         const SizedBox(height: 10),
                         _characterHintCard(char),
-                        if (_isTutorialStage) ...[
+                        if (_isTutorialStage && !_showTutorialIntro) ...[
                           const SizedBox(height: 8),
                           _tutorialActionHint(
                             _selectedNumber == null
@@ -111,6 +117,15 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                     ),
             ),
           ),
+          if (_showTutorialIntro)
+            Positioned.fill(
+              child: TutorialIntroOverlay(
+                title: 'SENTENCE CODE',
+                guide: _guide,
+                tip: _guideTip,
+                onDismiss: _dismissTutorialIntro,
+              ),
+            ),
         ],
       ),
     );
@@ -130,6 +145,13 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
         style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
+  }
+
+  Future<void> _dismissTutorialIntro() async {
+    final state = context.read<GameStateManager>();
+    await state.markStage1IntroSeen('sentence_code');
+    if (!mounted) return;
+    setState(() => _showTutorialIntro = false);
   }
 
   Widget _characterHintCard(CharacterProfile char) {
@@ -184,16 +206,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
             return GestureDetector(
               onTap: revealed || number == null
                   ? null
-                  : () {
-                      if (_isTutorialStage) {
-                        final required = _nextRequiredNumber();
-                        if (required != null && number != required) {
-                          _showTutorialOrderMessage(required);
-                          return;
-                        }
-                      }
-                      setState(() => _selectedNumber = number);
-                    },
+                  : () => _onSelectHintNumber(number),
               child: Container(
                 width: 30,
                 height: 34,
@@ -275,10 +288,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  _maskHintWord(hint.word),
-                  style: const TextStyle(letterSpacing: 2.3, fontWeight: FontWeight.w800),
-                ),
+                _buildHintWordTokens(hint.word),
               ],
             );
           },
@@ -497,13 +507,68 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     );
   }
 
-  String _maskHintWord(String word) {
+  Widget _buildHintWordTokens(String word) {
     final upper = word.toUpperCase();
-    final chars = upper.split('');
-    return chars.map((ch) {
-      if (!_letterPattern.hasMatch(ch)) return ch;
-      return _revealedLetters.contains(ch) ? ch : '_';
-    }).join(' ');
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: upper.split('').map((ch) {
+        if (!_letterPattern.hasMatch(ch)) {
+          return Container(
+            width: 24,
+            height: 30,
+            alignment: Alignment.center,
+            child: Text(
+              ch,
+              style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF475569)),
+            ),
+          );
+        }
+        final revealed = _revealedLetters.contains(ch);
+        final number = _letterNumberMap[ch];
+        final selectable = !revealed && number != null;
+        final selected = selectable && number == _selectedNumber;
+        return GestureDetector(
+          onTap: selectable ? () => _onSelectHintNumber(number!) : null,
+          child: Container(
+            width: 30,
+            height: 34,
+            decoration: BoxDecoration(
+              color: revealed
+                  ? const Color(0xFFDDEBFF)
+                  : (selected ? const Color(0xFFFFF3BF) : const Color(0xFFF1F3F5)),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selected ? const Color(0xFFD9480F) : const Color(0xFFCBD5E1),
+                width: selected ? 1.7 : 1,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              revealed ? ch : '${number ?? '?'}',
+              style: TextStyle(
+                fontSize: revealed ? 18 : 12,
+                fontWeight: FontWeight.w800,
+                color: revealed
+                    ? const Color(0xFF1D4ED8)
+                    : (selected ? const Color(0xFFD9480F) : const Color(0xFF475569)),
+              ),
+            ),
+          ),
+        );
+      }).toList(growable: false),
+    );
+  }
+
+  void _onSelectHintNumber(int number) {
+    if (_isTutorialStage) {
+      final required = _nextRequiredNumber();
+      if (required != null && number != required) {
+        _showTutorialOrderMessage(required);
+        return;
+      }
+    }
+    setState(() => _selectedNumber = number);
   }
 
   Map<String, int> _buildLetterNumberMap(String sentence) {

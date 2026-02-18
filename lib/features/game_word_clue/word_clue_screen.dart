@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
 import '../../core/widgets/game_top_bar.dart';
 import '../../core/widgets/readable_result_dialog.dart';
+import '../../core/widgets/tutorial_intro_overlay.dart';
 
 class WordClueScreen extends StatefulWidget {
   const WordClueScreen({super.key});
@@ -29,14 +30,11 @@ class _WordClueScreenState extends State<WordClueScreen> {
   int _stage = 1;
   bool _stageLoaded = false;
   bool _dialogOpen = false;
+  bool _showTutorialIntro = false;
   int _tutorialStep = 0;
+  static const String _guide = '의미와 품사를 보고 알파벳 타일을 조합해 단어를 완성하는 모드입니다.';
+  static const String _guideTip = '품사와 의미를 먼저 확인하고, 길이가 짧은 단어부터 맞히면 진행이 쉬워집니다.';
   bool get _isTutorialStage => _stage == 1;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRound();
-  }
 
   @override
   void didChangeDependencies() {
@@ -48,13 +46,15 @@ class _WordClueScreenState extends State<WordClueScreen> {
   }
 
   void _loadRound() {
+    final introSeen = !_isTutorialStage || context.read<GameStateManager>().hasSeenStage1Intro('word_clue');
     _round = _isTutorialStage ? _buildTutorialRound() : _repo.getWordClueRoundForStage(_stage);
     _availableTiles = _isTutorialStage
         ? _round.word.toUpperCase().split('')
         : (_round.word.toUpperCase().split('')..shuffle(Random()));
     _picked.clear();
     _solved = false;
-    _tutorialStep = _isTutorialStage ? 0 : 3;
+    _showTutorialIntro = _isTutorialStage && !introSeen;
+    _tutorialStep = _isTutorialStage ? (_showTutorialIntro ? -1 : 0) : 3;
     setState(() {});
   }
 
@@ -139,7 +139,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
                       ],
                     ),
                   ),
-                  if (_isTutorialStage) ...[
+                  if (_isTutorialStage && !_showTutorialIntro) ...[
                     const SizedBox(height: 8),
                     _tutorialActionHint(
                       _tutorialStep == 0
@@ -239,6 +239,15 @@ class _WordClueScreenState extends State<WordClueScreen> {
               ),
             ),
           ),
+          if (_showTutorialIntro)
+            Positioned.fill(
+              child: TutorialIntroOverlay(
+                title: 'WORD CLUE',
+                guide: _guide,
+                tip: _guideTip,
+                onDismiss: _dismissTutorialIntro,
+              ),
+            ),
         ],
       ),
     );
@@ -258,6 +267,16 @@ class _WordClueScreenState extends State<WordClueScreen> {
         style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
+  }
+
+  Future<void> _dismissTutorialIntro() async {
+    final state = context.read<GameStateManager>();
+    await state.markStage1IntroSeen('word_clue');
+    if (!mounted) return;
+    setState(() {
+      _showTutorialIntro = false;
+      _tutorialStep = 0;
+    });
   }
 
   void _pick(int index) {

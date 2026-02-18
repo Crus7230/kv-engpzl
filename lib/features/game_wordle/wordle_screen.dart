@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
 import '../../core/widgets/game_top_bar.dart';
 import '../../core/widgets/readable_result_dialog.dart';
+import '../../core/widgets/tutorial_intro_overlay.dart';
 import 'wordle_provider.dart';
 
 class WordleScreen extends StatefulWidget {
@@ -22,9 +23,13 @@ class WordleScreen extends StatefulWidget {
 
 class _WordleScreenState extends State<WordleScreen> {
   bool _dialogOpen = false;
+  bool _showTutorialIntro = false;
   final RegExp _hangul = RegExp(r'[\uAC00-\uD7A3]');
   int _tutorialStep = 0;
   int _lastSeenStage = -1;
+  static const String _tutorialWarmupGuess = 'RACE';
+  static const String _guide = '6번 안에 정답 단어를 맞히는 게임입니다. 색상 피드백으로 위치와 포함 여부를 파악하세요.';
+  static const String _guideTip = '초반에는 모음과 자주 쓰는 자음을 섞어 입력하면 정답 후보를 빠르게 줄일 수 있습니다.';
   bool _isTutorialStage(int stage) => stage == 1;
 
   bool _hasKoreanMeaning(String text) {
@@ -67,28 +72,29 @@ class _WordleScreenState extends State<WordleScreen> {
                     stageLabel: 'STAGE ${game.stage}  -  ${game.badgeLabel}',
                     badgeColor: game.badgeColor,
                   ),
-                  if (_isTutorialStage(game.stage) && _tutorialStep <= 1) ...[
+                  if (_isTutorialStage(game.stage) && !_showTutorialIntro && _tutorialStep <= 3) ...[
                     const SizedBox(height: 8),
-                    _tutorialActionHint(
-                      _tutorialStep == 0
-                          ? '튜토리얼: 보드에 BOOK을 입력하세요.'
-                          : '튜토리얼: ${game.wordLength}칸을 모두 채우세요.',
-                    ),
+                    _tutorialActionHint(_tutorialHintText(game)),
                   ],
                   const SizedBox(height: 14),
                   _board(game, skin),
                   const SizedBox(height: 12),
                   _characterHint(character, game),
-                  if (_isTutorialStage(game.stage) && _tutorialStep == 2) ...[
-                    const SizedBox(height: 8),
-                    _tutorialActionHint('튜토리얼: 이제 ENTER를 누르세요.'),
-                  ],
                   const SizedBox(height: 12),
                   _keyboard(game),
                 ],
               ),
             ),
           ),
+          if (_showTutorialIntro)
+            Positioned.fill(
+              child: TutorialIntroOverlay(
+                title: 'WORDLE',
+                guide: _guide,
+                tip: _guideTip,
+                onDismiss: () => _dismissTutorialIntro(game),
+              ),
+            ),
         ],
       ),
     );
@@ -125,10 +131,10 @@ class _WordleScreenState extends State<WordleScreen> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       padding: const EdgeInsets.symmetric(vertical: 2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _isTutorialStage(game.stage) && _tutorialStep <= 1
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+          color: _isTutorialStage(game.stage) && (_tutorialStep == 0 || _tutorialStep == 2)
               ? const Color(0xFFD9480F)
               : Colors.transparent,
           width: 2,
@@ -235,8 +241,8 @@ class _WordleScreenState extends State<WordleScreen> {
         final keyWidth = ((width - 48) / 10).clamp(24.0, 38.0).toDouble();
         final keyHeight = (keyWidth * 1.45).clamp(36.0, 52.0).toDouble();
         final actionWidth = (keyWidth * 2.5).clamp(94.0, 132.0).toDouble();
-        final highlightKeys = _isTutorialStage(game.stage) && _tutorialStep <= 1;
-        final highlightEnter = _isTutorialStage(game.stage) && _tutorialStep == 2;
+        final highlightKeys = _isTutorialStage(game.stage) && (_tutorialStep == 0 || _tutorialStep == 2);
+        final highlightEnter = _isTutorialStage(game.stage) && (_tutorialStep == 1 || _tutorialStep == 3);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.all(6),
@@ -287,7 +293,7 @@ class _WordleScreenState extends State<WordleScreen> {
                   'DEL',
                   actionWidth,
                   keyHeight,
-                  () => game.backspace(),
+                  () => _onTapBackspace(game),
                   emphasized: false,
                 ),
               ],
@@ -323,51 +329,114 @@ class _WordleScreenState extends State<WordleScreen> {
   }
 
   Future<void> _submitGuess(WordleProvider game) async {
-    if (_isTutorialStage(game.stage) && _tutorialStep < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼: 먼저 글자를 입력하세요.')),
-      );
-      return;
-    }
-    if (_isTutorialStage(game.stage) && _tutorialStep == 2 && game.currentCol < game.wordLength) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼: ENTER 전에 줄을 모두 채우세요.')),
-      );
-      return;
-    }
-    if (_isTutorialStage(game.stage) && _tutorialStep == 2) {
-      setState(() => _tutorialStep = 3);
+    if (_isTutorialStage(game.stage)) {
+      if (_showTutorialIntro) return;
+      final expected = _tutorialStep <= 1 ? _tutorialWarmupGuess : game.currentWord.word.toUpperCase();
+      final current = game.board[game.currentRow].join().toUpperCase();
+      if (_tutorialStep == 0 || _tutorialStep == 2) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('튜토리얼: $expected 입력을 먼저 완료하세요.')),
+        );
+        return;
+      }
+      if (_tutorialStep != 1 && _tutorialStep != 3) {
+        return;
+      }
+      if (game.currentCol < game.wordLength || current != expected) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('튜토리얼: $expected 를 정확히 입력한 뒤 ENTER를 누르세요.')),
+        );
+        return;
+      }
     }
     final message = await game.submit();
+    if (_isTutorialStage(game.stage) && mounted) {
+      if (_tutorialStep == 1 && !game.isWon && !game.isLost) {
+        setState(() => _tutorialStep = 2);
+      } else if (_tutorialStep == 3) {
+        setState(() => _tutorialStep = 4);
+      }
+    }
     if (!mounted || message == null) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _onTutorialTypeKey(WordleProvider game, String key) {
-    if (_isTutorialStage(game.stage) && _tutorialStep == 2) {
+    if (!_isTutorialStage(game.stage)) {
+      game.typeKey(key);
+      return;
+    }
+    if (_showTutorialIntro) return;
+    if (_tutorialStep == 1 || _tutorialStep == 3) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼: 이제 ENTER를 누르세요.')),
+        const SnackBar(content: Text('튜토리얼: ENTER를 눌러 다음 단계로 진행하세요.')),
+      );
+      return;
+    }
+    if (_tutorialStep != 0 && _tutorialStep != 2) return;
+    if (game.currentCol >= game.wordLength) return;
+    final expectedWord = _tutorialStep == 0 ? _tutorialWarmupGuess : game.currentWord.word.toUpperCase();
+    final expectedChar = expectedWord[game.currentCol];
+    if (key != expectedChar) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('튜토리얼: 다음 글자는 $expectedChar 입니다.')),
       );
       return;
     }
     game.typeKey(key);
+    if (game.currentCol >= game.wordLength) {
+      setState(() => _tutorialStep = _tutorialStep == 0 ? 1 : 3);
+    }
+  }
+
+  void _onTapBackspace(WordleProvider game) {
+    game.backspace();
     if (!_isTutorialStage(game.stage)) return;
-    if (_tutorialStep == 0 && game.currentCol > 0) {
-      setState(() => _tutorialStep = 1);
+    if (_showTutorialIntro) return;
+    if (_tutorialStep == 1 && game.currentCol < game.wordLength) {
+      setState(() => _tutorialStep = 0);
       return;
     }
-    if (_tutorialStep == 1 && game.currentCol >= game.wordLength) {
+    if (_tutorialStep == 3 && game.currentCol < game.wordLength) {
       setState(() => _tutorialStep = 2);
     }
+  }
+
+  String _tutorialHintText(WordleProvider game) {
+    switch (_tutorialStep) {
+      case 0:
+        return '튜토리얼: $_tutorialWarmupGuess 를 입력해 색상 피드백을 확인하세요.';
+      case 1:
+        return '튜토리얼: ENTER를 눌러 색상 결과를 확인하세요.';
+      case 2:
+        return '튜토리얼: 이제 정답 ${game.currentWord.word.toUpperCase()} 를 입력하세요.';
+      case 3:
+        return '튜토리얼: ENTER로 정답을 제출하세요.';
+      default:
+        return '튜토리얼 진행 중';
+    }
+  }
+
+  Future<void> _dismissTutorialIntro(WordleProvider game) async {
+    final state = context.read<GameStateManager>();
+    await state.markStage1IntroSeen('wordle');
+    if (!mounted) return;
+    setState(() {
+      _showTutorialIntro = false;
+      _tutorialStep = _isTutorialStage(game.stage) ? 0 : 4;
+    });
   }
 
   void _syncTutorialState(WordleProvider game) {
     if (_lastSeenStage == game.stage) return;
     _lastSeenStage = game.stage;
     if (_isTutorialStage(game.stage)) {
-      _tutorialStep = 0;
+      final seen = context.read<GameStateManager>().hasSeenStage1Intro('wordle');
+      _showTutorialIntro = !seen;
+      _tutorialStep = _showTutorialIntro ? -1 : 0;
     } else {
-      _tutorialStep = 3;
+      _showTutorialIntro = false;
+      _tutorialStep = 4;
     }
   }
 

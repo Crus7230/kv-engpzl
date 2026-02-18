@@ -19,7 +19,7 @@ class WordleProvider extends ChangeNotifier {
   final GameStateManager _gameState;
   final WordRepository _wordRepository = WordRepository.instance;
   final Random _random = Random();
-  static const String _tutorialAnswer = 'BOOK';
+  static const String _tutorialAnswer = 'CARE';
 
   int stage = 1;
   int maxRows = 6;
@@ -70,8 +70,8 @@ class WordleProvider extends ChangeNotifier {
       currentWord = _wordRepository.getDictionaryEntry(_tutorialAnswer) ??
           const WordData(
             word: _tutorialAnswer,
-            meaning: 'A printed work of pages.',
-            korMeaning: '책',
+            meaning: 'To look after someone with kindness and attention.',
+            korMeaning: '돌봄, 배려',
             pos: 'Noun',
             difficulty: 1,
           );

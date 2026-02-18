@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
 import '../../core/widgets/game_top_bar.dart';
 import '../../core/widgets/readable_result_dialog.dart';
+import '../../core/widgets/tutorial_intro_overlay.dart';
 
 class AnagramScreen extends StatefulWidget {
   const AnagramScreen({super.key});
@@ -31,7 +32,10 @@ class _AnagramScreenState extends State<AnagramScreen> {
   int _stage = 1;
   bool _stageLoaded = false;
   bool _dialogOpen = false;
+  bool _showTutorialIntro = false;
   int _tutorialStep = 0;
+  static const String _guide = '주어진 글자 조합으로 핵심 단어를 찾고, 추가 단어로 보너스 점수를 얻는 모드입니다.';
+  static const String _guideTip = '2~3글자 단어를 먼저 확보하고, 핵심 단어 길이를 늘려가며 조합해 보세요.';
   bool get _isTutorialStage => _stage == 1;
 
   @override
@@ -51,7 +55,9 @@ class _AnagramScreenState extends State<AnagramScreen> {
     _round = _isTutorialStage ? _buildTutorialRound() : _repo.getAnagramRoundForStage(_stage);
     _seedTiles = _isTutorialStage ? _round.seed.split('') : (_round.seed.split('')..shuffle(Random()));
     _pickedTileIndexes.clear();
-    _tutorialStep = _isTutorialStage ? 0 : 3;
+    final introSeen = !_isTutorialStage || context.read<GameStateManager>().hasSeenStage1Intro('anagram');
+    _showTutorialIntro = _isTutorialStage && !introSeen;
+    _tutorialStep = _isTutorialStage ? (_showTutorialIntro ? -1 : 0) : 3;
     _stageLoaded = true;
   }
 
@@ -126,7 +132,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
                       ],
                     ),
                   ),
-                  if (_isTutorialStage) ...[
+                  if (_isTutorialStage && !_showTutorialIntro) ...[
                     const SizedBox(height: 8),
                     _tutorialActionHint(
                       _tutorialStep == 0
@@ -323,6 +329,15 @@ class _AnagramScreenState extends State<AnagramScreen> {
               ),
             ),
           ),
+          if (_showTutorialIntro)
+            Positioned.fill(
+              child: TutorialIntroOverlay(
+                title: 'ANAGRAM',
+                guide: _guide,
+                tip: _guideTip,
+                onDismiss: _dismissTutorialIntro,
+              ),
+            ),
         ],
       ),
     );
@@ -342,6 +357,16 @@ class _AnagramScreenState extends State<AnagramScreen> {
         style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
     );
+  }
+
+  Future<void> _dismissTutorialIntro() async {
+    final state = context.read<GameStateManager>();
+    await state.markStage1IntroSeen('anagram');
+    if (!mounted) return;
+    setState(() {
+      _showTutorialIntro = false;
+      _tutorialStep = 0;
+    });
   }
 
   Widget _metric(String label, String value, Color color) {

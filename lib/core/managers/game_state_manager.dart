@@ -57,6 +57,7 @@ class GameStateManager extends ChangeNotifier {
     'anagram': 0,
     'word_crash': 0,
   };
+  final Set<String> stage1IntroSeenGames = <String>{};
   int attendanceStreak = 0;
   String? lastAttendanceDate;
 
@@ -94,6 +95,12 @@ class GameStateManager extends ChangeNotifier {
       if (parts.length != 2) continue;
       playCounts[parts[0]] = int.tryParse(parts[1]) ?? 0;
     }
+    final introSeen = _prefs.getStringList('stage1_intro_seen_games');
+    if (introSeen != null && introSeen.isNotEmpty) {
+      stage1IntroSeenGames
+        ..clear()
+        ..addAll(introSeen);
+    }
     attendanceStreak = (_prefs.getInt('attendance_streak') ?? 0).clamp(0, 9999);
     lastAttendanceDate = _prefs.getString('attendance_last_date');
     final recovered = _applyHeartRecoveryCatchUp();
@@ -118,6 +125,7 @@ class GameStateManager extends ChangeNotifier {
       'unlockedCharacters': unlockedCharacters.toList(),
       'bestStages': bestStages,
       'playCounts': playCounts,
+      'stage1IntroSeenGames': stage1IntroSeenGames.toList(growable: false),
       'attendanceStreak': attendanceStreak,
       'lastAttendanceDate': lastAttendanceDate,
       'updatedAt': DateTime.now().toIso8601String(),
@@ -165,6 +173,12 @@ class GameStateManager extends ChangeNotifier {
         playCounts[key] = val;
       }
     }
+    final remoteIntroSeen = payload['stage1IntroSeenGames'];
+    if (remoteIntroSeen is List) {
+      stage1IntroSeenGames
+        ..clear()
+        ..addAll(remoteIntroSeen.whereType<String>());
+    }
     attendanceStreak = ((payload['attendanceStreak'] as num?)?.toInt() ?? attendanceStreak).clamp(0, 9999);
     final remoteAttendanceDate = payload['lastAttendanceDate'] as String?;
     if (remoteAttendanceDate != null && remoteAttendanceDate.trim().isNotEmpty) {
@@ -196,6 +210,7 @@ class GameStateManager extends ChangeNotifier {
       'play_counts',
       playCounts.entries.map((e) => '${e.key}:${e.value}').toList(),
     );
+    await _prefs.setStringList('stage1_intro_seen_games', stage1IntroSeenGames.toList(growable: false));
     await _prefs.setInt('attendance_streak', attendanceStreak);
     if (lastAttendanceDate == null) {
       await _prefs.remove('attendance_last_date');
@@ -317,6 +332,7 @@ class GameStateManager extends ChangeNotifier {
         'anagram': 0,
         'word_crash': 0,
       });
+    stage1IntroSeenGames.clear();
     attendanceStreak = 0;
     lastAttendanceDate = null;
     _heartRefillStartedAt = null;
@@ -356,6 +372,17 @@ class GameStateManager extends ChangeNotifier {
 
   int getBestStage(String gameId) {
     return bestStages[gameId] ?? 1;
+  }
+
+  bool hasSeenStage1Intro(String gameId) {
+    return stage1IntroSeenGames.contains(gameId);
+  }
+
+  Future<void> markStage1IntroSeen(String gameId) async {
+    if (stage1IntroSeenGames.contains(gameId)) return;
+    stage1IntroSeenGames.add(gameId);
+    await _save();
+    notifyListeners();
   }
 
   int getPlayCount(String gameId) {
