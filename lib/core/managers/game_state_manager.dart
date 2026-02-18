@@ -18,6 +18,20 @@ class HintUsageResult {
   final String message;
 }
 
+class AttendanceResult {
+  const AttendanceResult({
+    required this.claimed,
+    required this.streak,
+    required this.starsGained,
+    required this.message,
+  });
+
+  final bool claimed;
+  final int streak;
+  final int starsGained;
+  final String message;
+}
+
 class GameStateManager extends ChangeNotifier {
   static const int maxHearts = 5;
   static const Duration heartRefillInterval = Duration(minutes: 5);
@@ -26,6 +40,7 @@ class GameStateManager extends ChangeNotifier {
 
   int hearts = maxHearts;
   int stars = 0;
+  int totalStarsEarned = 0;
   String selectedCharacterId = 'CHAR_A';
   final Set<String> unlockedCharacters = {'CHAR_A'};
   final Map<String, int> bestStages = {
@@ -40,6 +55,8 @@ class GameStateManager extends ChangeNotifier {
     'anagram': 0,
     'word_crash': 0,
   };
+  int attendanceStreak = 0;
+  String? lastAttendanceDate;
 
   final Map<String, DateTime> _lastHintUsedAt = {};
   final Map<String, int> _hintUseCount = {};
@@ -51,6 +68,7 @@ class GameStateManager extends ChangeNotifier {
     _prefs = await SharedPreferences.getInstance();
     hearts = (_prefs.getInt('user_hearts') ?? maxHearts).clamp(0, maxHearts);
     stars = _prefs.getInt('user_stars') ?? 0;
+    totalStarsEarned = _prefs.getInt('user_total_stars_earned') ?? stars;
     final refillStartedAtMs = _prefs.getInt('heart_refill_started_at_ms');
     if (refillStartedAtMs != null) {
       _heartRefillStartedAt = DateTime.fromMillisecondsSinceEpoch(refillStartedAtMs);
@@ -74,6 +92,8 @@ class GameStateManager extends ChangeNotifier {
       if (parts.length != 2) continue;
       playCounts[parts[0]] = int.tryParse(parts[1]) ?? 0;
     }
+    attendanceStreak = (_prefs.getInt('attendance_streak') ?? 0).clamp(0, 9999);
+    lastAttendanceDate = _prefs.getString('attendance_last_date');
     final recovered = _applyHeartRecoveryCatchUp();
     if (recovered) {
       await _save(triggerRemote: false);
@@ -89,11 +109,15 @@ class GameStateManager extends ChangeNotifier {
     return {
       'hearts': hearts,
       'stars': stars,
+      'totalStarsEarned': totalStarsEarned,
+      'totalStars': totalStarsEarned,
       'heartRefillStartedAtMs': _heartRefillStartedAt?.millisecondsSinceEpoch,
       'selectedCharacterId': selectedCharacterId,
       'unlockedCharacters': unlockedCharacters.toList(),
       'bestStages': bestStages,
       'playCounts': playCounts,
+      'attendanceStreak': attendanceStreak,
+      'lastAttendanceDate': lastAttendanceDate,
       'updatedAt': DateTime.now().toIso8601String(),
     };
   }
@@ -101,6 +125,12 @@ class GameStateManager extends ChangeNotifier {
   Future<void> applyRemoteState(Map<String, dynamic> payload) async {
     hearts = ((payload['hearts'] as num?)?.toInt() ?? hearts).clamp(0, maxHearts);
     stars = (payload['stars'] as num?)?.toInt() ?? stars;
+    final remoteTotal = ((payload['totalStarsEarned'] as num?)?.toInt()) ??
+        ((payload['totalStars'] as num?)?.toInt());
+    totalStarsEarned = remoteTotal ?? totalStarsEarned;
+    if (totalStarsEarned < stars) {
+      totalStarsEarned = stars;
+    }
     final refillStartedAtMs = (payload['heartRefillStartedAtMs'] as num?)?.toInt();
     _heartRefillStartedAt = refillStartedAtMs == null
         ? _heartRefillStartedAt
@@ -133,6 +163,11 @@ class GameStateManager extends ChangeNotifier {
         playCounts[key] = val;
       }
     }
+    attendanceStreak = ((payload['attendanceStreak'] as num?)?.toInt() ?? attendanceStreak).clamp(0, 9999);
+    final remoteAttendanceDate = payload['lastAttendanceDate'] as String?;
+    if (remoteAttendanceDate != null && remoteAttendanceDate.trim().isNotEmpty) {
+      lastAttendanceDate = remoteAttendanceDate;
+    }
 
     _applyHeartRecoveryCatchUp();
     _ensureHeartRefillTicker();
@@ -143,6 +178,7 @@ class GameStateManager extends ChangeNotifier {
   Future<void> _save({bool triggerRemote = true}) async {
     await _prefs.setInt('user_hearts', hearts);
     await _prefs.setInt('user_stars', stars);
+    await _prefs.setInt('user_total_stars_earned', totalStarsEarned);
     if (_heartRefillStartedAt != null) {
       await _prefs.setInt('heart_refill_started_at_ms', _heartRefillStartedAt!.millisecondsSinceEpoch);
     } else {
@@ -158,6 +194,12 @@ class GameStateManager extends ChangeNotifier {
       'play_counts',
       playCounts.entries.map((e) => '${e.key}:${e.value}').toList(),
     );
+    await _prefs.setInt('attendance_streak', attendanceStreak);
+    if (lastAttendanceDate == null) {
+      await _prefs.remove('attendance_last_date');
+    } else {
+      await _prefs.setString('attendance_last_date', lastAttendanceDate!);
+    }
     if (triggerRemote && _remoteSyncHandler != null) {
       unawaited(_remoteSyncHandler!(exportState()));
     }
@@ -172,7 +214,9 @@ class GameStateManager extends ChangeNotifier {
   }
 
   Future<void> addStars(int amount) async {
+    if (amount <= 0) return;
     stars += amount;
+    totalStarsEarned += amount;
     await _save();
     notifyListeners();
   }
@@ -185,6 +229,50 @@ class GameStateManager extends ChangeNotifier {
       await _save();
       notifyListeners();
     }
+  }
+
+  bool get hasPlayableHeart => hearts > 0;
+
+  bool get canCheckInToday => lastAttendanceDate != _todayKey();
+
+  Future<AttendanceResult> claimAttendance() async {
+    final today = _todayKey();
+    if (lastAttendanceDate == today) {
+      return AttendanceResult(
+        claimed: false,
+        streak: attendanceStreak,
+        starsGained: 0,
+        message: 'Already checked in today.',
+      );
+    }
+
+    if (lastAttendanceDate == _todayKey(daysOffset: -1)) {
+      attendanceStreak += 1;
+    } else {
+      attendanceStreak = 1;
+    }
+    lastAttendanceDate = today;
+
+    final dailyStars = 1;
+    final streakBonus = attendanceStreak % 7 == 0 ? 5 : 0;
+    final milestoneBonus = attendanceStreak % 100 == 0 ? attendanceStreak : 0;
+    final starsGained = dailyStars + streakBonus + milestoneBonus;
+    stars += starsGained;
+    totalStarsEarned += starsGained;
+
+    _applyHeartRecoveryCatchUp();
+    _ensureHeartRefillTicker();
+    await _save();
+    notifyListeners();
+    final parts = <String>['+$dailyStars daily'];
+    if (streakBonus > 0) parts.add('+$streakBonus weekly');
+    if (milestoneBonus > 0) parts.add('+$milestoneBonus milestone');
+    return AttendanceResult(
+      claimed: true,
+      streak: attendanceStreak,
+      starsGained: starsGained,
+      message: 'Attendance complete (${parts.join(', ')}).',
+    );
   }
 
   Future<void> recoverHeart() async {
@@ -201,6 +289,40 @@ class GameStateManager extends ChangeNotifier {
     }
   }
 
+  Future<void> resetProgressForPrelaunch() async {
+    hearts = maxHearts;
+    stars = 0;
+    totalStarsEarned = 0;
+    selectedCharacterId = 'CHAR_A';
+    unlockedCharacters
+      ..clear()
+      ..add('CHAR_A');
+    bestStages
+      ..clear()
+      ..addAll({
+        'wordle': 1,
+        'word_clue': 1,
+        'anagram': 1,
+        'word_crash': 1,
+      });
+    playCounts
+      ..clear()
+      ..addAll({
+        'wordle': 0,
+        'word_clue': 0,
+        'anagram': 0,
+        'word_crash': 0,
+      });
+    attendanceStreak = 0;
+    lastAttendanceDate = null;
+    _heartRefillStartedAt = null;
+    _lastHintUsedAt.clear();
+    _hintUseCount.clear();
+    _ensureHeartRefillTicker();
+    await _save();
+    notifyListeners();
+  }
+
   Future<bool> spendStars(int amount) async {
     if (stars < amount) return false;
     stars -= amount;
@@ -208,6 +330,8 @@ class GameStateManager extends ChangeNotifier {
     notifyListeners();
     return true;
   }
+
+  int get spentStars => (totalStarsEarned - stars).clamp(0, 1 << 30);
 
   Future<bool> unlockCharacter(String characterId, int price) async {
     if (unlockedCharacters.contains(characterId)) return true;
@@ -234,10 +358,16 @@ class GameStateManager extends ChangeNotifier {
     return playCounts[gameId] ?? 0;
   }
 
-  Future<void> increasePlayCount(String gameId) async {
+  Future<AttendanceResult?> increasePlayCount(String gameId) async {
     playCounts[gameId] = (playCounts[gameId] ?? 0) + 1;
+    AttendanceResult? attendance;
+    if (canCheckInToday) {
+      attendance = await claimAttendance();
+      return attendance;
+    }
     await _save();
     notifyListeners();
+    return attendance;
   }
 
   Future<void> setBestStageIfHigher(String gameId, int stage) async {
@@ -359,5 +489,12 @@ class GameStateManager extends ChangeNotifier {
   void dispose() {
     _heartRefillTicker?.cancel();
     super.dispose();
+  }
+
+  String _todayKey({int daysOffset = 0}) {
+    final day = DateTime.now().add(Duration(days: daysOffset));
+    final mm = day.month.toString().padLeft(2, '0');
+    final dd = day.day.toString().padLeft(2, '0');
+    return '${day.year}-$mm-$dd';
   }
 }

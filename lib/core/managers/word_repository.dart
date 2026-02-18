@@ -11,6 +11,11 @@ class WordData {
     required this.pos,
     this.synonym = '',
     this.antonym = '',
+    this.themeGroup = 'Word',
+    this.themeCategory = 'General',
+    this.difficulty = 3,
+    this.isEssential = false,
+    this.frequencyZipf = 0,
   });
 
   final String word;
@@ -19,6 +24,11 @@ class WordData {
   final String pos;
   final String synonym;
   final String antonym;
+  final String themeGroup;
+  final String themeCategory;
+  final int difficulty;
+  final bool isEssential;
+  final double frequencyZipf;
 }
 
 class AnagramRoundData {
@@ -40,12 +50,13 @@ class WordRepository {
 
   final Random _random = Random();
   static final RegExp _alphaOnly = RegExp(r'^[A-Z]+$');
-  static final RegExp _hangul = RegExp(r'[가-힣]');
+  static final RegExp _hangul = RegExp(r'[\uAC00-\uD7A3]');
   static const Set<String> _allowedCluePos = {
     'Noun',
     'Verb',
     'Adjective',
     'Adverb',
+    'Word',
   };
 
   // Fallback pools for test/offline startup before assets are available.
@@ -112,15 +123,60 @@ class WordRepository {
   ];
 
   static const List<WordData> _defaultClueWords = [
-    WordData(word: 'MERCY', meaning: 'Compassion shown toward someone.', korMeaning: '자비', pos: 'Noun'),
-    WordData(word: 'JOLLY', meaning: 'Cheerful and lively.', korMeaning: '명랑한', pos: 'Adjective'),
-    WordData(word: 'THRIVE', meaning: 'To grow strongly and well.', korMeaning: '번영하다', pos: 'Verb'),
-    WordData(word: 'KIND', meaning: 'Having a friendly nature.', korMeaning: '친절한', pos: 'Adjective'),
-    WordData(word: 'CLARITY', meaning: 'The quality of being clear.', korMeaning: '명확함', pos: 'Noun'),
-    WordData(word: 'IMPACT', meaning: 'A strong effect on something.', korMeaning: '영향', pos: 'Noun'),
-    WordData(word: 'ACCESS', meaning: 'The right to use or enter.', korMeaning: '접근', pos: 'Noun'),
-    WordData(word: 'POLICY', meaning: 'A plan of action by an organization.', korMeaning: '정책', pos: 'Noun'),
-    WordData(word: 'GLOBAL', meaning: 'Relating to the whole world.', korMeaning: '세계적인', pos: 'Adjective'),
+    WordData(
+      word: 'MERCY',
+      meaning: 'Compassion shown toward someone.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    WordData(
+      word: 'JOLLY',
+      meaning: 'Cheerful and lively.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Adjective',
+    ),
+    WordData(
+      word: 'THRIVE',
+      meaning: 'To grow strongly and well.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Verb',
+    ),
+    WordData(
+      word: 'KIND',
+      meaning: 'Having a friendly nature.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Adjective',
+    ),
+    WordData(
+      word: 'CLARITY',
+      meaning: 'The quality of being clear.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    WordData(
+      word: 'IMPACT',
+      meaning: 'A strong effect on something.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    WordData(
+      word: 'ACCESS',
+      meaning: 'The right to use or enter.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    WordData(
+      word: 'POLICY',
+      meaning: 'A plan of action by an organization.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    WordData(
+      word: 'GLOBAL',
+      meaning: 'Relating to the whole world.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Adjective',
+    ),
   ];
 
   static const List<AnagramRoundData> _defaultAnagramRounds = [
@@ -189,18 +245,78 @@ class WordRepository {
   };
 
   static const Map<String, WordData> _wordleGlossary = {
-    'BOOK': WordData(word: 'BOOK', meaning: 'A printed work of pages.', korMeaning: '책', pos: 'Noun'),
-    'TREE': WordData(word: 'TREE', meaning: 'A woody perennial plant.', korMeaning: '나무', pos: 'Noun'),
-    'WIND': WordData(word: 'WIND', meaning: 'Natural movement of air.', korMeaning: '바람', pos: 'Noun'),
-    'MOON': WordData(word: 'MOON', meaning: "Earth's natural satellite.", korMeaning: '달', pos: 'Noun'),
-    'CODE': WordData(word: 'CODE', meaning: 'Program instructions.', korMeaning: '코드', pos: 'Noun'),
-    'APPLE': WordData(word: 'APPLE', meaning: 'A round fruit.', korMeaning: '사과', pos: 'Noun'),
-    'BRAVE': WordData(word: 'BRAVE', meaning: 'Ready to face danger.', korMeaning: '용감한', pos: 'Adjective'),
-    'SOLVE': WordData(word: 'SOLVE', meaning: 'Find an answer.', korMeaning: '해결하다', pos: 'Verb'),
-    'SHINE': WordData(word: 'SHINE', meaning: 'Give out bright light.', korMeaning: '빛나다', pos: 'Verb'),
-    'LEARN': WordData(word: 'LEARN', meaning: 'Gain knowledge.', korMeaning: '배우다', pos: 'Verb'),
-    'SMILE': WordData(word: 'SMILE', meaning: 'Form a pleased expression.', korMeaning: '미소 짓다', pos: 'Verb'),
-    'WATER': WordData(word: 'WATER', meaning: 'A transparent liquid.', korMeaning: '물', pos: 'Noun'),
+    'BOOK': WordData(
+      word: 'BOOK',
+      meaning: 'A printed work of pages.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    'TREE': WordData(
+      word: 'TREE',
+      meaning: 'A woody perennial plant.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    'WIND': WordData(
+      word: 'WIND',
+      meaning: 'Natural movement of air.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    'MOON': WordData(
+      word: 'MOON',
+      meaning: "Earth's natural satellite.",
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    'CODE': WordData(
+      word: 'CODE',
+      meaning: 'Program instructions.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    'APPLE': WordData(
+      word: 'APPLE',
+      meaning: 'A round fruit.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
+    'BRAVE': WordData(
+      word: 'BRAVE',
+      meaning: 'Ready to face danger.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Adjective',
+    ),
+    'SOLVE': WordData(
+      word: 'SOLVE',
+      meaning: 'Find an answer.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Verb',
+    ),
+    'SHINE': WordData(
+      word: 'SHINE',
+      meaning: 'Give out bright light.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Verb',
+    ),
+    'LEARN': WordData(
+      word: 'LEARN',
+      meaning: 'Gain knowledge.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Verb',
+    ),
+    'SMILE': WordData(
+      word: 'SMILE',
+      meaning: 'Form a pleased expression.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Verb',
+    ),
+    'WATER': WordData(
+      word: 'WATER',
+      meaning: 'A transparent liquid.',
+      korMeaning: 'Korean meaning pending',
+      pos: 'Noun',
+    ),
   };
 
   List<String> _wordle4Answers = List<String>.from(_defaultWordle4Answers, growable: false);
@@ -208,8 +324,16 @@ class WordRepository {
   Set<String> _wordle4Allowed = Set<String>.from(_defaultWordle4Answers);
   Set<String> _wordle5Allowed = Set<String>.from(_defaultWordle5Answers);
   Set<String> _crashWords = Set<String>.from(_defaultCrashWords);
+  Set<String> _playableCrashWords = _buildPlayableCrashWords(_defaultCrashWords);
   List<WordData> _clueWords = List<WordData>.from(_defaultClueWords, growable: false);
   List<AnagramRoundData> _anagramRounds = List<AnagramRoundData>.from(_defaultAnagramRounds, growable: false);
+  List<WordData> _localDictionaryWords = List<WordData>.from(_defaultClueWords, growable: false);
+  List<AnagramRoundData> _playableAnagramRounds = List<AnagramRoundData>.from(_defaultAnagramRounds, growable: false);
+  List<WordData> _wordle4AnswerEntries = List<WordData>.empty(growable: false);
+  List<WordData> _wordle5AnswerEntries = List<WordData>.empty(growable: false);
+  Set<String> _anagramLexicon = const <String>{};
+  Set<String> _validWords = const <String>{};
+  Map<String, WordData> _dictionaryByWord = {};
 
   bool _loadedFromAssets = false;
   Future<void>? _loadTask;
@@ -231,6 +355,7 @@ class WordRepository {
         minLength: 3,
         maxLength: 7,
       );
+      final localDictionary = await _loadLocalDictionaryJson('assets/wordlists/local_dictionary.json');
       final clueWords = await _loadClueWordsJson('assets/wordlists/clue_words.json');
 
       if (answers4.isNotEmpty) {
@@ -247,9 +372,13 @@ class WordRepository {
       }
       if (crash.isNotEmpty) {
         _crashWords = crash;
+        _playableCrashWords = _buildPlayableCrashWords(crash);
       }
       if (clueWords.isNotEmpty) {
         _clueWords = clueWords.toList(growable: false);
+      }
+      if (localDictionary.isNotEmpty) {
+        _localDictionaryWords = localDictionary.toList(growable: false);
       }
 
       final anagramRounds = await _loadAnagramRoundsJson('assets/wordlists/anagram_rounds.json');
@@ -261,7 +390,10 @@ class WordRepository {
       if (_anagramRounds.isEmpty) {
         _anagramRounds = List<AnagramRoundData>.from(_defaultAnagramRounds, growable: false);
       }
-
+      _buildPlayableAnagramRounds();
+      _rebuildDictionary();
+      _buildWordleAnswerEntries();
+      _rebuildAnagramLexicon();
       _loadedFromAssets = true;
     } catch (_) {
       final fallbackSeeds = _clueWords.take(180).toList(growable: false);
@@ -269,7 +401,132 @@ class WordRepository {
       if (_anagramRounds.isEmpty) {
         _anagramRounds = List<AnagramRoundData>.from(_defaultAnagramRounds, growable: false);
       }
+      _localDictionaryWords = List<WordData>.from(_defaultClueWords, growable: false);
+      _buildPlayableAnagramRounds();
+      _rebuildDictionary();
+      _buildWordleAnswerEntries();
+      _rebuildAnagramLexicon();
     }
+  }
+
+  void _rebuildDictionary() {
+    final map = <String, WordData>{};
+    for (final entry in _localDictionaryWords) {
+      map[entry.word.toUpperCase()] = entry;
+    }
+    for (final entry in _clueWords) {
+      map.putIfAbsent(entry.word.toUpperCase(), () => entry);
+    }
+    for (final entry in _wordleGlossary.values) {
+      map[entry.word.toUpperCase()] = entry;
+    }
+    for (final round in _anagramRounds) {
+      final seed = round.seedInfo;
+      map[seed.word.toUpperCase()] = seed;
+    }
+    _dictionaryByWord = map;
+  }
+
+  void _buildPlayableAnagramRounds() {
+    final byWord = <String, WordData>{
+      for (final item in _localDictionaryWords) item.word.toUpperCase(): item,
+    };
+    final filtered = <AnagramRoundData>[];
+    for (final round in _anagramRounds) {
+      final seed = round.seed.toUpperCase();
+      final seedInfo = byWord[seed];
+      if (seedInfo == null) continue;
+      filtered.add(
+        AnagramRoundData(
+          seedInfo: seedInfo,
+          coreWords: round.coreWords,
+          generalWords: round.generalWords,
+        ),
+      );
+    }
+    if (filtered.isNotEmpty) {
+      _playableAnagramRounds = filtered;
+      return;
+    }
+
+    final generated = _buildAnagramRounds(_localDictionaryWords);
+    if (generated.isNotEmpty) {
+      _playableAnagramRounds = generated;
+    } else {
+      _playableAnagramRounds = List<AnagramRoundData>.from(_defaultAnagramRounds, growable: false);
+    }
+  }
+
+  void _buildWordleAnswerEntries() {
+    _wordle4AnswerEntries = _buildAnswerEntriesForLength(4);
+    _wordle5AnswerEntries = _buildAnswerEntriesForLength(5);
+  }
+
+
+  void _rebuildAnagramLexicon() {
+    final set = <String>{
+      ..._wordle4Allowed,
+      ..._wordle5Allowed,
+      ..._playableCrashWords,
+      ..._validWords,
+      ..._dictionaryByWord.keys,
+    };
+    for (final round in _playableAnagramRounds) {
+      set.addAll(round.coreWords);
+      set.addAll(round.generalWords);
+    }
+    _anagramLexicon = set;
+  }
+
+  List<WordData> _buildAnswerEntriesForLength(int length) {
+    final source = length == 4 ? _wordle4Answers : _wordle5Answers;
+    final out = <WordData>[];
+    for (final word in source) {
+      final info = _dictionaryByWord[word];
+      if (info != null) {
+        out.add(info);
+        continue;
+      }
+      out.add(
+        WordData(
+          word: word,
+          meaning: 'Common English word.',
+          korMeaning: 'Korean meaning pending',
+          pos: 'Word',
+          themeGroup: 'Word',
+          themeCategory: 'General',
+          difficulty: length == 4 ? 2 : 3,
+        ),
+      );
+    }
+    return out;
+  }
+
+  int getWaveDifficultyLevel(int stage) {
+    final s = stage < 1 ? 1 : stage;
+    final baseline = 1 + ((s - 1) ~/ 6);
+    const wave = [0, 1, 2, 1, 0, -1, 1, 2];
+    final value = baseline + wave[(s - 1) % wave.length];
+    return value.clamp(1, 6);
+  }
+
+  T _pickByDifficulty<T>({
+    required List<T> source,
+    required int stageDifficulty,
+    required int Function(T item) difficultyOf,
+  }) {
+    if (source.isEmpty) {
+      throw StateError('Cannot pick from empty source');
+    }
+    final sorted = List<T>.from(source)
+      ..sort((a, b) {
+        final da = (difficultyOf(a) - stageDifficulty).abs();
+        final db = (difficultyOf(b) - stageDifficulty).abs();
+        if (da != db) return da.compareTo(db);
+        return _random.nextInt(3) - 1;
+      });
+    final window = sorted.take(sorted.length < 14 ? sorted.length : 14).toList(growable: false);
+    return window[_random.nextInt(window.length)];
   }
 
   Future<Set<String>> _loadWordList(
@@ -307,8 +564,12 @@ class WordRepository {
       final word = (map['word'] as String? ?? '').trim().toUpperCase();
       if (word.isEmpty || !_alphaOnly.hasMatch(word)) continue;
       if (!seen.add(word)) continue;
-      final meaning = (map['meaning'] as String? ?? '').trim();
       final pos = _normalizePos((map['pos'] as String? ?? '').trim());
+      final meaning = _normalizeMeaning(
+        (map['meaning'] as String? ?? '').trim(),
+        word: word,
+        pos: pos,
+      );
       if (!_isDictionaryStyleMeaning(meaning)) continue;
       if (!_allowedCluePos.contains(pos)) continue;
       final korMeaning = _normalizeKorMeaning((map['korMeaning'] as String? ?? '').trim());
@@ -320,6 +581,60 @@ class WordRepository {
           pos: pos,
           synonym: (map['synonym'] as String? ?? '').trim(),
           antonym: (map['antonym'] as String? ?? '').trim(),
+          themeGroup: pos,
+          themeCategory: 'General',
+          difficulty: word.length <= 4 ? 2 : (word.length <= 6 ? 3 : 4),
+        ),
+      );
+    }
+    return out;
+  }
+
+  Future<List<WordData>> _loadLocalDictionaryJson(String assetPath) async {
+    final raw = await rootBundle.loadString(assetPath);
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) {
+      final validWords = decoded['validWords'];
+      if (validWords is List) {
+        _validWords = validWords
+            .whereType<String>()
+            .map((e) => e.trim().toUpperCase())
+            .where((e) => e.isNotEmpty && _alphaOnly.hasMatch(e))
+            .toSet();
+      }
+    }
+    final entries = decoded is Map<String, dynamic> ? decoded['entries'] : null;
+    if (entries is! List) return const [];
+
+    final out = <WordData>[];
+    final seen = <String>{};
+    for (final item in entries) {
+      if (item is! Map) continue;
+      final map = item.cast<String, dynamic>();
+      final word = (map['word'] as String? ?? '').trim().toUpperCase();
+      if (word.isEmpty || !_alphaOnly.hasMatch(word)) continue;
+      if (!seen.add(word)) continue;
+      final pos = _normalizePos((map['pos'] as String? ?? '').trim());
+      final definition = (map['definition'] as String? ?? '').trim();
+      if (!_isDictionaryStyleMeaning(definition)) continue;
+      final korMeaning = _normalizeKorMeaning((map['korDefinition'] as String? ?? '').trim());
+      final synonyms = map['synonyms'];
+      final antonyms = map['antonyms'];
+      final synonymText = synonyms is List ? synonyms.whereType<String>().join(', ') : '';
+      final antonymText = antonyms is List ? antonyms.whereType<String>().join(', ') : '';
+      out.add(
+        WordData(
+          word: word,
+          meaning: definition,
+          korMeaning: korMeaning,
+          pos: pos,
+          synonym: synonymText,
+          antonym: antonymText,
+          themeGroup: (map['themeGroup'] as String? ?? pos).trim(),
+          themeCategory: (map['themeCategory'] as String? ?? 'General').trim(),
+          difficulty: ((map['difficulty'] as num?)?.toInt() ?? 3).clamp(1, 6),
+          isEssential: (map['isEssential'] as bool?) ?? false,
+          frequencyZipf: ((map['frequencyZipf'] as num?)?.toDouble() ?? 0),
         ),
       );
     }
@@ -337,19 +652,88 @@ class WordRepository {
 
   bool _isDictionaryStyleMeaning(String meaning) {
     final text = meaning.trim();
-    if (text.length < 16 || text.length > 160) return false;
+    if (text.length < 10 || text.length > 220) return false;
     final lower = text.toLowerCase();
-    if (lower.startsWith('used to ')) return false;
-    if (lower.startsWith('used for ')) return false;
     if (lower.contains('in grammar')) return false;
     return true;
   }
 
+  bool _isTemplateMeaning(String text) {
+    final lower = text.toLowerCase();
+    if (lower.contains('a commonly used english word with')) return true;
+    if (lower.contains('starting with') && lower.contains('ending with')) return true;
+    return false;
+  }
+
+  String _normalizeMeaning(
+    String raw, {
+    required String word,
+    required String pos,
+  }) {
+    final text = raw.trim();
+    if (text.isNotEmpty && !_isTemplateMeaning(text)) {
+      return text;
+    }
+    switch (pos) {
+      case 'Verb':
+        return 'To perform an action related to "$word" in everyday English usage.';
+      case 'Adjective':
+        return 'Describing a quality associated with "$word" in common usage.';
+      case 'Adverb':
+        return 'Used to modify an action or state in a way related to "$word".';
+      case 'Noun':
+        return 'A commonly recognized English noun represented by "$word".';
+      default:
+        return 'A commonly used English word represented by "$word".';
+    }
+  }
+
+  static bool _isPlayableCrashWord(String word) {
+    if (!_alphaOnly.hasMatch(word)) return false;
+    if (word.length < 3 || word.length > 7) return false;
+    final uniqueChars = word.split('').toSet().length;
+    if (uniqueChars < 2) return false;
+    final hasVowel = RegExp(r'[AEIOUY]').hasMatch(word);
+    return hasVowel;
+  }
+
+  static bool _isNoVowelCrashWordCandidate(String word) {
+    if (!_alphaOnly.hasMatch(word)) return false;
+    if (word.length < 3 || word.length > 7) return false;
+    if (RegExp(r'[AEIOUY]').hasMatch(word)) return false;
+    final uniqueChars = word.split('').toSet().length;
+    if (uniqueChars < 2) return false;
+    if (!RegExp(r'[RSTLN]').hasMatch(word)) return false;
+    if (RegExp(r'(.)\1\1').hasMatch(word)) return false;
+    return true;
+  }
+
+  static Set<String> _buildPlayableCrashWords(Set<String> source) {
+    final base = <String>{};
+    final extraNoVowel = <String>[];
+    final sorted = source.toList(growable: false)..sort();
+    for (final word in sorted) {
+      if (_isPlayableCrashWord(word)) {
+        base.add(word);
+        continue;
+      }
+      if (_isNoVowelCrashWordCandidate(word)) {
+        extraNoVowel.add(word);
+      }
+    }
+    const bonusLimit = 1100;
+    for (int i = 0; i < extraNoVowel.length && i < bonusLimit; i++) {
+      base.add(extraNoVowel[i]);
+    }
+    return base;
+  }
+
   String _normalizeKorMeaning(String raw) {
-    if (raw.isEmpty) return '의미 정보 준비중';
-    if (raw.contains('�')) return '의미 정보 준비중';
-    if (!_hangul.hasMatch(raw)) return '의미 정보 준비중';
-    return raw;
+    final text = raw.trim();
+    if (text.isEmpty) return '';
+    if (text.contains('\uFFFD')) return '';
+    if (!_hangul.hasMatch(text)) return '';
+    return text;
   }
 
   Future<List<AnagramRoundData>> _loadAnagramRoundsJson(String assetPath) async {
@@ -374,13 +758,25 @@ class WordRepository {
       final generalWords = _parseWordSet(map['generalWords'], minLength: 3, maxLength: seed.length - 1);
       if (coreWords.isEmpty || generalWords.length < 4) continue;
 
-      final seedInfo = clueByWord[seed] ??
-          WordData(
-            word: seed,
-            meaning: (map['meaning'] as String? ?? 'Common English word.').trim(),
-            korMeaning: (map['korMeaning'] as String? ?? '기본 영어 단어').trim(),
-            pos: (map['pos'] as String? ?? 'Word').trim(),
-          );
+      final dictionarySeed = clueByWord[seed];
+      late final WordData seedInfo;
+      if (dictionarySeed != null) {
+        seedInfo = dictionarySeed;
+      } else {
+        final fallbackPos = _normalizePos((map['pos'] as String? ?? 'Word').trim());
+        final fallbackMeaning = _normalizeMeaning(
+          (map['meaning'] as String? ?? '').trim(),
+          word: seed,
+          pos: fallbackPos,
+        );
+        if (!_isDictionaryStyleMeaning(fallbackMeaning)) continue;
+        seedInfo = WordData(
+          word: seed,
+          meaning: fallbackMeaning,
+          korMeaning: (map['korMeaning'] as String? ?? 'Korean meaning pending').trim(),
+          pos: fallbackPos,
+        );
+      }
 
       out.add(
         AnagramRoundData(
@@ -498,18 +894,23 @@ class WordRepository {
     await preload();
     final selectedLength = preferredLength == 4 || preferredLength == 5
         ? preferredLength!
-        : (_random.nextBool() ? 4 : 5);
-    final source = selectedLength == 4 ? _wordle4Answers : _wordle5Answers;
-    final chosen = source[_random.nextInt(source.length)];
-    final glossary = _wordleGlossary[chosen];
-    if (glossary != null) {
-      return glossary;
+        : (getWaveDifficultyLevel(stage) <= 2 ? 4 : 5);
+    final source = selectedLength == 4 ? _wordle4AnswerEntries : _wordle5AnswerEntries;
+    if (source.isNotEmpty) {
+      return _pickByDifficulty<WordData>(
+        source: source,
+        stageDifficulty: getWaveDifficultyLevel(stage),
+        difficultyOf: (item) => item.difficulty,
+      );
     }
+    final fallback = selectedLength == 4 ? _defaultWordle4Answers : _defaultWordle5Answers;
+    final chosen = fallback[_random.nextInt(fallback.length)];
     return WordData(
       word: chosen,
       meaning: 'Common English word.',
-      korMeaning: '기본 영어 단어',
+      korMeaning: 'Korean meaning pending',
       pos: 'Word',
+      difficulty: selectedLength == 4 ? 2 : 3,
     );
   }
 
@@ -544,14 +945,105 @@ class WordRepository {
   }
 
   WordData getWordClueRound() {
-    return _clueWords[_random.nextInt(_clueWords.length)];
+    return getWordClueRoundForStage(1);
+  }
+
+  WordData getWordClueRoundForStage(int stage) {
+    final source = _localDictionaryWords.isNotEmpty ? _localDictionaryWords : _clueWords;
+    if (source.isEmpty) {
+      return _defaultClueWords[_random.nextInt(_defaultClueWords.length)];
+    }
+    return _pickByDifficulty<WordData>(
+      source: source,
+      stageDifficulty: getWaveDifficultyLevel(stage),
+      difficultyOf: (item) => item.difficulty,
+    );
   }
 
   AnagramRoundData getAnagramRound() {
-    return _anagramRounds[_random.nextInt(_anagramRounds.length)];
+    return getAnagramRoundForStage(1);
   }
 
+  AnagramRoundData getAnagramRoundForStage(int stage) {
+    final source = _playableAnagramRounds.isNotEmpty ? _playableAnagramRounds : _anagramRounds;
+    if (source.isEmpty) {
+      return _defaultAnagramRounds[_random.nextInt(_defaultAnagramRounds.length)];
+    }
+    return _pickByDifficulty<AnagramRoundData>(
+      source: source,
+      stageDifficulty: getWaveDifficultyLevel(stage),
+      difficultyOf: (item) => item.seedInfo.difficulty,
+    );
+  }
+
+  WordData? getDictionaryEntry(String word) {
+    return _dictionaryByWord[word.trim().toUpperCase()];
+  }
+
+  bool hasKoreanMeaning(String text) {
+    final value = text.trim();
+    if (value.isEmpty) return false;
+    if (value.toLowerCase().contains('korean meaning pending')) return false;
+    return _hangul.hasMatch(value);
+  }
+
+  bool isValidAnagramWordForSeed({
+    required String seed,
+    required String candidate,
+  }) {
+    final seedWord = seed.trim().toUpperCase();
+    final word = candidate.trim().toUpperCase();
+    if (seedWord.isEmpty || word.isEmpty) return false;
+    if (!_alphaOnly.hasMatch(seedWord) || !_alphaOnly.hasMatch(word)) return false;
+    if (word.length < 3 || word.length > seedWord.length) return false;
+    if (!_anagramLexicon.contains(word)) return false;
+    return _canBuildFromSeed(word, _charCount(seedWord));
+  }
+
+
   bool isCrashWord(String word) {
-    return _crashWords.contains(word.toUpperCase());
+    return _playableCrashWords.contains(word.toUpperCase());
+  }
+
+  List<String> getCrashWords({
+    int minLength = 3,
+    int maxLength = 7,
+  }) {
+    final words = _playableCrashWords
+        .where((w) => w.length >= minLength && w.length <= maxLength)
+        .toList(growable: false);
+    return words;
+  }
+
+  String? findCrashWordByPattern(
+    String pattern, {
+    String wildcard = '*',
+    bool requireUnique = false,
+  }) {
+    final normalized = pattern.trim().toUpperCase();
+    if (normalized.isEmpty) return null;
+    final wildcardCount = wildcard.isEmpty ? 0 : wildcard.allMatches(normalized).length;
+    final lettersOnly = normalized.replaceAll(wildcard, '');
+    if (lettersOnly.isEmpty || !_alphaOnly.hasMatch(lettersOnly)) return null;
+    if (wildcardCount > 1) return null;
+    String? matched;
+    for (final word in _playableCrashWords) {
+      if (word.length != normalized.length) continue;
+      var match = true;
+      for (int i = 0; i < word.length; i++) {
+        final ch = normalized[i];
+        if (ch == wildcard) continue;
+        if (word[i] != ch) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        if (!requireUnique) return word;
+        if (matched != null) return null;
+        matched = word;
+      }
+    }
+    return matched;
   }
 }

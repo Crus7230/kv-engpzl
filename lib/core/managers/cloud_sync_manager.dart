@@ -22,6 +22,8 @@ class CloudSyncManager {
   // Shared user doc with KP_Puzzles app, while KE game economy/progress stays in keGames.
   static const String _appNamespace = 'keGames';
   static const String _leaderboardPrefix = 'ke_';
+  static const String _appId = 'ke';
+  static final RegExp _wordPattern = RegExp(r'^[A-Z]{2,20}$');
 
   Future<void> init(GameStateManager gameState) async {
     try {
@@ -43,11 +45,23 @@ class CloudSyncManager {
       final data = doc.data() ?? <String, dynamic>{};
 
       final keGames = (data[_appNamespace] as Map<String, dynamic>?) ?? <String, dynamic>{};
-      final appStars = (keGames['totalStars'] as num?)?.toInt();
+      final appStarsBalance = (keGames['stars'] as num?)?.toInt();
+      final appTotalStars = (keGames['totalStars'] as num?)?.toInt();
       final appHearts = (keGames['hearts'] as num?)?.toInt();
       final heartRefillStartedAtMs = (keGames['heartRefillStartedAtMs'] as num?)?.toInt();
-      if (appStars != null) {
-        gameState.stars = appStars;
+      final attendanceStreak = (keGames['attendanceStreak'] as num?)?.toInt();
+      final lastAttendanceDate = keGames['lastAttendanceDate'] as String?;
+      final syncedStars = appStarsBalance ?? appTotalStars;
+      if (syncedStars != null) {
+        gameState.stars = syncedStars;
+      }
+      if (appTotalStars != null) {
+        gameState.totalStarsEarned = appTotalStars;
+      } else if (syncedStars != null) {
+        gameState.totalStarsEarned = syncedStars;
+      }
+      if (gameState.totalStarsEarned < gameState.stars) {
+        gameState.totalStarsEarned = gameState.stars;
       }
       if (appHearts != null) {
         gameState.hearts = appHearts.clamp(0, GameStateManager.maxHearts);
@@ -76,6 +90,10 @@ class CloudSyncManager {
       if (heartRefillStartedAtMs != null) {
         await gameState.applyRemoteState({'heartRefillStartedAtMs': heartRefillStartedAtMs});
       }
+      await gameState.applyRemoteState({
+        'attendanceStreak': attendanceStreak,
+        'lastAttendanceDate': lastAttendanceDate,
+      });
       await gameState.persistLocalOnly();
       gameState.notifyUi();
 
@@ -98,21 +116,30 @@ class CloudSyncManager {
         final playCounts = (payload['playCounts'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
         final unlockedChars = (payload['unlockedCharacters'] as List?)?.whereType<String>().toList() ?? <String>[];
         final stars = (payload['stars'] as num?)?.toInt() ?? 0;
+        final totalStars = ((payload['totalStarsEarned'] as num?)?.toInt()) ??
+            ((payload['totalStars'] as num?)?.toInt()) ??
+            stars;
         final hearts = (payload['hearts'] as num?)?.toInt() ?? GameStateManager.maxHearts;
         final heartRefillStartedAtMs = (payload['heartRefillStartedAtMs'] as num?)?.toInt();
         final selectedCharacterId = payload['selectedCharacterId'] as String? ?? 'CHAR_A';
+        final attendanceStreak = (payload['attendanceStreak'] as num?)?.toInt() ?? 0;
+        final lastAttendanceDate = payload['lastAttendanceDate'] as String?;
 
         await FirebaseFirestore.instance.collection('users').doc(_uid).set({
           'lastActive': FieldValue.serverTimestamp(),
           // Separate KE app records.
           _appNamespace: {
-            'totalStars': stars,
+            'appId': _appId,
+            'stars': stars,
+            'totalStars': totalStars,
             'hearts': hearts,
             'heartRefillStartedAtMs': heartRefillStartedAtMs,
             'bestStages': bestStages,
             'playCounts': playCounts,
             'selectedCharacterId': selectedCharacterId,
             'unlockedCharacters': unlockedChars,
+            'attendanceStreak': attendanceStreak,
+            'lastAttendanceDate': lastAttendanceDate,
             'updatedAt': FieldValue.serverTimestamp(),
           },
         }, SetOptions(merge: true));
@@ -138,6 +165,7 @@ class CloudSyncManager {
       final snap = await tx.get(ref);
       if (!snap.exists) {
         tx.set(ref, {
+          'appId': _appId,
           'gameId': scopedGameId,
           'userId': _uid,
           'nickname': nickname,
@@ -149,11 +177,81 @@ class CloudSyncManager {
       final current = (snap.data()?['score'] as num?)?.toInt() ?? 1;
       if (stage > current) {
         tx.update(ref, {
+          'appId': _appId,
           'score': stage,
           'nickname': nickname,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
     });
+  }
+
+  Future<void> clearKeGameData() async {
+    if (!_enabled || _uid == null) return;
+    _debounce?.cancel();
+    _debounce = null;
+    final db = FirebaseFirestore.instance;
+    final userRef = db.collection('users').doc(_uid);
+    await userRef.set({
+      _appNamespace: FieldValue.delete(),
+    }, SetOptions(merge: true));
+
+    final lbSnap = await db.collection('leaderboards').where('userId', isEqualTo: _uid).get();
+    if (lbSnap.docs.isEmpty) return;
+    var batch = db.batch();
+    var opCount = 0;
+    for (final doc in lbSnap.docs) {
+      final data = doc.data();
+      final gameId = data['gameId'] as String? ?? '';
+      if (!gameId.startsWith(_leaderboardPrefix)) continue;
+      batch.delete(doc.reference);
+      opCount += 1;
+      if (opCount >= 350) {
+        await batch.commit();
+        batch = db.batch();
+        opCount = 0;
+      }
+    }
+    if (opCount > 0) {
+      await batch.commit();
+    }
+  }
+
+  Future<String> submitWordSuggestion({
+    required String word,
+    required String description,
+    String? gameId,
+  }) async {
+    if (!_enabled || _uid == null) {
+      return 'Server is not connected. Please try again when online.';
+    }
+    final normalizedWord = word.trim().toUpperCase();
+    if (!_wordPattern.hasMatch(normalizedWord)) {
+      return 'Use one English word only (2-20 letters).';
+    }
+    final memo = description.trim();
+    if (memo.length < 5) {
+      return 'Please add a short reason so we can review it quickly.';
+    }
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_uid).get();
+      final nickname = (userDoc.data()?['nickname'] as String?)?.trim();
+      await FirebaseFirestore.instance.collection('word_suggestions').add({
+        'appId': _appId,
+        'word': normalizedWord,
+        'description': memo,
+        'gameId': (gameId ?? 'all').trim(),
+        'status': 'pending',
+        'requestedBy': _uid,
+        'requestedByNick': (nickname == null || nickname.isEmpty) ? 'Guest' : nickname,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return 'Suggestion sent. Thanks for helping improve the dictionary.';
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('submitWordSuggestion failed: $e');
+      }
+      return 'Failed to send suggestion. Please try again.';
+    }
   }
 }

@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/managers/auth_service.dart';
 import '../../core/managers/character_manager.dart';
 import '../../core/managers/friend_service.dart';
+import '../../core/managers/cloud_sync_manager.dart';
 import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/ranking_service.dart';
 import '../../core/managers/settings_manager.dart';
@@ -14,6 +15,7 @@ import '../../core/managers/skin_manager.dart';
 import '../../core/managers/sound_manager.dart';
 import '../../core/managers/user_profile_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_safe_area.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/wordle',
       title: 'WORDLE',
       subtitle: 'Wave difficulty, 6 tries, keyboard feedback',
-      guide: '6번 안에 정답 단어를 맞추고, 색상 피드백으로 다음 추측을 좁혀가세요.',
+      guide: '6占??占쎌뿉 ?占쎈떟 ?占쎌뼱占?留욎텛占? ?占쎌긽 ?占쎈뱶諛깆쑝占??占쎌쓬 異붿륫??醫곻옙?媛?占쎌슂.',
       icon: Icons.grid_view_rounded,
       color: Color(0xFF37B24D),
     ),
@@ -41,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/word-clue',
       title: 'WORD CLUE',
       subtitle: 'Definition master with touch letter tiles',
-      guide: '제시된 뜻을 보고 알맞은 철자를 눌러 빈칸을 완성하는 모드입니다.',
+      guide: '?占쎌떆???占쎌쓣 蹂닿퀬 ?占쎈쭪?占?泥좎옄占??占쎈윭 鍮덉뭏???占쎌꽦?占쎈뒗 紐⑤뱶?占쎈땲??',
       icon: Icons.quiz_rounded,
       color: Color(0xFFF08C00),
     ),
@@ -50,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/anagram',
       title: 'ANAGRAM',
       subtitle: 'Core word clear + general word bonus',
-      guide: '씨앗 글자를 재조합해 핵심 단어를 찾고 보너스 단어로 추가 점수를 얻으세요.',
+      guide: '?占쎌븮 湲?占쏙옙? ?占쎌“?占쏀빐 ?占쎌떖 ?占쎌뼱占?李얘퀬 蹂대꼫???占쎌뼱占?異뷂옙? ?占쎌닔占??占쎌쑝?占쎌슂.',
       icon: Icons.shuffle_rounded,
       color: Color(0xFF7B2CBF),
     ),
@@ -59,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/word-crash',
       title: 'WORD CRASH',
       subtitle: 'Swipe, pop, gravity, combo',
-      guide: '인접한 글자를 이어 단어를 만들고, 폭탄/콤보를 활용해 큰 점수를 노리세요.',
+      guide: '?占쎌젒??湲?占쏙옙? ?占쎌뼱 ?占쎌뼱占?留뚮뱾占? ??占쏙옙/肄ㅻ낫占??占쎌슜?????占쎌닔占??占쎈━?占쎌슂.',
       icon: Icons.auto_awesome_motion_rounded,
       color: Color(0xFF1C7ED6),
     ),
@@ -96,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          SafeArea(
+          AppSafeArea(
             child: Row(
               children: [
                 _buildSideBar(context, width: sidebarWidth, compact: compactSidebar),
@@ -136,15 +138,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                   bestStage: gameState.getBestStage(g.id),
                                   playCount: gameState.getPlayCount(g.id),
                                   onTap: () async {
-                                    await gameState.increasePlayCount(g.id);
-                                    if (!context.mounted) return;
-                                    context.push(g.route);
+                                    await _openGameWithHeartGuard(
+                                      context,
+                                      gameId: g.id,
+                                      route: g.route,
+                                    );
                                   },
                                 ),
                               )
                               .toList(),
                         ),
                       ),
+                      _buildWordSuggestionBar(context),
                     ],
                   ),
                 ),
@@ -152,6 +157,178 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openGameWithHeartGuard(
+    BuildContext context, {
+    required String gameId,
+    required String route,
+  }) async {
+    final gameState = context.read<GameStateManager>();
+    if (!gameState.hasPlayableHeart) {
+      final refillText = gameState.hearts >= GameStateManager.maxHearts
+          ? 'FULL'
+          : gameState.nextHeartCountdownText;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No hearts left. Next refill: $refillText')),
+      );
+      return;
+    }
+    final attendance = await gameState.increasePlayCount(gameId);
+    if (attendance?.claimed == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(attendance!.message)),
+      );
+    }
+    if (!context.mounted) return;
+    context.push(route);
+  }
+
+  EdgeInsets _sheetBottomPadding(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewPadding.bottom;
+    return EdgeInsets.only(bottom: bottom + 12);
+  }
+
+  Widget _buildWordSuggestionBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white),
+        ),
+        child: Row(
+          children: [
+            const Expanded(
+              child: Text(
+                '찾고 싶은 단어나 누락된 단어가 있나요? 제안해 주시면 검토 후 반영할게요.',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () => _openWordSuggestionSheet(context),
+              icon: const Icon(Icons.send_rounded, size: 16),
+              label: const Text('Post'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openWordSuggestionSheet(BuildContext context) {
+    final wordController = TextEditingController();
+    final reasonController = TextEditingController();
+    String gameId = 'all';
+    bool submitting = false;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + _sheetBottomPadding(context).bottom,
+        ),
+        child: StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Word Suggestion', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '단어가 누락되어 보이면 알려주세요. 관리자가 확인 후 승인하면 게임 단어집에 반영됩니다.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: wordController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Suggested Word',
+                      hintText: 'example: TREE',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: gameId,
+                    decoration: const InputDecoration(labelText: 'Game'),
+                    items: const [
+                      DropdownMenuItem(value: 'all', child: Text('All')),
+                      DropdownMenuItem(value: 'wordle', child: Text('Wordle')),
+                      DropdownMenuItem(value: 'word_clue', child: Text('Word Clue')),
+                      DropdownMenuItem(value: 'anagram', child: Text('Anagram')),
+                      DropdownMenuItem(value: 'word_crash', child: Text('Word Crash')),
+                    ],
+                    onChanged: submitting
+                        ? null
+                        : (v) {
+                            if (v == null) return;
+                            setSheetState(() => gameId = v);
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: reasonController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Why should we add it?',
+                      hintText: 'Tell us where it felt missing.',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: submitting ? null : () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: submitting
+                              ? null
+                              : () async {
+                                  final sheetNav = Navigator.of(context);
+                                  final rootMessenger = ScaffoldMessenger.of(this.context);
+                                  setSheetState(() => submitting = true);
+                                  final result = await CloudSyncManager.instance.submitWordSuggestion(
+                                    word: wordController.text,
+                                    description: reasonController.text,
+                                    gameId: gameId,
+                                  );
+                                  if (!mounted) return;
+                                  sheetNav.pop();
+                                  rootMessenger.showSnackBar(
+                                    SnackBar(content: Text(result)),
+                                  );
+                                },
+                          icon: const Icon(Icons.send_rounded, size: 16),
+                          label: const Text('Send'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -182,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _sideButton(icon: Icons.pets_rounded, label: 'Chars', compact: compact, onTap: () => _openCharacterShop(context)),
           _sideButton(icon: Icons.wallpaper_rounded, label: 'Skins', compact: compact, onTap: () => _openSkinPicker(context)),
-          _sideButton(icon: Icons.help_outline_rounded, label: '가이드', compact: compact, onTap: () => _openGameGuideSheet(context)),
+          _sideButton(icon: Icons.help_outline_rounded, label: '媛?占쎈뱶', compact: compact, onTap: () => _openGameGuideSheet(context)),
           _sideButton(icon: Icons.group_rounded, label: 'Friends', compact: compact, onTap: () => _openFriendsSheet(context)),
           _sideButton(icon: Icons.emoji_events_rounded, label: 'Rank', compact: compact, onTap: () => _openRankingSheet(context)),
           _sideButton(icon: Icons.settings_rounded, label: 'Settings', compact: compact, onTap: () => _openSettingsSheet(context)),
@@ -230,37 +407,97 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader(CharacterProfile character, GameStateManager gameState) {
     final user = FirebaseAuth.instance.currentUser;
+    final displayName = user == null || user.isAnonymous ? 'Guest Mode' : (user.displayName ?? 'Signed In');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Row(
-        children: [
-          CircleAvatar(radius: 24, backgroundImage: AssetImage(character.imagePath)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Hello, ${character.name}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                Text(
-                  user == null || user.isAnonymous ? 'Guest Mode' : (user.displayName ?? 'Signed In'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 420;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(radius: compact ? 22 : 24, backgroundImage: AssetImage(character.imagePath)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hello, ${character.name}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: compact ? 15 : 17, fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _statChip(
+                        icon: Icons.favorite,
+                        color: AppColors.error,
+                        text: '${gameState.hearts}',
+                        subText: gameState.hearts >= GameStateManager.maxHearts
+                            ? 'FULL'
+                            : 'Next +1 ${gameState.nextHeartCountdownText}',
+                      ),
+                      const SizedBox(height: 6),
+                      _statChip(icon: Icons.star, color: AppColors.secondary, text: '${gameState.stars}'),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white),
                 ),
-              ],
-            ),
-          ),
-          _statChip(
-            icon: Icons.favorite,
-            color: AppColors.error,
-            text: '${gameState.hearts}',
-            subText: gameState.hearts >= GameStateManager.maxHearts
-                ? 'FULL'
-                : '다음 +1 ${gameState.nextHeartCountdownText}',
-          ),
-          const SizedBox(width: 8),
-          _statChip(icon: Icons.star, color: AppColors.secondary, text: '${gameState.stars}'),
-        ],
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        character.hints['home'] ?? 'Ready for today\'s challenge?',
+                        maxLines: compact ? 2 : 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: gameState.canCheckInToday ? const Color(0xFFFFF3BF) : const Color(0xFFD3F9D8),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        gameState.canCheckInToday
+                            ? 'Play 1 game to check-in'
+                            : 'Today checked-in',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -345,12 +582,15 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) {
-          return SizedBox(
-            height: MediaQuery.of(context).size.height * 0.74,
-            child: Column(
+      builder: (sheetContext) => Padding(
+        padding: _sheetBottomPadding(sheetContext),
+        child: StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.74,
+              child: Column(
               children: [
                 const SizedBox(height: 12),
                 const Text('Character Collection', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
@@ -416,8 +656,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -428,14 +669,17 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          final currentId = skinManager.currentSkin.id;
-          final width = MediaQuery.of(context).size.width;
-          final columns = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
-          return SizedBox(
-            height: MediaQuery.of(context).size.height * 0.78,
-            child: Column(
+      useSafeArea: true,
+      builder: (context) => Padding(
+        padding: _sheetBottomPadding(context),
+        child: StatefulBuilder(
+          builder: (context, setSheetState) {
+            final currentId = skinManager.currentSkin.id;
+            final width = MediaQuery.of(context).size.width;
+            final columns = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.78,
+              child: Column(
               children: [
                 const SizedBox(height: 12),
                 const Text('Choose Skin', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
@@ -513,7 +757,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               setSheetState(() {});
                                             },
                                             style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
-                                            child: Text('${skin.price}★', style: const TextStyle(fontSize: 11)),
+                                            child: Text('${skin.price} stars', style: const TextStyle(fontSize: 11)),
                                           ),
                                         ),
                             ),
@@ -525,8 +769,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -535,11 +780,14 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SizedBox(
-        height: MediaQuery.of(context).size.height * 0.78,
-        child: Column(
+      useSafeArea: true,
+      builder: (context) => Padding(
+        padding: _sheetBottomPadding(context),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.78,
+          child: Column(
           children: [
-            _sheetHeader('게임 가이드'),
+            _sheetHeader('寃뚯엫 媛?占쎈뱶'),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.all(12),
@@ -582,6 +830,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -590,13 +839,13 @@ class _HomeScreenState extends State<HomeScreen> {
   String _guideTip(String gameId) {
     switch (gameId) {
       case 'wordle':
-        return '팁: 초반에는 서로 다른 글자를 많이 시도하면 정답 범위를 빠르게 줄일 수 있어요.';
+        return '?? 珥덈컲?占쎈뒗 ?占쎈줈 ?占쎈Ⅸ 湲?占쏙옙? 留롮씠 ?占쎈룄?占쎈㈃ ?占쎈떟 踰붿쐞占?鍮좊Ⅴ占?以꾩씪 ???占쎌뼱??';
       case 'word_clue':
-        return '팁: 뜻의 핵심 단어(동작/사물/감정)를 먼저 잡으면 정답 철자를 찾기 쉬워집니다.';
+        return '?? ?占쎌쓽 ?占쎌떖 ?占쎌뼱(?占쎌옉/?占쎈Ъ/媛먯젙)占?癒쇽옙? ?占쎌쑝占??占쎈떟 泥좎옄占?李얘린 ?占쎌썙吏묐땲??';
       case 'anagram':
-        return '팁: 2~3글자 조합부터 빠르게 확인한 뒤, 핵심 단어 길이를 확장해 보세요.';
+        return '?? 2~3湲??議고빀遺??鍮좊Ⅴ占??占쎌씤???? ?占쎌떖 ?占쎌뼱 湲몄씠占??占쎌옣??蹂댁꽭??';
       case 'word_crash':
-        return '팁: 긴 단어 + 폭탄 타일 조합을 만들면 연쇄 제거로 점수가 크게 올라갑니다.';
+        return '?? 占??占쎌뼱 + ??占쏙옙 ?占??議고빀??留뚮뱾占??占쎌뇙 ?占쎄굅占??占쎌닔媛 ?占쎄쾶 ?占쎈씪媛묐땲??';
       default:
         return '';
     }
@@ -628,7 +877,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('예시: 정답이 TRAIN일 때, 추측 TRAIL'),
+          const Text('?占쎌떆: ?占쎈떟??TRAIN???? 異붿륫 TRAIL'),
           const SizedBox(height: 8),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -641,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('초록: 위치/글자 일치  |  회색: 단어에 없음', style: TextStyle(fontSize: 11)),
+          const Text('珥덈줉: ?占쎌튂/湲???占쎌튂  |  ?占쎌깋: ?占쎌뼱???占쎌쓬', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -658,7 +907,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('뜻: 하늘에서 물방울이 떨어지는 현상'),
+          const Text('?? ?占쎈뒛?占쎌꽌 臾쇰갑?占쎌씠 ?占쎌뼱吏???占쎌긽'),
           const SizedBox(height: 8),
           const Row(
             children: [
@@ -684,7 +933,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('아래 글자 타일을 눌러 정답 단어를 완성하세요.', style: TextStyle(fontSize: 11)),
+          const Text('?占쎈옒 湲???占?占쎌쓣 ?占쎈윭 ?占쎈떟 ?占쎌뼱占??占쎌꽦?占쎌꽭??', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -701,7 +950,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('씨앗 글자: C A R E'),
+          const Text('?占쎌븮 湲?? C A R E'),
           const SizedBox(height: 8),
           const Wrap(
             spacing: 6,
@@ -713,7 +962,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('핵심 단어를 먼저 채우고, 추가 단어로 보너스 점수를 얻으세요.', style: TextStyle(fontSize: 11)),
+          const Text('?占쎌떖 ?占쎌뼱占?癒쇽옙? 梨꾩슦占? 異뷂옙? ?占쎌뼱占?蹂대꼫???占쎌닔占??占쎌쑝?占쎌슂.', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -730,7 +979,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('인접 타일을 이어 단어 만들기'),
+          const Text('Connect nearby blocks to build words.'),
           const SizedBox(height: 8),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -743,7 +992,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('예: STAR 연결 성공 + 폭탄(B) 근처 제거 = 연쇄 점수', style: TextStyle(fontSize: 11)),
+          const Text('Tip: STAR + bomb(B) cleanup gives a strong combo score.', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -758,12 +1007,13 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
               padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
+                bottom: MediaQuery.of(context).viewInsets.bottom + _sheetBottomPadding(context).bottom,
               ),
               child: SizedBox(
                 height: MediaQuery.of(context).size.height * 0.8,
@@ -937,83 +1187,87 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.85,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              _sheetHeader('Friends'),
-              const SizedBox(height: 8),
-              FutureBuilder<Map<String, String>>(
-                future: UserProfileService.instance.getMyProfile(),
-                builder: (context, snapshot) {
-                  final profile = snapshot.data ?? {'nickname': 'Loading...', 'handle': '....#0000'};
-                  return Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(profile['nickname']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(8)),
-                                child: Text(profile['handle']!, style: const TextStyle(fontWeight: FontWeight.w800)),
-                              ),
-                            ],
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => _openAddFriendDialog(context),
-                          icon: const Icon(Icons.person_add),
-                          label: const Text('Add'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: _friends.getMyFriendsStream(),
+        return Padding(
+          padding: _sheetBottomPadding(context),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.85,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                _sheetHeader('Friends'),
+                const SizedBox(height: 8),
+                FutureBuilder<Map<String, String>>(
+                  future: UserProfileService.instance.getMyProfile(),
                   builder: (context, snapshot) {
-                    final list = snapshot.data ?? const [];
-                    if (list.isEmpty) {
-                      return const Center(child: Text('No friends yet. Add with friend code.'));
-                    }
-                    return ListView.separated(
-                      itemCount: list.length,
-                      separatorBuilder: (_, index) => const Divider(),
-                      itemBuilder: (context, index) {
-                        final f = list[index];
-                        final online = _friends.isUserOnline(f['lastActive'] as Timestamp?);
-                        return ListTile(
-                          title: Text(f['nickname'] as String? ?? 'Unknown'),
-                          subtitle: Text('${f['handle']} | ${online ? 'Online' : 'Offline'}'),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () => _friends.removeFriend(f['uid'] as String),
+                    final profile = snapshot.data ?? {'nickname': 'Loading...', 'handle': '....#0000'};
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(profile['nickname']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(8)),
+                                  child: Text(profile['handle']!, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                ),
+                              ],
+                            ),
                           ),
-                        );
-                      },
+                          ElevatedButton.icon(
+                            onPressed: () => _openAddFriendDialog(context),
+                            icon: const Icon(Icons.person_add),
+                            label: const Text('Add'),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
-              ),
-            ],
+                const Divider(height: 1),
+                Expanded(
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: _friends.getMyFriendsStream(),
+                    builder: (context, snapshot) {
+                      final list = snapshot.data ?? const [];
+                      if (list.isEmpty) {
+                        return const Center(child: Text('No friends yet. Add with friend code.'));
+                      }
+                      return ListView.separated(
+                        itemCount: list.length,
+                        separatorBuilder: (_, index) => const Divider(),
+                        itemBuilder: (context, index) {
+                          final f = list[index];
+                          final online = _friends.isUserOnline(f['lastActive'] as Timestamp?);
+                          return ListTile(
+                            title: Text(f['nickname'] as String? ?? 'Unknown'),
+                            subtitle: Text('${f['handle']} | ${online ? 'Online' : 'Offline'}'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.red),
+                              onPressed: () => _friends.removeFriend(f['uid'] as String),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -1059,11 +1313,14 @@ class _HomeScreenState extends State<HomeScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => DefaultTabController(
-        length: 1 + gameIds.length,
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.82,
-          child: Column(
+      useSafeArea: true,
+      builder: (context) => Padding(
+        padding: _sheetBottomPadding(context),
+        child: DefaultTabController(
+          length: 1 + gameIds.length,
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.82,
+            child: Column(
             children: [
               _sheetHeader('Ranking'),
               const TabBar(
@@ -1088,6 +1345,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),
@@ -1343,4 +1601,5 @@ class _GameDef {
   final IconData icon;
   final Color color;
 }
+
 

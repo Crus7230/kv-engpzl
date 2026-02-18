@@ -6,6 +6,7 @@ import '../../core/managers/cloud_sync_manager.dart';
 import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
+import '../../core/widgets/app_safe_area.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -94,53 +95,55 @@ class _SplashScreenState extends State<SplashScreen> {
           Positioned.fill(
             child: Container(color: Colors.black.withValues(alpha: 0.45)),
           ),
-          Center(
-            child: GestureDetector(
-              onTap: _ready
-                  ? () => context.go('/home')
-                  : null,
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.82,
-                constraints: const BoxConstraints(maxWidth: 360),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.auto_stories, size: 72, color: Colors.white),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Kavon Eng Puzzle',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
+          AppSafeArea(
+            child: Center(
+              child: GestureDetector(
+                onTap: _ready
+                    ? () => context.go('/home')
+                    : null,
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.82,
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.auto_stories, size: 72, color: Colors.white),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Kavon Eng Puzzle',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        minHeight: 10,
-                        value: _ready ? 1 : _progress,
-                        backgroundColor: Colors.white24,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4C6EF5)),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          minHeight: 10,
+                          value: _ready ? 1 : _progress,
+                          backgroundColor: Colors.white24,
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4C6EF5)),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _status,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: _failed ? const Color(0xFFFFE8A1) : Colors.white70,
-                        fontSize: 15,
-                        fontWeight: _ready ? FontWeight.w700 : FontWeight.w500,
+                      const SizedBox(height: 10),
+                      Text(
+                        _status,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _failed ? const Color(0xFFFFE8A1) : Colors.white70,
+                          fontSize: 15,
+                          fontWeight: _ready ? FontWeight.w700 : FontWeight.w500,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

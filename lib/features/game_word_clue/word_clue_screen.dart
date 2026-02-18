@@ -9,6 +9,8 @@ import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_safe_area.dart';
+import '../../core/widgets/game_hud.dart';
 
 class WordClueScreen extends StatefulWidget {
   const WordClueScreen({super.key});
@@ -19,13 +21,13 @@ class WordClueScreen extends StatefulWidget {
 
 class _WordClueScreenState extends State<WordClueScreen> {
   final WordRepository _repo = WordRepository.instance;
-  final RegExp _hangul = RegExp(r'[가-힣]');
   late WordData _round;
   late List<String> _availableTiles;
   final List<String> _picked = [];
   bool _solved = false;
   int _stage = 1;
   bool _stageLoaded = false;
+  bool _dialogOpen = false;
 
   @override
   void initState() {
@@ -38,11 +40,12 @@ class _WordClueScreenState extends State<WordClueScreen> {
     super.didChangeDependencies();
     if (_stageLoaded) return;
     _stage = context.read<GameStateManager>().getBestStage('word_clue');
+    _loadRound();
     _stageLoaded = true;
   }
 
   void _loadRound() {
-    _round = _repo.getWordClueRound();
+    _round = _repo.getWordClueRoundForStage(_stage);
     _availableTiles = _round.word.toUpperCase().split('')..shuffle(Random());
     _picked.clear();
     _solved = false;
@@ -59,8 +62,8 @@ class _WordClueScreenState extends State<WordClueScreen> {
       body: Stack(
         children: [
           Positioned.fill(child: Image.asset(skin.backgroundPath, fit: BoxFit.cover)),
-          Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.25))),
-          SafeArea(
+          Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.16))),
+          AppSafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
@@ -77,14 +80,33 @@ class _WordClueScreenState extends State<WordClueScreen> {
                         style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
                       ),
                       const Spacer(),
-                      const SizedBox(width: 40),
+                      GameHud(state: state),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2455D6).withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(
+                      'STAGE $_stage',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.88),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -98,12 +120,21 @@ class _WordClueScreenState extends State<WordClueScreen> {
                           style: TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w700),
                         ),
                         const SizedBox(height: 3),
-                        Text(_round.meaning, style: const TextStyle(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 4),
                         Text(
-                          _hangul.hasMatch(_round.korMeaning) ? _round.korMeaning : '의미 정보 준비중',
-                          style: const TextStyle(color: AppColors.textSecondary),
+                          _round.meaning,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Roboto',
+                          ),
                         ),
+                        if (_repo.hasKoreanMeaning(_round.korMeaning)) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            _round.korMeaning,
+                            style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -111,7 +142,10 @@ class _WordClueScreenState extends State<WordClueScreen> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.88),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     child: Row(
                       children: [
                         CircleAvatar(backgroundImage: AssetImage(char.imagePath)),
@@ -134,7 +168,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.95),
+                      color: Colors.white.withValues(alpha: 0.82),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Center(
@@ -182,7 +216,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: _loadRound,
+                          onPressed: _solved ? _loadRound : null,
                           child: const Text('Next Round'),
                         ),
                       ),
@@ -220,14 +254,21 @@ class _WordClueScreenState extends State<WordClueScreen> {
       _stage += 1;
       await state.setBestStageIfHigher('word_clue', _stage);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Correct! +4 stars')));
       setState(() {});
+      await _showResultDialog(
+        success: true,
+        title: 'Correct',
+        body: 'Answer: ${_round.word}',
+        wordData: _round,
+        starsDelta: 4,
+        heartDelta: 0,
+      );
       return;
     }
     await state.consumeHeart();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Wrong answer. -1 heart (answer: ${_round.word})')),
+      const SnackBar(content: Text('Wrong answer. -1 heart')),
     );
     _clearPick();
   }
@@ -242,6 +283,62 @@ class _WordClueScreenState extends State<WordClueScreen> {
     if (!mounted) return;
     final msg = result.ok ? 'Hint: first letter is ${_round.word[0]}' : result.message;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _showResultDialog({
+    required bool success,
+    required String title,
+    required String body,
+    WordData? wordData,
+    required int starsDelta,
+    required int heartDelta,
+  }) async {
+    if (!mounted || _dialogOpen) return;
+    _dialogOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(success ? 'Success' : 'Failed'),
+              const SizedBox(height: 8),
+              Text(body),
+              if (wordData != null) ...[
+                const SizedBox(height: 8),
+                Text('POS: ${wordData.pos}'),
+                const SizedBox(height: 4),
+                Text('Theme: ${wordData.themeGroup} / ${wordData.themeCategory}'),
+                const SizedBox(height: 4),
+                Text(wordData.meaning),
+                if (_repo.hasKoreanMeaning(wordData.korMeaning)) ...[
+                  const SizedBox(height: 4),
+                  Text(wordData.korMeaning),
+                ],
+                const SizedBox(height: 6),
+                Text('Synonym: ${wordData.synonym.isEmpty ? '-' : wordData.synonym}'),
+                const SizedBox(height: 4),
+                Text('Antonym: ${wordData.antonym.isEmpty ? '-' : wordData.antonym}'),
+              ],
+              const SizedBox(height: 10),
+              Text('Stars: ${starsDelta >= 0 ? '+' : ''}$starsDelta'),
+              Text('Hearts: ${heartDelta >= 0 ? '+' : ''}$heartDelta'),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+    _dialogOpen = false;
   }
 }
 

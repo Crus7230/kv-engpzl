@@ -8,9 +8,10 @@ import '../../core/managers/character_manager.dart';
 import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_safe_area.dart';
+import '../../core/widgets/game_hud.dart';
 
-enum CrashTileKind { letter, bomb, booster }
+enum CrashTileKind { letter, bomb, booster, blocker }
 
 class CrashTile {
   CrashTile({
@@ -24,6 +25,27 @@ class CrashTile {
   bool get isLetter => kind == CrashTileKind.letter;
   bool get isBomb => kind == CrashTileKind.bomb;
   bool get isBooster => kind == CrashTileKind.booster;
+  bool get isBlocker => kind == CrashTileKind.blocker;
+}
+
+class CrashStageGoal {
+  const CrashStageGoal({
+    required this.targetWords,
+    required this.injectCount,
+    required this.maxWordLength,
+    required this.bombRate,
+    required this.boosterRate,
+    required this.blockerRate,
+    required this.missLimitBeforeHeart,
+  });
+
+  final int targetWords;
+  final int injectCount;
+  final int maxWordLength;
+  final double bombRate;
+  final double boosterRate;
+  final double blockerRate;
+  final int missLimitBeforeHeart;
 }
 
 class WordCrashScreen extends StatefulWidget {
@@ -36,52 +58,129 @@ class WordCrashScreen extends StatefulWidget {
 class _WordCrashScreenState extends State<WordCrashScreen> {
   final WordRepository _repo = WordRepository.instance;
   final Random _random = Random();
+  static const String _specialWildcard = '*';
 
   static const int rows = 7;
   static const int cols = 6;
   final List<List<CrashTile>> grid = [];
   final List<Point<int>> selected = [];
+  final Set<Point<int>> _poppingCells = <Point<int>>{};
 
-  int combo = 0;
-  int score = 0;
-  int _stage = 1;
   bool _stageLoaded = false;
+  bool _dialogOpen = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _resetGrid();
-  }
+  int _stage = 1;
+  int _combo = 0;
+  int _wordsClearedInStage = 0;
+  int _mistakesInStage = 0;
+  late CrashStageGoal _goal;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_stageLoaded) return;
-    _stage = context.read<GameStateManager>().getBestStage('word_crash');
+    _setupStage(context.read<GameStateManager>().getBestStage('word_crash'));
     _stageLoaded = true;
+  }
+
+  CrashStageGoal _goalForStage(int stage) {
+    final normalized = stage.clamp(1, 999);
+    final targetWords = min(9, 3 + ((normalized - 1) ~/ 2));
+    final injectCount = max(1, 4 - ((normalized - 1) ~/ 4));
+    final maxWordLength = min(7, 4 + ((normalized - 1) ~/ 2));
+    final bombRate = (0.05 + (normalized * 0.002)).clamp(0.05, 0.11);
+    final boosterRate = (0.015 + (normalized * 0.0006)).clamp(0.015, 0.045);
+    final blockerRate = (normalized % 4 == 0 || normalized % 7 == 0) ? 0.08 : 0.0;
+    final missLimitBeforeHeart = normalized <= 3 ? 2 : 1;
+    return CrashStageGoal(
+      targetWords: targetWords,
+      injectCount: injectCount,
+      maxWordLength: maxWordLength,
+      bombRate: bombRate,
+      boosterRate: boosterRate,
+      blockerRate: blockerRate,
+      missLimitBeforeHeart: missLimitBeforeHeart,
+    );
+  }
+
+  void _setupStage(int stage) {
+    _stage = stage;
+    _goal = _goalForStage(stage);
+    _combo = 0;
+    _wordsClearedInStage = 0;
+    _mistakesInStage = 0;
+    _resetGrid();
   }
 
   void _resetGrid() {
     grid
       ..clear()
-      ..addAll(List.generate(rows, (_) => List.generate(cols, (_) => _randomTile())));
+      ..addAll(List.generate(rows, (_) => List.generate(cols, (_) => _randomTile(allowBlocker: true))));
+    _injectPlayableWords(count: _goal.injectCount, maxLength: _goal.maxWordLength);
     selected.clear();
+    _poppingCells.clear();
   }
 
-  CrashTile _randomTile() {
+  CrashTile _randomTile({required bool allowBlocker}) {
     final roll = _random.nextDouble();
-    if (roll < 0.08) {
-      return CrashTile(kind: CrashTileKind.bomb, value: 'B');
+    if (allowBlocker && _goal.blockerRate > 0 && roll < _goal.blockerRate) {
+      return CrashTile(kind: CrashTileKind.blocker, value: 'X');
     }
-    if (roll < 0.14) {
-      return CrashTile(kind: CrashTileKind.booster, value: 'S');
+    if (roll < _goal.bombRate + _goal.blockerRate) {
+      return CrashTile(kind: CrashTileKind.bomb, value: '●');
+    }
+    if (roll < _goal.bombRate + _goal.boosterRate + _goal.blockerRate) {
+      return CrashTile(kind: CrashTileKind.booster, value: '★');
     }
     return CrashTile(kind: CrashTileKind.letter, value: _randomLetter());
   }
 
   String _randomLetter() {
-    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    return letters[_random.nextInt(letters.length)];
+    const weighted = 'EEEEEEEEAAAAAAAARRRRRRIIIIIIOOOOONNNNNNTTTTTLLLLSSSSUUDDGBCMPFHVWYKJXQZ';
+    return weighted[_random.nextInt(weighted.length)];
+  }
+
+  void _injectPlayableWords({required int count, required int maxLength}) {
+    final candidates = _repo.getCrashWords(minLength: 3, maxLength: maxLength);
+    if (candidates.isEmpty) return;
+    final directions = <Point<int>>[
+      const Point(0, 1),
+      const Point(1, 0),
+      const Point(1, 1),
+      const Point(1, -1),
+      const Point(0, -1),
+      const Point(-1, 0),
+      const Point(-1, -1),
+      const Point(-1, 1),
+    ];
+
+    for (int n = 0; n < count; n++) {
+      final word = candidates[_random.nextInt(candidates.length)];
+      for (int attempt = 0; attempt < 28; attempt++) {
+        final startR = _random.nextInt(rows);
+        final startC = _random.nextInt(cols);
+        final dir = directions[_random.nextInt(directions.length)];
+        if (_tryPlaceWord(word, startR, startC, dir.x, dir.y)) break;
+      }
+    }
+  }
+
+  bool _tryPlaceWord(String word, int startR, int startC, int dr, int dc) {
+    final cells = <Point<int>>[];
+    var r = startR;
+    var c = startC;
+    for (int i = 0; i < word.length; i++) {
+      if (r < 0 || r >= rows || c < 0 || c >= cols) return false;
+      if (grid[r][c].isBlocker) return false;
+      cells.add(Point(r, c));
+      r += dr;
+      c += dc;
+    }
+    for (int i = 0; i < word.length; i++) {
+      final p = cells[i];
+      grid[p.x][p.y] = CrashTile(kind: CrashTileKind.letter, value: word[i]);
+    }
+    return true;
   }
 
   @override
@@ -89,14 +188,14 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     final skin = context.watch<SkinManager>().currentSkin;
     final state = context.watch<GameStateManager>();
     final char = CharacterManager().getById(state.selectedCharacterId);
-    final builtWord = _buildSelectedWord();
+    final builtWord = _buildSelectedPreviewWord();
 
     return Scaffold(
       body: Stack(
         children: [
           Positioned.fill(child: Image.asset(skin.backgroundPath, fit: BoxFit.cover)),
-          Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.18))),
-          SafeArea(
+          Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.1))),
+          AppSafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
@@ -113,13 +212,18 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                         style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
                       ),
                       const Spacer(),
-                      const SizedBox(width: 40),
+                      GameHud(state: state),
                     ],
                   ),
+                  _stageGoalCard(),
+                  const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.88),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Row(
                       children: [
                         CircleAvatar(backgroundImage: AssetImage(char.imagePath)),
@@ -142,7 +246,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                               SnackBar(
                                 content: Text(
                                   result.ok
-                                      ? 'Hint: use bombs with valid words for bigger clears.'
+                                      ? 'Hint: ★ star bonus, ● bomb explode, X blocker.'
                                       : result.message,
                                 ),
                               ),
@@ -158,10 +262,27 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                     children: [
                       Expanded(child: _metric('Word', builtWord.isEmpty ? '-' : builtWord)),
                       const SizedBox(width: 8),
-                      Expanded(child: _metric('Combo', '$combo')),
+                      Expanded(child: _metric('Combo', '$_combo')),
                       const SizedBox(width: 8),
-                      Expanded(child: _metric('Score', '$score')),
+                      Expanded(child: _metric('Target', '$_wordsClearedInStage / ${_goal.targetWords}')),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '★ Star  ● Bomb  X Blocker  |  Miss left: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Expanded(
@@ -181,22 +302,30 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                           final point = Point(r, c);
                           final tile = grid[r][c];
                           final isPicked = selected.contains(point);
+                          final isPopping = _poppingCells.contains(point);
                           return GestureDetector(
                             onTap: () => _pick(point),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 120),
-                              decoration: BoxDecoration(
-                                color: isPicked ? AppColors.secondary : _tileColor(tile),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.black12),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  tile.value,
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: isPicked ? Colors.white : AppColors.textPrimary,
+                            child: AnimatedScale(
+                              scale: isPopping ? 0.05 : 1,
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeInBack,
+                              child: AnimatedOpacity(
+                                opacity: isPopping ? 0 : 1,
+                                duration: const Duration(milliseconds: 190),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 120),
+                                  decoration: _tileDecoration(tile, isPicked),
+                                  child: Center(
+                                    child: Text(
+                                      tile.value,
+                                      style: TextStyle(
+                                        fontSize: tile.isLetter ? 21 : 19,
+                                        fontWeight: FontWeight.w900,
+                                        color: tile.isLetter
+                                            ? (isPicked ? Colors.white : const Color(0xFF0B132B))
+                                            : (tile.isBooster ? const Color(0xFF4A3200) : Colors.white),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -232,6 +361,64 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     );
   }
 
+  Widget _stageGoalCard() {
+    final obstacle = _goal.blockerRate > 0 ? ' | Obstacle Stage' : '';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C7ED6),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'STAGE $_stage | Clear words ${_goal.targetWords}$obstacle',
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+
+  BoxDecoration _tileDecoration(CrashTile tile, bool isPicked) {
+    if (tile.isBlocker) {
+      return BoxDecoration(
+        color: const Color(0xFF343A40),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: Colors.black54),
+      );
+    }
+    if (tile.isBomb) {
+      return BoxDecoration(
+        color: Colors.black,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.75), width: 1.5),
+      );
+    }
+    if (tile.isBooster) {
+      return BoxDecoration(
+        color: const Color(0xFFFFD43B),
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0xFFCC9A06), width: 1.5),
+      );
+    }
+    if (isPicked) {
+      return BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFFF59F00), Color(0xFFF76707)]),
+        borderRadius: BorderRadius.circular(9),
+      );
+    }
+    return BoxDecoration(
+      gradient: const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFFF8F9FA), Color(0xFFE9ECEF)],
+      ),
+      borderRadius: BorderRadius.circular(9),
+      border: Border.all(color: const Color(0xFFCED4DA)),
+      boxShadow: const [
+        BoxShadow(color: Color(0x22000000), blurRadius: 4, offset: Offset(0, 2)),
+      ],
+    );
+  }
+
   Widget _metric(String label, String value) {
     return Container(
       padding: const EdgeInsets.all(8),
@@ -246,13 +433,12 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     );
   }
 
-  Color _tileColor(CrashTile tile) {
-    if (tile.isBomb) return const Color(0xFFFFD8A8);
-    if (tile.isBooster) return const Color(0xFFD0EBFF);
-    return Colors.white;
-  }
-
   void _pick(Point<int> point) {
+    if (_poppingCells.isNotEmpty) return;
+    if (grid[point.x][point.y].isBlocker) {
+      _showToast('Blocker tile cannot be selected.');
+      return;
+    }
     setState(() {
       if (selected.isEmpty) {
         selected.add(point);
@@ -270,38 +456,73 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     });
   }
 
-  String _buildSelectedWord() {
-    final letters = selected
-        .map((p) => grid[p.x][p.y])
-        .where((t) => t.isLetter)
-        .map((t) => t.value)
-        .join();
-    return letters;
+  String _buildSelectedPreviewWord() {
+    return selected.map((p) {
+      final tile = grid[p.x][p.y];
+      if (tile.isLetter) return tile.value;
+      return _specialWildcard;
+    }).join();
   }
 
   Future<void> _submit(GameStateManager state) async {
     final selectedTiles = selected.map((p) => grid[p.x][p.y]).toList();
-    final word = selectedTiles.where((t) => t.isLetter).map((t) => t.value).join();
+    if (selectedTiles.length < 3) {
+      _showToast('Select at least 3 blocks.');
+      return;
+    }
+    if (selectedTiles.every((t) => !t.isLetter)) {
+      _showToast('Include at least one letter block.');
+      return;
+    }
+
+    final letterCount = selectedTiles.where((t) => t.isLetter).length;
+    final wildcardCount = selectedTiles.length - letterCount;
+    if (letterCount < 2) {
+      _showToast('Select at least 2 letter blocks.');
+      return;
+    }
+    if (wildcardCount > 1) {
+      _showToast('Only one special block can be used.');
+      return;
+    }
+
+    final pattern = selectedTiles.map((t) => t.isLetter ? t.value : _specialWildcard).join();
+    final matchedWord = _repo.findCrashWordByPattern(
+      pattern,
+      wildcard: _specialWildcard,
+      requireUnique: true,
+    );
     final hasBomb = selectedTiles.any((t) => t.isBomb);
     final hasBooster = selectedTiles.any((t) => t.isBooster);
 
-    if (word.length < 3) {
-      _show('Select at least 3 letter blocks.');
-      return;
-    }
-    if (!_repo.isCrashWord(word)) {
-      combo = 0;
+    if (matchedWord == null) {
+      _combo = 0;
+      _mistakesInStage += 1;
       selected.clear();
+      var consumedHeart = false;
+      if (_mistakesInStage >= _goal.missLimitBeforeHeart) {
+        await state.consumeHeart();
+        _mistakesInStage = 0;
+        consumedHeart = true;
+      }
+      if (!mounted) return;
       setState(() {});
-      _show('Invalid word.');
+      _showToast(
+        consumedHeart
+            ? 'Miss: $pattern (too many misses, -1 heart)'
+            : 'Miss: $pattern',
+      );
       return;
     }
 
-    combo += 1;
-    var gained = word.length + combo;
-    if (hasBooster) gained += 4;
-    score += gained;
-    await state.addStars(gained ~/ 2);
+    _combo += 1;
+    _wordsClearedInStage += 1;
+    _mistakesInStage = 0;
+    final longWordBonus = matchedWord.length >= 6 ? 1 : 0;
+    final gainedStars = (hasBooster ? 1 : 0) + longWordBonus;
+    if (gainedStars > 0) {
+      await state.addStars(gainedStars);
+    }
 
     final removalSet = <Point<int>>{...selected};
     if (hasBomb) {
@@ -318,41 +539,130 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       }
     }
 
+    if (!mounted) return;
+    setState(() {
+      _poppingCells
+        ..clear()
+        ..addAll(removalSet);
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+
     for (final point in removalSet) {
       grid[point.x][point.y] = CrashTile(kind: CrashTileKind.letter, value: '');
     }
-
     _collapseGrid();
     selected.clear();
 
-    if (score >= _stage * 35) {
-      _stage += 1;
-      await state.setBestStageIfHigher('word_crash', _stage);
+    final cleared = _wordsClearedInStage >= _goal.targetWords;
+    if (cleared) {
+      const stageBonus = 1;
+      await state.addStars(stageBonus);
+      final nextStage = _stage + 1;
+      await state.setBestStageIfHigher('word_crash', nextStage);
+      if (!mounted) return;
+      setState(() {
+        _poppingCells.clear();
+      });
+      await _showStageClearDialog(
+        matchedWord: matchedWord,
+        starsDelta: gainedStars + stageBonus,
+        nextStage: nextStage,
+      );
+      return;
     }
 
     if (!mounted) return;
-    setState(() {});
-    _show('$word popped. +$gained score${hasBomb ? ' (bomb explode)' : ''}');
+    setState(() {
+      _poppingCells.clear();
+    });
+    _showToast(
+      gainedStars > 0
+          ? 'Word popped: $matchedWord (+$gainedStars stars)'
+          : 'Word popped: $matchedWord',
+    );
   }
 
   void _collapseGrid() {
     for (int c = 0; c < cols; c++) {
-      final colValues = <CrashTile>[];
-      for (int r = rows - 1; r >= 0; r--) {
-        if (grid[r][c].value.isNotEmpty) {
-          colValues.add(grid[r][c]);
+      final blockerRows = <int>{};
+      for (int r = 0; r < rows; r++) {
+        if (grid[r][c].isBlocker) {
+          blockerRows.add(r);
         }
       }
-      while (colValues.length < rows) {
-        colValues.add(_randomTile());
+
+      final colValues = <CrashTile>[];
+      for (int r = rows - 1; r >= 0; r--) {
+        final tile = grid[r][c];
+        if (tile.isBlocker) continue;
+        if (tile.value.isNotEmpty) {
+          colValues.add(tile);
+        }
       }
-      for (int r = rows - 1, i = 0; r >= 0; r--, i++) {
+
+      final freeCount = rows - blockerRows.length;
+      while (colValues.length < freeCount) {
+        colValues.add(_randomTile(allowBlocker: false));
+      }
+
+      for (int r = rows - 1, i = 0; r >= 0; r--) {
+        if (blockerRows.contains(r)) continue;
         grid[r][c] = colValues[i];
+        i++;
       }
     }
+    _injectPlayableWords(count: max(1, _goal.injectCount - 1), maxLength: _goal.maxWordLength);
   }
 
-  void _show(String message) {
+  Future<void> _showStageClearDialog({
+    required String matchedWord,
+    required int starsDelta,
+    required int nextStage,
+  }) async {
+    if (!mounted || _dialogOpen) return;
+    _dialogOpen = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Stage Clear'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Final word: $matchedWord'),
+              const SizedBox(height: 8),
+              Text('Words: $_wordsClearedInStage / ${_goal.targetWords}'),
+              const SizedBox(height: 10),
+              Text('Stars: +$starsDelta'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                this.context.pop();
+              },
+              child: const Text('Home'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() {
+                  _setupStage(nextStage);
+                });
+              },
+              child: const Text('Next Stage'),
+            ),
+          ],
+        );
+      },
+    );
+    _dialogOpen = false;
+  }
+
+  void _showToast(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }

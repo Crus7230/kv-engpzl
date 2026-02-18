@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +8,8 @@ import '../../core/managers/character_manager.dart';
 import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_safe_area.dart';
+import '../../core/widgets/game_hud.dart';
 import 'wordle_provider.dart';
 
 class WordleScreen extends StatefulWidget {
@@ -17,6 +21,14 @@ class WordleScreen extends StatefulWidget {
 
 class _WordleScreenState extends State<WordleScreen> {
   bool _dialogOpen = false;
+  final RegExp _hangul = RegExp(r'[\uAC00-\uD7A3]');
+
+  bool _hasKoreanMeaning(String text) {
+    final value = text.trim();
+    if (value.isEmpty) return false;
+    if (value.toLowerCase().contains('korean meaning pending')) return false;
+    return _hangul.hasMatch(value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +49,8 @@ class _WordleScreenState extends State<WordleScreen> {
       body: Stack(
         children: [
           Positioned.fill(child: Image.asset(skin.backgroundPath, fit: BoxFit.cover)),
-          Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.15))),
-          SafeArea(
+          Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.1))),
+          AppSafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
               child: Column(
@@ -78,15 +90,7 @@ class _WordleScreenState extends State<WordleScreen> {
           ),
         ),
         const Spacer(),
-        Row(
-          children: [
-            const Icon(Icons.favorite, color: AppColors.error),
-            Text(' ${state.hearts}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-            const SizedBox(width: 8),
-            const Icon(Icons.star, color: AppColors.secondary),
-            Text(' ${state.stars}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          ],
-        ),
+        GameHud(state: state),
       ],
     );
   }
@@ -109,42 +113,49 @@ class _WordleScreenState extends State<WordleScreen> {
     if (game.isLoading) {
       return const SizedBox(height: 240, child: Center(child: CircularProgressIndicator()));
     }
-    return AspectRatio(
-      aspectRatio: game.wordLength / 6,
+    final media = MediaQuery.of(context);
+    final widthFit = ((media.size.width - 44) / game.wordLength) - 7;
+    final estimatedNonBoard = media.size.height < 760 ? 520.0 : 560.0;
+    final heightFit = ((media.size.height - estimatedNonBoard) / game.maxRows) - 6;
+    final tileSize = min(widthFit, heightFit).clamp(34.0, 58.0);
+    final tileFontSize = (tileSize * 0.45).clamp(16.0, 26.0);
+    final boardHeight = (tileSize * game.maxRows) + (6 * game.maxRows);
+
+    return SizedBox(
+      height: boardHeight,
       child: Column(
         children: List.generate(game.maxRows, (row) {
-          return Expanded(
-            child: Row(
-              children: List.generate(game.wordLength, (col) {
-                final status = game.statusBoard[row][col];
-                final text = game.board[row][col];
-                final tileColor = _tileColor(status, skin);
-                return Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: tileColor,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: status == TileStatus.initial
-                            ? Colors.white.withValues(alpha: 0.65)
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      text,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: status == TileStatus.initial ? skin.textColor : Colors.white,
-                      ),
-                    ),
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(game.wordLength, (col) {
+              final status = game.statusBoard[row][col];
+              final text = game.board[row][col];
+              final tileColor = _tileColor(status, skin);
+              return Container(
+                width: tileSize,
+                height: tileSize,
+                margin: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: tileColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: status == TileStatus.initial
+                        ? Colors.white.withValues(alpha: 0.65)
+                        : Colors.transparent,
+                    width: 2,
                   ),
-                );
-              }),
-            ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: tileFontSize,
+                    fontWeight: FontWeight.w900,
+                    color: status == TileStatus.initial ? skin.textColor : Colors.white,
+                  ),
+                ),
+              );
+            }),
           );
         }),
       ),
@@ -155,7 +166,7 @@ class _WordleScreenState extends State<WordleScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.black12),
       ),
@@ -196,7 +207,7 @@ class _WordleScreenState extends State<WordleScreen> {
         final width = constraints.maxWidth;
         final keyWidth = ((width - 48) / 10).clamp(24.0, 38.0).toDouble();
         final keyHeight = (keyWidth * 1.45).clamp(36.0, 52.0).toDouble();
-        final actionWidth = (keyWidth * 2.2).clamp(68.0, 100.0).toDouble();
+        final actionWidth = (keyWidth * 2.5).clamp(94.0, 132.0).toDouble();
         return Column(
           children: [
             for (final line in rows)
@@ -242,7 +253,13 @@ class _WordleScreenState extends State<WordleScreen> {
         height: height,
         child: ElevatedButton(
           onPressed: onTap,
-          child: Text(label),
+          child: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.fade,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+          ),
         ),
       ),
     );
@@ -293,9 +310,19 @@ class _WordleScreenState extends State<WordleScreen> {
             children: [
               Text('Answer: ${game.currentWord.word}'),
               const SizedBox(height: 8),
-              Text(game.currentWord.meaning),
+              Text('POS: ${game.currentWord.pos}'),
               const SizedBox(height: 6),
-              Text(game.currentWord.korMeaning),
+              Text('Theme: ${game.currentWord.themeGroup} / ${game.currentWord.themeCategory}'),
+              const SizedBox(height: 6),
+              Text(game.currentWord.meaning),
+              if (_hasKoreanMeaning(game.currentWord.korMeaning)) ...[
+                const SizedBox(height: 6),
+                Text(game.currentWord.korMeaning),
+              ],
+              const SizedBox(height: 8),
+              Text('Synonym: ${game.currentWord.synonym.isEmpty ? '-' : game.currentWord.synonym}'),
+              const SizedBox(height: 4),
+              Text('Antonym: ${game.currentWord.antonym.isEmpty ? '-' : game.currentWord.antonym}'),
               const SizedBox(height: 8),
               Text(success ? 'Reward: +5 stars' : 'Penalty: -1 heart'),
             ],
