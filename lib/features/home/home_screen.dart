@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/managers/auth_service.dart';
 import '../../core/managers/character_manager.dart';
@@ -28,6 +29,23 @@ class _HomeScreenState extends State<HomeScreen> {
   final AuthService _auth = AuthService.instance;
   final FriendService _friends = FriendService();
   final RankingService _ranking = RankingService();
+  final Map<String, String> _badgeAchievedAt = <String, String>{};
+  bool _badgeSyncScheduled = false;
+  bool _badgeStoreLoaded = false;
+
+  static const List<int> _attendanceTierTargets = [7, 30, 90, 180, 365];
+  static const List<int> _starsTierTargets = [300, 1200, 3000, 5500, 9000];
+  static const List<int> _characterTierTargets = [3, 8, 14, 20, 26];
+  static const List<int> _stageTierTargets = [5, 20, 50, 90, 140];
+  static const List<String> _stageBadgeGames = ['wordle', 'word_clue', 'sentence_code', 'anagram', 'word_crash'];
+  static const List<String> _tierNames = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Mythic'];
+  static const List<Color> _tierColors = [
+    Color(0xFFB87333),
+    Color(0xFFA0A8B3),
+    Color(0xFFD4AF37),
+    Color(0xFF6FB7FF),
+    Color(0xFFFF5FA2),
+  ];
   static const List<_GameDef> _gameDefs = [
     _GameDef(
       id: 'wordle',
@@ -77,9 +95,35 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadBadgeStore();
+  }
+
+  Future<void> _loadBadgeStore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getStringList('badge_achieved_keys') ?? const [];
+    final map = <String, String>{};
+    for (final key in keys) {
+      final stamp = prefs.getString('badge_achieved_at::$key');
+      if (stamp != null && stamp.isNotEmpty) {
+        map[key] = stamp;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _badgeAchievedAt
+        ..clear()
+        ..addAll(map);
+      _badgeStoreLoaded = true;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final skin = context.watch<SkinManager>().currentSkin;
     final gameState = context.watch<GameStateManager>();
+    _scheduleBadgeSync(gameState);
     final character = CharacterManager().getById(gameState.selectedCharacterId);
     final size = MediaQuery.sizeOf(context);
     final isPortrait = size.height >= size.width;
@@ -370,6 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _sideButton(icon: Icons.pets_rounded, label: 'Chars', compact: compact, onTap: () => _openCharacterShop(context)),
           _sideButton(icon: Icons.wallpaper_rounded, label: 'Skins', compact: compact, onTap: () => _openSkinPicker(context)),
           _sideButton(icon: Icons.help_outline_rounded, label: 'Guide', compact: compact, onTap: () => _openGameGuideSheet(context)),
+          _sideButton(icon: Icons.workspace_premium_rounded, label: 'Badges', compact: compact, onTap: () => _openBadgesSheet(context)),
           _sideButton(icon: Icons.group_rounded, label: 'Friends', compact: compact, onTap: () => _openFriendsSheet(context)),
           _sideButton(icon: Icons.emoji_events_rounded, label: 'Rank', compact: compact, onTap: () => _openRankingSheet(context)),
           _sideButton(icon: Icons.settings_rounded, label: 'Settings', compact: compact, onTap: () => _openSettingsSheet(context)),
@@ -423,6 +468,9 @@ class _HomeScreenState extends State<HomeScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 420;
+          final streak = gameState.attendanceStreak;
+          final isHundredMilestone = streak > 0 && streak % 100 == 0;
+          final isWeeklyMilestone = streak > 0 && streak % 7 == 0;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -488,19 +536,60 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: gameState.canCheckInToday ? const Color(0xFFFFF3BF) : const Color(0xFFD3F9D8),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        gameState.canCheckInToday
-                            ? 'Play 1 game to check-in'
-                            : 'Today checked-in',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-                        textAlign: TextAlign.center,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: gameState.canCheckInToday ? const Color(0xFFFFF3BF) : const Color(0xFFD3F9D8),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            gameState.canCheckInToday
+                                ? 'Play 1 game to check-in'
+                                : 'Today checked-in',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (isHundredMilestone)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF3BF),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFE0A800)),
+                            ),
+                            child: Text(
+                              'MILESTONE ${streak}d',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFFB08900),
+                              ),
+                            ),
+                          ),
+                        TweenAnimationBuilder<double>(
+                          key: ValueKey('streak-$streak'),
+                          tween: Tween<double>(begin: isHundredMilestone ? 0.94 : 1, end: 1),
+                          duration: const Duration(milliseconds: 520),
+                          curve: Curves.easeOutBack,
+                          builder: (context, value, child) => Transform.scale(scale: value, child: child),
+                          child: Text(
+                            'Streak ${streak}d',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: isHundredMilestone
+                                  ? const Color(0xFFB08900)
+                                  : (isWeeklyMilestone ? const Color(0xFFB08900) : AppColors.textSecondary),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1343,6 +1432,268 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openBadgesSheet(BuildContext context) {
+    final gameState = context.read<GameStateManager>();
+    final cards = _buildBadgeCards(gameState);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => Padding(
+        padding: _sheetBottomPadding(context),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.84,
+          child: Column(
+            children: [
+              _sheetHeader('Badges'),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: cards.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final card = cards[index];
+                    final tier = _currentTier(card.currentValue, card.targets);
+                    return _sheetCard(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: card.color.withValues(alpha: 0.16),
+                                child: Icon(card.icon, color: card.color),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(card.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                                    Text(
+                                      '${card.currentValue} / ${card.targets.last}  |  TIER ${tier + 1}/5',
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: List.generate(5, (tierIndex) {
+                              final reached = card.currentValue >= card.targets[tierIndex];
+                              final key = '${card.id}:$tierIndex';
+                              final isMilestone = tierIndex == 4;
+                              final isAchieved = _badgeAchievedAt.containsKey(key);
+                              final color = _tierColors[tierIndex];
+                              return Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () => _openBadgeTierDetail(context, card, tierIndex),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 240),
+                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: reached ? color.withValues(alpha: 0.18) : const Color(0xFFF1F3F5),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: reached ? color : const Color(0xFFCED4DA),
+                                          width: reached ? 1.6 : 1.1,
+                                        ),
+                                        boxShadow: reached
+                                            ? [
+                                                BoxShadow(
+                                                  color: color.withValues(alpha: isMilestone ? 0.38 : 0.18),
+                                                  blurRadius: isMilestone ? 13 : 8,
+                                                  spreadRadius: isMilestone ? 1 : 0,
+                                                ),
+                                              ]
+                                            : const [],
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Icon(
+                                            isAchieved ? Icons.verified_rounded : Icons.shield_outlined,
+                                            size: isMilestone ? 20 : 18,
+                                            color: reached ? color : const Color(0xFF868E96),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'T${tierIndex + 1}',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w900,
+                                              color: reached ? color : const Color(0xFF868E96),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openBadgeTierDetail(BuildContext context, _BadgeCard card, int tierIndex) {
+    final target = card.targets[tierIndex];
+    final reached = card.currentValue >= target;
+    final key = '${card.id}:$tierIndex';
+    final achievedAt = _badgeAchievedAt[key];
+    final nextTarget = tierIndex < 4 ? card.targets[tierIndex + 1] : null;
+    final remain = reached ? 0 : (target - card.currentValue);
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (context) => Padding(
+        padding: _sheetBottomPadding(context).add(const EdgeInsets.all(16)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${card.title} · ${_tierNames[tierIndex]}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            Text('Condition: ${card.description} $target', style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Text('Current: ${card.currentValue}', style: const TextStyle(color: AppColors.textSecondary)),
+            if (nextTarget != null) ...[
+              const SizedBox(height: 4),
+              Text('Next Tier Target: $nextTarget', style: const TextStyle(color: AppColors.textSecondary)),
+            ],
+            const SizedBox(height: 6),
+            Text(
+              reached ? 'Status: Unlocked' : 'Status: Locked ($remain left)',
+              style: TextStyle(fontWeight: FontWeight.w800, color: reached ? const Color(0xFF2B8A3E) : AppColors.textSecondary),
+            ),
+            if (achievedAt != null) ...[
+              const SizedBox(height: 6),
+              Text('Unlocked at: ${_shortDate(achievedAt)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            ],
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<_BadgeCard> _buildBadgeCards(GameStateManager gameState) {
+    final list = <_BadgeCard>[
+      _BadgeCard(
+        id: 'attendance',
+        title: 'Attendance',
+        description: 'Consecutive days',
+        icon: Icons.calendar_month_rounded,
+        color: const Color(0xFF2F9E44),
+        currentValue: gameState.attendanceStreak,
+        targets: _attendanceTierTargets,
+      ),
+      _BadgeCard(
+        id: 'stars',
+        title: 'Star Collector',
+        description: 'Total stars earned',
+        icon: Icons.star_rounded,
+        color: const Color(0xFFF08C00),
+        currentValue: gameState.totalStarsEarned,
+        targets: _starsTierTargets,
+      ),
+      _BadgeCard(
+        id: 'characters',
+        title: 'Character Hunter',
+        description: 'Unlocked characters',
+        icon: Icons.pets_rounded,
+        color: const Color(0xFF7048E8),
+        currentValue: gameState.unlockedCharacters.length,
+        targets: _characterTierTargets,
+      ),
+    ];
+    for (final gameId in _stageBadgeGames) {
+      final game = _gameDefs.firstWhere((g) => g.id == gameId);
+      list.add(
+        _BadgeCard(
+          id: 'stage_$gameId',
+          title: '${game.title} Stage',
+          description: 'Best stage reached',
+          icon: game.icon,
+          color: game.color,
+          currentValue: gameState.getBestStage(gameId),
+          targets: _stageTierTargets,
+        ),
+      );
+    }
+    return list;
+  }
+
+  void _scheduleBadgeSync(GameStateManager gameState) {
+    if (!_badgeStoreLoaded || _badgeSyncScheduled) return;
+    _badgeSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _badgeSyncScheduled = false;
+      if (!mounted) return;
+      final cards = _buildBadgeCards(gameState);
+      final unlockedNow = <String>[];
+      for (final card in cards) {
+        final tier = _currentTier(card.currentValue, card.targets);
+        for (int i = 0; i <= tier; i++) {
+          final key = '${card.id}:$i';
+          if (_badgeAchievedAt.containsKey(key)) continue;
+          unlockedNow.add(key);
+        }
+      }
+      if (unlockedNow.isEmpty) return;
+      final now = DateTime.now().toIso8601String();
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in unlockedNow) {
+        _badgeAchievedAt[key] = now;
+        await prefs.setString('badge_achieved_at::$key', now);
+      }
+      await prefs.setStringList('badge_achieved_keys', _badgeAchievedAt.keys.toList());
+      if (!mounted) return;
+      final first = unlockedNow.first;
+      final parts = first.split(':');
+      final cardId = parts.first;
+      final tierIndex = int.tryParse(parts.last) ?? 0;
+      final card = cards.firstWhere((c) => c.id == cardId, orElse: () => cards.first);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Badge unlocked: ${card.title} · ${_tierNames[tierIndex]}')),
+      );
+      setState(() {});
+    });
+  }
+
+  int _currentTier(int value, List<int> targets) {
+    int tier = -1;
+    for (int i = 0; i < targets.length; i++) {
+      if (value >= targets[i]) {
+        tier = i;
+      }
+    }
+    return tier;
+  }
+
+  String _shortDate(String iso) {
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return '-';
+    final mm = dt.month.toString().padLeft(2, '0');
+    final dd = dt.day.toString().padLeft(2, '0');
+    return '${dt.year}-$mm-$dd';
+  }
+
   void _openRankingSheet(BuildContext context) {
     const gameIds = ['wordle', 'word_clue', 'sentence_code', 'anagram', 'word_crash'];
     showModalBottomSheet<void>(
@@ -1637,6 +1988,26 @@ class _GameDef {
   final String guide;
   final IconData icon;
   final Color color;
+}
+
+class _BadgeCard {
+  const _BadgeCard({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.currentValue,
+    required this.targets,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final int currentValue;
+  final List<int> targets;
 }
 
 
