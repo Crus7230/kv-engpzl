@@ -280,7 +280,6 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        fontFamily: 'monospace',
                       ),
                     ),
                   ),

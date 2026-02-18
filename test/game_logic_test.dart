@@ -6,10 +6,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  final repo = WordRepository.instance;
+
+  Future<void> waitForWordleReady(WordleProvider provider) async {
+    for (int i = 0; i < 120; i++) {
+      if (!provider.isLoading && provider.board.isNotEmpty) return;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    fail('WordleProvider initialization timed out.');
+  }
+
+  setUpAll(() async {
+    await repo.preload();
+  });
 
   test('Word repository stage-based generation works', () async {
-    final repo = WordRepository.instance;
-    await repo.preload();
     final s1 = await repo.getWordleWordForStage(1);
     final s6 = await repo.getWordleWordForStage(6);
     final anagram = repo.getAnagramRound();
@@ -23,8 +34,6 @@ void main() {
   });
 
   test('Word repository pool is large when assets are available', () async {
-    final repo = WordRepository.instance;
-    await repo.preload();
     final stats = repo.getPoolStats();
     if (repo.loadedFromAssets) {
       expect(stats['wordle4_allowed']!, greaterThan(1000));
@@ -67,7 +76,7 @@ void main() {
     final state = GameStateManager();
     await state.init();
     final provider = WordleProvider(state);
-    await provider.initStage();
+    await waitForWordleReady(provider);
 
     expect(provider.board.length, 6);
     expect(provider.board.first.length, greaterThanOrEqualTo(4));
@@ -79,7 +88,7 @@ void main() {
     final state = GameStateManager();
     await state.init();
     final provider = WordleProvider(state);
-    await provider.initStage();
+    await waitForWordleReady(provider);
 
     final invalid = provider.wordLength == 4 ? 'QZXW' : 'QZXWY';
     for (int i = 0; i < provider.wordLength; i++) {

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/managers/cloud_sync_manager.dart';
 import '../../core/managers/game_state_manager.dart';
+import '../../core/managers/sentence_code_repository.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
 import '../../core/widgets/app_safe_area.dart';
@@ -44,7 +45,10 @@ class _SplashScreenState extends State<SplashScreen> {
         _progress = 0.24;
         _status = 'Loading word lists...';
       });
-      await WordRepository.instance.preload();
+      await Future.wait([
+        WordRepository.instance.preload(),
+        SentenceCodeRepository.instance.preload(),
+      ]);
 
       if (!mounted) return;
       setState(() {

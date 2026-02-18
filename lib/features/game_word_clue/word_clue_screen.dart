@@ -125,7 +125,6 @@ class _WordClueScreenState extends State<WordClueScreen> {
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            fontFamily: 'Roboto',
                           ),
                         ),
                         if (_repo.hasKoreanMeaning(_round.korMeaning)) ...[

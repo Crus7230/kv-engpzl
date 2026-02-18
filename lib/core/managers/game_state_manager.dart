@@ -46,12 +46,14 @@ class GameStateManager extends ChangeNotifier {
   final Map<String, int> bestStages = {
     'wordle': 1,
     'word_clue': 1,
+    'sentence_code': 1,
     'anagram': 1,
     'word_crash': 1,
   };
   final Map<String, int> playCounts = {
     'wordle': 0,
     'word_clue': 0,
+    'sentence_code': 0,
     'anagram': 0,
     'word_crash': 0,
   };
@@ -302,6 +304,7 @@ class GameStateManager extends ChangeNotifier {
       ..addAll({
         'wordle': 1,
         'word_clue': 1,
+        'sentence_code': 1,
         'anagram': 1,
         'word_crash': 1,
       });
@@ -310,6 +313,7 @@ class GameStateManager extends ChangeNotifier {
       ..addAll({
         'wordle': 0,
         'word_clue': 0,
+        'sentence_code': 0,
         'anagram': 0,
         'word_crash': 0,
       });

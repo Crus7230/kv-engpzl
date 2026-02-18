@@ -15,6 +15,10 @@ class AppColors {
 
 class AppTheme {
   static ThemeData get lightTheme {
+    final textTheme = GoogleFonts.notoSansKrTextTheme().apply(
+      bodyColor: AppColors.textPrimary,
+      displayColor: AppColors.textPrimary,
+    );
     return ThemeData(
       useMaterial3: true,
       scaffoldBackgroundColor: AppColors.background,
@@ -23,10 +27,9 @@ class AppTheme {
         primary: AppColors.primary,
         secondary: AppColors.secondary,
       ),
-      textTheme: GoogleFonts.nunitoTextTheme().apply(
-        bodyColor: AppColors.textPrimary,
-        displayColor: AppColors.textPrimary,
-      ),
+      fontFamily: GoogleFonts.notoSansKr().fontFamily,
+      textTheme: textTheme,
+      primaryTextTheme: textTheme,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,

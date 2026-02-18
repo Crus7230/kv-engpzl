@@ -158,7 +158,6 @@ class _AnagramScreenState extends State<AnagramScreen> {
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            fontFamily: 'Roboto',
                           ),
                         ),
                         if (hasKorMeaning) ...[

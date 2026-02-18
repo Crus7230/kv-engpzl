@@ -34,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/wordle',
       title: 'WORDLE',
       subtitle: 'Wave difficulty, 6 tries, keyboard feedback',
-      guide: '6占??占쎌뿉 ?占쎈떟 ?占쎌뼱占?留욎텛占? ?占쎌긽 ?占쎈뱶諛깆쑝占??占쎌쓬 異붿륫??醫곻옙?媛?占쎌슂.',
+      guide: '6번 안에 정답 단어를 맞히는 게임입니다. 색상 피드백으로 위치와 포함 여부를 파악하세요.',
       icon: Icons.grid_view_rounded,
       color: Color(0xFF37B24D),
     ),
@@ -43,16 +43,25 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/word-clue',
       title: 'WORD CLUE',
       subtitle: 'Definition master with touch letter tiles',
-      guide: '?占쎌떆???占쎌쓣 蹂닿퀬 ?占쎈쭪?占?泥좎옄占??占쎈윭 鍮덉뭏???占쎌꽦?占쎈뒗 紐⑤뱶?占쎈땲??',
+      guide: '의미와 품사를 보고 알파벳 타일을 조합해 단어를 완성하는 모드입니다.',
       icon: Icons.quiz_rounded,
       color: Color(0xFFF08C00),
+    ),
+    _GameDef(
+      id: 'sentence_code',
+      route: '/sentence-code',
+      title: 'SENTENCE CODE',
+      subtitle: 'Decode numbered letters to restore a sentence',
+      guide: '문장 속 알파벳이 번호로 암호화되어 있습니다. 단서 단어를 활용해 전체 문장을 복원하세요.',
+      icon: Icons.lock_open_rounded,
+      color: Color(0xFF1D4ED8),
     ),
     _GameDef(
       id: 'anagram',
       route: '/anagram',
       title: 'ANAGRAM',
       subtitle: 'Core word clear + general word bonus',
-      guide: '?占쎌븮 湲?占쏙옙? ?占쎌“?占쏀빐 ?占쎌떖 ?占쎌뼱占?李얘퀬 蹂대꼫???占쎌뼱占?異뷂옙? ?占쎌닔占??占쎌쑝?占쎌슂.',
+      guide: '주어진 글자 조합으로 핵심 단어를 찾고, 추가 단어로 보너스 점수를 얻는 모드입니다.',
       icon: Icons.shuffle_rounded,
       color: Color(0xFF7B2CBF),
     ),
@@ -61,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
       route: '/word-crash',
       title: 'WORD CRASH',
       subtitle: 'Swipe, pop, gravity, combo',
-      guide: '?占쎌젒??湲?占쏙옙? ?占쎌뼱 ?占쎌뼱占?留뚮뱾占? ??占쏙옙/肄ㅻ낫占??占쎌슜?????占쎌닔占??占쎈━?占쎌슂.',
+      guide: '인접한 글자를 연결해 단어를 만들고, 폭탄/콤보를 활용해 고득점을 노리세요.',
       icon: Icons.auto_awesome_motion_rounded,
       color: Color(0xFF1C7ED6),
     ),
@@ -269,6 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       DropdownMenuItem(value: 'all', child: Text('All')),
                       DropdownMenuItem(value: 'wordle', child: Text('Wordle')),
                       DropdownMenuItem(value: 'word_clue', child: Text('Word Clue')),
+                      DropdownMenuItem(value: 'sentence_code', child: Text('Sentence Code')),
                       DropdownMenuItem(value: 'anagram', child: Text('Anagram')),
                       DropdownMenuItem(value: 'word_crash', child: Text('Word Crash')),
                     ],
@@ -359,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _sideButton(icon: Icons.pets_rounded, label: 'Chars', compact: compact, onTap: () => _openCharacterShop(context)),
           _sideButton(icon: Icons.wallpaper_rounded, label: 'Skins', compact: compact, onTap: () => _openSkinPicker(context)),
-          _sideButton(icon: Icons.help_outline_rounded, label: '媛?占쎈뱶', compact: compact, onTap: () => _openGameGuideSheet(context)),
+          _sideButton(icon: Icons.help_outline_rounded, label: 'Guide', compact: compact, onTap: () => _openGameGuideSheet(context)),
           _sideButton(icon: Icons.group_rounded, label: 'Friends', compact: compact, onTap: () => _openFriendsSheet(context)),
           _sideButton(icon: Icons.emoji_events_rounded, label: 'Rank', compact: compact, onTap: () => _openRankingSheet(context)),
           _sideButton(icon: Icons.settings_rounded, label: 'Settings', compact: compact, onTap: () => _openSettingsSheet(context)),
@@ -787,7 +797,7 @@ class _HomeScreenState extends State<HomeScreen> {
           height: MediaQuery.of(context).size.height * 0.78,
           child: Column(
           children: [
-            _sheetHeader('寃뚯엫 媛?占쎈뱶'),
+            _sheetHeader('Game Guide'),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.all(12),
@@ -839,13 +849,15 @@ class _HomeScreenState extends State<HomeScreen> {
   String _guideTip(String gameId) {
     switch (gameId) {
       case 'wordle':
-        return '?? 珥덈컲?占쎈뒗 ?占쎈줈 ?占쎈Ⅸ 湲?占쏙옙? 留롮씠 ?占쎈룄?占쎈㈃ ?占쎈떟 踰붿쐞占?鍮좊Ⅴ占?以꾩씪 ???占쎌뼱??';
+        return '초반에는 모음과 자주 쓰는 자음을 섞어 입력하면 정답 후보를 빠르게 줄일 수 있습니다.';
       case 'word_clue':
-        return '?? ?占쎌쓽 ?占쎌떖 ?占쎌뼱(?占쎌옉/?占쎈Ъ/媛먯젙)占?癒쇽옙? ?占쎌쑝占??占쎈떟 泥좎옄占?李얘린 ?占쎌썙吏묐땲??';
+        return '품사와 의미를 먼저 확인하고, 길이가 짧은 단어부터 맞히면 진행이 쉬워집니다.';
+      case 'sentence_code':
+        return '반복되는 번호를 먼저 찾아 같은 알파벳을 추론하면 문장 복원 속도가 크게 올라갑니다.';
       case 'anagram':
-        return '?? 2~3湲??議고빀遺??鍮좊Ⅴ占??占쎌씤???? ?占쎌떖 ?占쎌뼱 湲몄씠占??占쎌옣??蹂댁꽭??';
+        return '2~3글자 단어를 먼저 확보하고, 핵심 단어 길이를 늘려가며 조합해 보세요.';
       case 'word_crash':
-        return '?? 占??占쎌뼱 + ??占쏙옙 ?占??議고빀??留뚮뱾占??占쎌뇙 ?占쎄굅占??占쎌닔媛 ?占쎄쾶 ?占쎈씪媛묐땲??';
+        return '긴 단어와 특수 블록을 연계하면 콤보 점수가 크게 올라갑니다.';
       default:
         return '';
     }
@@ -857,6 +869,8 @@ class _HomeScreenState extends State<HomeScreen> {
         return _buildWordleGuideExample();
       case 'word_clue':
         return _buildWordClueGuideExample();
+      case 'sentence_code':
+        return _buildSentenceCodeGuideExample();
       case 'anagram':
         return _buildAnagramGuideExample();
       case 'word_crash':
@@ -877,7 +891,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('?占쎌떆: ?占쎈떟??TRAIN???? 異붿륫 TRAIL'),
+          const Text('Example: answer TRAIN, guess TRAIL'),
           const SizedBox(height: 8),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -890,7 +904,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('珥덈줉: ?占쎌튂/湲???占쎌튂  |  ?占쎌깋: ?占쎌뼱???占쎌쓬', style: TextStyle(fontSize: 11)),
+          const Text('Green: exact match  |  Gray: not in word', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -907,7 +921,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('?? ?占쎈뒛?占쎌꽌 臾쇰갑?占쎌씠 ?占쎌뼱吏???占쎌긽'),
+          const Text('Definition: water that falls from clouds'),
           const SizedBox(height: 8),
           const Row(
             children: [
@@ -933,7 +947,28 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('?占쎈옒 湲???占?占쎌쓣 ?占쎈윭 ?占쎈떟 ?占쎌뼱占??占쎌꽦?占쎌꽭??', style: TextStyle(fontSize: 11)),
+          const Text('Tap letters in order and complete the target word.', style: TextStyle(fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSentenceCodeGuideExample() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F1FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFA9C6FF)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Sentence letters are replaced with numbers.'),
+          SizedBox(height: 8),
+          Text('1 2 3 4   5 2 6 7 8   9 10 6 11'),
+          SizedBox(height: 8),
+          Text('Use clue words to infer letters and restore the full sentence.', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -950,7 +985,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('?占쎌븮 湲?? C A R E'),
+          const Text('Seed letters: C A R E'),
           const SizedBox(height: 8),
           const Wrap(
             spacing: 6,
@@ -962,7 +997,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('?占쎌떖 ?占쎌뼱占?癒쇽옙? 梨꾩슦占? 異뷂옙? ?占쎌뼱占?蹂대꼫???占쎌닔占??占쎌쑝?占쎌슂.', style: TextStyle(fontSize: 11)),
+          const Text('Fill core words first, then add bonus words for extra score.', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -1309,7 +1344,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openRankingSheet(BuildContext context) {
-    const gameIds = ['wordle', 'word_clue', 'anagram', 'word_crash'];
+    const gameIds = ['wordle', 'word_clue', 'sentence_code', 'anagram', 'word_crash'];
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1329,6 +1364,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Tab(text: 'Stars'),
                   Tab(text: 'Wordle'),
                   Tab(text: 'Clue'),
+                  Tab(text: 'Sentence'),
                   Tab(text: 'Anagram'),
                   Tab(text: 'Crash'),
                 ],
@@ -1339,6 +1375,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _rankingListView(future: _ranking.getTotalStarRanking(), valueKey: 'keTotalStars'),
                     _rankingListView(future: _ranking.getGameRanking('wordle'), valueKey: 'score'),
                     _rankingListView(future: _ranking.getGameRanking('word_clue'), valueKey: 'score'),
+                    _rankingListView(future: _ranking.getGameRanking('sentence_code'), valueKey: 'score'),
                     _rankingListView(future: _ranking.getGameRanking('anagram'), valueKey: 'score'),
                     _rankingListView(future: _ranking.getGameRanking('word_crash'), valueKey: 'score'),
                   ],

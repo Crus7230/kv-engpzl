@@ -91,6 +91,7 @@ class CharacterManager {
         hints: {
           'wordle': 'Try letters with different vowels first.',
           'word_clue': 'Match the meaning and part of speech together.',
+          'sentence_code': 'Reveal repeated letters to open multiple slots at once.',
           'anagram': 'Core words use every letter at least once.',
           'word_crash': 'Longer words are better for combos.',
         },
