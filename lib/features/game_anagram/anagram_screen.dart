@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 
@@ -20,6 +20,7 @@ class AnagramScreen extends StatefulWidget {
 
 class _AnagramScreenState extends State<AnagramScreen> {
   final WordRepository _repo = WordRepository.instance;
+  static const String _tutorialAnswer = 'STREAM';
   late AnagramRoundData _round;
   final Set<String> _foundCore = {};
   final Set<String> _foundGeneral = {};
@@ -36,8 +37,8 @@ class _AnagramScreenState extends State<AnagramScreen> {
   @override
   void initState() {
     super.initState();
-    _round = _repo.getAnagramRoundForStage(1);
-    _seedTiles = _round.seed.split('')..shuffle(Random());
+    _round = _buildTutorialRound();
+    _seedTiles = _round.seed.split('');
     _pickedTileIndexes.clear();
     _tutorialStep = 0;
   }
@@ -47,8 +48,8 @@ class _AnagramScreenState extends State<AnagramScreen> {
     super.didChangeDependencies();
     if (_stageLoaded) return;
     _stage = context.read<GameStateManager>().getBestStage('anagram');
-    _round = _repo.getAnagramRoundForStage(_stage);
-    _seedTiles = _round.seed.split('')..shuffle(Random());
+    _round = _isTutorialStage ? _buildTutorialRound() : _repo.getAnagramRoundForStage(_stage);
+    _seedTiles = _isTutorialStage ? _round.seed.split('') : (_round.seed.split('')..shuffle(Random()));
     _pickedTileIndexes.clear();
     _tutorialStep = _isTutorialStage ? 0 : 3;
     _stageLoaded = true;
@@ -78,11 +79,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
                     state: state,
                     textColor: AppColors.textPrimary,
                   ),
-                  if (_isTutorialStage) ...[
-                    const SizedBox(height: 10),
-                    _tutorialCard(),
-                    const SizedBox(height: 8),
-                  ],
+                  if (_isTutorialStage) const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -105,7 +102,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
                             if (_isTutorialStage) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                                const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
                               );
                               return;
                             }
@@ -239,7 +236,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => setState(() {
-                            _seedTiles = _round.seed.split('')..shuffle(Random());
+                            _seedTiles = _isTutorialStage ? _round.seed.split('') : (_round.seed.split('')..shuffle(Random()));
                             _pickedTileIndexes.clear();
                             _input.clear();
                             _updateTutorialStepFromInput();
@@ -316,8 +313,18 @@ class _AnagramScreenState extends State<AnagramScreen> {
               ),
             ),
           ),
+          if (_isTutorialStage) _tutorialOverlay(_tutorialCard()),
         ],
       ),
+    );
+  }
+
+  Widget _tutorialOverlay(Widget child) {
+    return Positioned(
+      top: 84,
+      left: 12,
+      right: 12,
+      child: IgnorePointer(child: child),
     );
   }
 
@@ -343,7 +350,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFB7D3FA)),
       ),
@@ -357,18 +364,18 @@ class _AnagramScreenState extends State<AnagramScreen> {
           const SizedBox(height: 6),
           Text(
             _tutorialStep == 0
-                ? '1단계: 글자 타일을 눌러 단어를 만들기 시작하세요.'
+                ? '1단계: 고정 시드 STREAM의 글자를 눌러 단어를 만들기 시작하세요.'
                 : _tutorialStep == 1
                     ? '2단계: 최소 3글자 이상 조합하세요.'
                     : _tutorialStep == 2
-                        ? '3단계: Submit 버튼을 누르세요.'
-                        : '좋아요. 이제 일반 플레이를 진행하세요.',
+                        ? '3단계: Submit으로 STREAM 정답을 제출하세요.'
+                        : '완료: Stage 1은 STREAM 고정 퍼즐입니다.',
             style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
           ),
           const SizedBox(height: 4),
-          const Text('1) 주어진 글자로 단어를 조합합니다.'),
-          const Text('2) Submit으로 정답을 확인합니다.'),
-          const Text('3) 핵심 단어를 모두 찾으면 스테이지 클리어입니다.'),
+          const Text('1) Stage 1은 시드/정답이 고정되어 있습니다.'),
+          const Text('2) 이번 튜토리얼 정답 제출은 STREAM으로 유도됩니다.'),
+          const Text('3) 정답 제출 후 일반 라운드 규칙으로 진행됩니다.'),
           const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
         ],
       ),
@@ -409,14 +416,20 @@ class _AnagramScreenState extends State<AnagramScreen> {
     final candidate = _input.toString().toUpperCase();
     if (_isTutorialStage && _tutorialStep < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼: 먼저 3글자 이상 조합하세요.')),
+        const SnackBar(content: Text('?쒗넗由ъ뼹: 癒쇱? 3湲???댁긽 議고빀?섏꽭??')),
+      );
+      return;
+    }
+    if (_isTutorialStage && candidate != _tutorialAnswer) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('?쒗넗由ъ뼹: Stage 1? STREAM ?쒖텧濡??꾨즺?⑸땲??')),
       );
       return;
     }
     if (candidate.isEmpty) return;
     _input.clear();
     _pickedTileIndexes.clear();
-    _seedTiles = _round.seed.split('')..shuffle(Random());
+    _seedTiles = _isTutorialStage ? _round.seed.split('') : (_round.seed.split('')..shuffle(Random()));
 
     if (_round.coreWords.contains(candidate) && !_foundCore.contains(candidate)) {
       _foundCore.add(candidate);
@@ -520,5 +533,20 @@ class _AnagramScreenState extends State<AnagramScreen> {
     );
     _dialogOpen = false;
   }
+
+  AnagramRoundData _buildTutorialRound() {
+    return const AnagramRoundData(
+      seedInfo: WordData(
+        word: _tutorialAnswer,
+        meaning: 'A continuous flow of water or information.',
+        korMeaning: '흐름, 시냇물',
+        pos: 'Noun',
+        difficulty: 1,
+      ),
+      coreWords: {_tutorialAnswer},
+      generalWords: {'TEAM', 'SEAT', 'TAME', 'RATE', 'EAST', 'MEAT', 'TEAR', 'SMART'},
+    );
+  }
 }
+
 

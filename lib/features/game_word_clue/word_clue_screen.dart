@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -21,6 +21,7 @@ class WordClueScreen extends StatefulWidget {
 
 class _WordClueScreenState extends State<WordClueScreen> {
   final WordRepository _repo = WordRepository.instance;
+  static const String _tutorialAnswer = 'KIND';
   late WordData _round;
   late List<String> _availableTiles;
   final List<String> _picked = [];
@@ -47,8 +48,10 @@ class _WordClueScreenState extends State<WordClueScreen> {
   }
 
   void _loadRound() {
-    _round = _repo.getWordClueRoundForStage(_stage);
-    _availableTiles = _round.word.toUpperCase().split('')..shuffle(Random());
+    _round = _isTutorialStage ? _buildTutorialRound() : _repo.getWordClueRoundForStage(_stage);
+    _availableTiles = _isTutorialStage
+        ? _round.word.toUpperCase().split('')
+        : (_round.word.toUpperCase().split('')..shuffle(Random()));
     _picked.clear();
     _solved = false;
     _tutorialStep = _isTutorialStage ? 0 : 3;
@@ -72,10 +75,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
               child: Column(
                 children: [
                   GameTopBar(title: 'WORD CLUE', stage: _stage, state: state),
-                  if (_isTutorialStage) ...[
-                    const SizedBox(height: 10),
-                    _tutorialCard(),
-                  ],
+                  if (_isTutorialStage) const SizedBox(height: 10),
                   const SizedBox(height: 10),
                   Container(
                     width: double.infinity,
@@ -229,19 +229,40 @@ class _WordClueScreenState extends State<WordClueScreen> {
               ),
             ),
           ),
+          if (_isTutorialStage) _tutorialOverlay(_tutorialCard()),
         ],
       ),
+    );
+  }
+
+  Widget _tutorialOverlay(Widget child) {
+    return Positioned(
+      top: 84,
+      left: 12,
+      right: 12,
+      child: IgnorePointer(child: child),
     );
   }
 
   void _pick(int index) {
     if (_isTutorialStage && _tutorialStep >= 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼: 결과 확인 전에는 입력할 수 없습니다.')),
+        const SnackBar(content: Text('?쒗넗由ъ뼹: 寃곌낵 ?뺤씤 ?꾩뿉???낅젰?????놁뒿?덈떎.')),
       );
       return;
     }
     setState(() {
+      if (_isTutorialStage) {
+        final answer = _round.word.toUpperCase();
+        final expected = answer[_picked.length];
+        final tapped = _availableTiles[index];
+        if (tapped != expected) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('?쒗넗由ъ뼹: ?ㅼ쓬 湲?먮뒗 $expected ?낅땲??')),
+          );
+          return;
+        }
+      }
       _picked.add(_availableTiles[index]);
       _availableTiles[index] = '';
       if (_isTutorialStage && _tutorialStep == 0 && _picked.isNotEmpty) {
@@ -252,7 +273,9 @@ class _WordClueScreenState extends State<WordClueScreen> {
 
   void _clearPick() {
     setState(() {
-      _availableTiles = _round.word.toUpperCase().split('')..shuffle(Random());
+      _availableTiles = _isTutorialStage
+          ? _round.word.toUpperCase().split('')
+          : (_round.word.toUpperCase().split('')..shuffle(Random()));
       _picked.clear();
       if (_isTutorialStage) {
         _tutorialStep = 0;
@@ -291,7 +314,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
   Future<void> _showHint() async {
     if (_isTutorialStage) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+        const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
       );
       return;
     }
@@ -311,7 +334,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFB7D3FA)),
       ),
@@ -325,18 +348,18 @@ class _WordClueScreenState extends State<WordClueScreen> {
           const SizedBox(height: 6),
           Text(
             _tutorialStep == 0
-                ? '1단계: 타일 하나를 눌러 시작하세요.'
+                ? '1단계: 고정 정답 KIND를 순서대로 조합해 시작하세요.'
                 : _tutorialStep == 1
-                    ? '2단계: 모든 글자 칸을 채우세요.'
+                    ? '2단계: 칸을 모두 채우면 자동으로 정답 판정이 진행됩니다.'
                     : _tutorialStep == 2
-                        ? '3단계: 정답을 확인하는 중입니다...'
-                        : '좋아요. 이제 일반 플레이를 진행하세요.',
+                        ? '3단계: 결과를 확인하세요.'
+                        : '완료: Stage 1은 KIND 고정 튜토리얼입니다.',
             style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
           ),
           const SizedBox(height: 4),
-          const Text('1) 뜻을 먼저 읽습니다.'),
-          const Text('2) 타일을 눌러 정답 단어를 만듭니다.'),
-          const Text('3) 순서가 틀리면 Clear로 다시 맞춥니다.'),
+          const Text('1) Stage 1은 단어/타일 순서가 미리 세팅되어 있습니다.'),
+          const Text('2) 잘못된 순서는 하트 차감 없이 안내됩니다.'),
+          const Text('3) 정답 흐름을 익힌 뒤 일반 라운드로 넘어갑니다.'),
           const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
         ],
       ),
@@ -384,6 +407,19 @@ class _WordClueScreenState extends State<WordClueScreen> {
     );
     _dialogOpen = false;
   }
+
+  WordData _buildTutorialRound() {
+    return const WordData(
+      word: _tutorialAnswer,
+      meaning: 'Having a friendly, generous, and considerate nature.',
+      korMeaning: '친절한',
+      pos: 'Adjective',
+      difficulty: 1,
+      themeGroup: 'Word',
+      themeCategory: 'Tutorial',
+    );
+  }
 }
+
 
 

@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -67,10 +67,6 @@ class _WordleScreenState extends State<WordleScreen> {
                     stageLabel: 'STAGE ${game.stage}  -  ${game.badgeLabel}',
                     badgeColor: game.badgeColor,
                   ),
-                  if (_isTutorialStage(game.stage)) ...[
-                    const SizedBox(height: 10),
-                    _tutorialCard(game),
-                  ],
                   const SizedBox(height: 14),
                   _board(game, skin),
                   const SizedBox(height: 12),
@@ -81,8 +77,18 @@ class _WordleScreenState extends State<WordleScreen> {
               ),
             ),
           ),
+          if (_isTutorialStage(game.stage)) _tutorialOverlay(_tutorialCard(game)),
         ],
       ),
+    );
+  }
+
+  Widget _tutorialOverlay(Widget child) {
+    return Positioned(
+      top: 84,
+      left: 12,
+      right: 12,
+      child: IgnorePointer(child: child),
     );
   }
 
@@ -181,7 +187,7 @@ class _WordleScreenState extends State<WordleScreen> {
               if (_isTutorialStage(game.stage)) {
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                  const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
                 );
                 return;
               }
@@ -208,32 +214,32 @@ class _WordleScreenState extends State<WordleScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFB7D3FA)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             '튜토리얼 - 스테이지 1',
             style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
           ),
           const SizedBox(height: 6),
           Text(
             _tutorialStep == 0
-                ? '1단계: 첫 글자를 입력하세요.'
+                ? '1단계: 이번 스테이지 정답은 BOOK입니다. 키보드로 입력하세요.'
                 : _tutorialStep == 1
-                    ? '2단계: ${game.wordLength}글자 칸을 모두 채우세요.'
+                    ? '2단계: ${game.wordLength}칸을 다 채워서 제출 준비를 하세요.'
                     : _tutorialStep == 2
-                        ? '3단계: ENTER를 눌러 제출하세요.'
-                        : '좋아요. 이제 일반 플레이를 진행하세요.',
+                        ? '3단계: ENTER를 눌러 색상 결과를 확인하세요.'
+                        : '완료: Stage 1은 고정 정답 BOOK 튜토리얼입니다.',
             style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
           ),
           const SizedBox(height: 4),
-          const Text('1) 키보드로 단어를 입력합니다.'),
-          const Text('2) ENTER로 제출합니다.'),
-          const Text('3) 색상 힌트를 보고 다음 추측을 조정합니다.'),
+          const Text('1) 초록: 글자와 위치가 모두 맞음'),
+          const Text('2) 노랑: 글자는 맞지만 위치가 다름'),
+          const Text('3) 회색: 정답에 없는 글자'),
           const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
         ],
       ),
@@ -338,13 +344,13 @@ class _WordleScreenState extends State<WordleScreen> {
   Future<void> _submitGuess(WordleProvider game) async {
     if (_isTutorialStage(game.stage) && _tutorialStep < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼: 먼저 글자를 입력하세요.')),
+        const SnackBar(content: Text('?쒗넗由ъ뼹: 癒쇱? 湲?먮? ?낅젰?섏꽭??')),
       );
       return;
     }
     if (_isTutorialStage(game.stage) && _tutorialStep == 2 && game.currentCol < game.wordLength) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼: ENTER 전에 줄을 모두 채우세요.')),
+        const SnackBar(content: Text('?쒗넗由ъ뼹: ENTER ?꾩뿉 以꾩쓣 紐⑤몢 梨꾩슦?몄슂.')),
       );
       return;
     }
@@ -359,7 +365,7 @@ class _WordleScreenState extends State<WordleScreen> {
   void _onTutorialTypeKey(WordleProvider game, String key) {
     if (_isTutorialStage(game.stage) && _tutorialStep == 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼: 이제 ENTER를 누르세요.')),
+        const SnackBar(content: Text('?쒗넗由ъ뼹: ?댁젣 ENTER瑜??꾨Ⅴ?몄슂.')),
       );
       return;
     }
@@ -456,4 +462,6 @@ class _WordleScreenState extends State<WordleScreen> {
     _dialogOpen = false;
   }
 }
+
+
 

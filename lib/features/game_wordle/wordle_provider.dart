@@ -19,6 +19,7 @@ class WordleProvider extends ChangeNotifier {
   final GameStateManager _gameState;
   final WordRepository _wordRepository = WordRepository.instance;
   final Random _random = Random();
+  static const String _tutorialAnswer = 'BOOK';
 
   int stage = 1;
   int maxRows = 6;
@@ -63,6 +64,29 @@ class WordleProvider extends ChangeNotifier {
   Future<void> initStage() async {
     isLoading = true;
     notifyListeners();
+
+    if (stage == 1) {
+      waveDifficulty = WaveDifficulty.easy;
+      currentWord = _wordRepository.getDictionaryEntry(_tutorialAnswer) ??
+          const WordData(
+            word: _tutorialAnswer,
+            meaning: 'A printed work of pages.',
+            korMeaning: '책',
+            pos: 'Noun',
+            difficulty: 1,
+          );
+      wordLength = currentWord.word.length;
+      board = List.generate(maxRows, (_) => List.generate(wordLength, (_) => ''));
+      statusBoard = List.generate(maxRows, (_) => List.generate(wordLength, (_) => TileStatus.initial));
+      keyboardStates.clear();
+      currentRow = 0;
+      currentCol = 0;
+      isWon = false;
+      isLost = false;
+      isLoading = false;
+      notifyListeners();
+      return;
+    }
 
     final waveLevel = _wordRepository.getWaveDifficultyLevel(stage);
     if (waveLevel <= 2) {

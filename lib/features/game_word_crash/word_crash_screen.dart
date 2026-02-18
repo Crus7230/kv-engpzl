@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -60,6 +60,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   final WordRepository _repo = WordRepository.instance;
   final Random _random = Random();
   static const String _specialWildcard = '*';
+  static const String _tutorialTargetWord = 'GAME';
 
   static const int rows = 7;
   static const int cols = 6;
@@ -108,7 +109,17 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
 
   void _setupStage(int stage) {
     _stage = stage;
-    _goal = _goalForStage(stage);
+    _goal = _isTutorialStage
+        ? const CrashStageGoal(
+            targetWords: 1,
+            injectCount: 0,
+            maxWordLength: 4,
+            bombRate: 0,
+            boosterRate: 0,
+            blockerRate: 0,
+            missLimitBeforeHeart: 99,
+          )
+        : _goalForStage(stage);
     _combo = 0;
     _wordsClearedInStage = 0;
     _mistakesInStage = 0;
@@ -117,10 +128,39 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   }
 
   void _resetGrid() {
+    if (_isTutorialStage) {
+      _resetTutorialGrid();
+      return;
+    }
     grid
       ..clear()
       ..addAll(List.generate(rows, (_) => List.generate(cols, (_) => _randomTile(allowBlocker: true))));
     _injectPlayableWords(count: _goal.injectCount, maxLength: _goal.maxWordLength);
+    selected.clear();
+    _poppingCells.clear();
+  }
+
+  void _resetTutorialGrid() {
+    const fixed = <String>[
+      'GAMERT',
+      'PLANED',
+      'SMILES',
+      'TREEST',
+      'NOTESR',
+      'WORLDA',
+      'QUIZON',
+    ];
+    grid
+      ..clear()
+      ..addAll(
+        List.generate(
+          rows,
+          (r) => List.generate(
+            cols,
+            (c) => CrashTile(kind: CrashTileKind.letter, value: fixed[r][c]),
+          ),
+        ),
+      );
     selected.clear();
     _poppingCells.clear();
   }
@@ -205,10 +245,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
               child: Column(
                 children: [
                   GameTopBar(title: 'WORD CRASH', stage: _stage, state: state, showStageChip: false),
-                  if (_isTutorialStage) ...[
-                    const SizedBox(height: 8),
-                    _tutorialCard(),
-                  ],
+                  if (_isTutorialStage) const SizedBox(height: 8),
                   _stageGoalCard(),
                   const SizedBox(height: 8),
                   Container(
@@ -233,7 +270,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                             if (_isTutorialStage) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                                const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
                               );
                               return;
                             }
@@ -271,7 +308,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
             child: Text(
-                      '* 스타 보너스, ! 폭탄, X 블로커 | 남은 실수: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
+                      '* ?ㅽ? 蹂대꼫?? ! ??깂, X 釉붾줈而?| ?⑥? ?ㅼ닔: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -368,8 +405,18 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
               ),
             ),
           ),
+          if (_isTutorialStage) _tutorialOverlay(_tutorialCard()),
         ],
       ),
+    );
+  }
+
+  Widget _tutorialOverlay(Widget child) {
+    return Positioned(
+      top: 84,
+      left: 12,
+      right: 12,
+      child: IgnorePointer(child: child),
     );
   }
 
@@ -395,7 +442,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.9),
+        color: Colors.white.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFB7D3FA)),
       ),
@@ -409,18 +456,18 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
           const SizedBox(height: 6),
           Text(
             _tutorialStep == 0
-                ? '1단계: 첫 블록을 선택하세요.'
+                ? '1단계: 고정 보드에서 GAME 경로를 선택하세요.'
                 : _tutorialStep == 1
-                    ? '2단계: 3개 이상으로 선택을 확장하세요.'
+                    ? '2단계: 인접한 4칸으로 GAME을 완성하세요.'
                     : _tutorialStep == 2
-                        ? '3단계: Pop Word 버튼을 누르세요.'
-                        : '좋아요. 이제 일반 플레이를 진행하세요.',
+                        ? '3단계: Pop Word를 눌러 제출하세요.'
+                        : '완료: Stage 1은 GAME 고정 튜토리얼입니다.',
             style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
           ),
           const SizedBox(height: 4),
-          const Text('1) 인접한 블록을 선택해 단어를 만듭니다.'),
-          const Text('2) 글자 블록 2개 이상이 포함되어야 합니다.'),
-          const Text('3) Pop Word로 유효한 패턴을 제거합니다.'),
+          const Text('1) Stage 1 보드는 고정 세팅입니다.'),
+          const Text('2) 정답 단어 GAME으로 제출이 유도됩니다.'),
+          const Text('3) 튜토리얼 목표는 단어 1개 클리어입니다.'),
           const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
         ],
       ),
@@ -525,10 +572,14 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
 
   Future<void> _submit(GameStateManager state) async {
     if (_isTutorialStage && _tutorialStep < 2) {
-      _showToast('튜토리얼: 먼저 조건에 맞게 블록을 선택하세요.');
+      _showToast('?쒗넗由ъ뼹: 癒쇱? 議곌굔??留욊쾶 釉붾줉???좏깮?섏꽭??');
       return;
     }
     final selectedTiles = selected.map((p) => grid[p.x][p.y]).toList();
+    if (_isTutorialStage && selectedTiles.length < _tutorialTargetWord.length) {
+      _showToast('튜토리얼: GAME 4글자를 완성해 제출하세요.');
+      return;
+    }
     if (selectedTiles.length < 3) {
       _showToast('Select at least 3 blocks.');
       return;
@@ -555,6 +606,10 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       wildcard: _specialWildcard,
       requireUnique: true,
     );
+    if (_isTutorialStage && matchedWord != _tutorialTargetWord) {
+      _showToast('?쒗넗由ъ뼹: Stage 1? GAME ?좏깮?쇰줈 吏꾪뻾?⑸땲??');
+      return;
+    }
     final hasBomb = selectedTiles.any((t) => t.isBomb);
     final hasBooster = selectedTiles.any((t) => t.isBooster);
 
@@ -739,10 +794,11 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     }
     final selectedTiles = selected.map((p) => grid[p.x][p.y]).toList();
     final letterCount = selectedTiles.where((t) => t.isLetter).length;
-    if (selected.length >= 3 && letterCount >= 2) {
+    if (selected.length >= _tutorialTargetWord.length && letterCount >= _tutorialTargetWord.length) {
       _tutorialStep = 2;
     } else {
       _tutorialStep = 1;
     }
   }
 }
+

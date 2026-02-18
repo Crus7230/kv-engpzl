@@ -1,4 +1,4 @@
-import 'dart:math';
+﻿import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -48,13 +48,16 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     setState(() => _loading = true);
     await _repo.preload();
     if (!mounted) return;
-    final level = _repo.getLevelForStage(stage);
+    final normalizedStage = max(1, stage);
+    final level = _repo.getLevelForStage(normalizedStage);
     final upper = level.sentence.toUpperCase();
+    final presetLetters = _buildTutorialPresetLetters(upper, normalizedStage == 1);
     setState(() {
-      _stage = max(1, stage);
+      _stage = normalizedStage;
       _level = level;
       _sentenceUpper = upper;
       _revealedLetters.clear();
+      _revealedLetters.addAll(presetLetters);
       _hiddenHintOpened = false;
       _selectedNumber = null;
       _letterNumberMap = _buildLetterNumberMap(upper);
@@ -84,10 +87,6 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                         const SizedBox(height: 10),
                         _characterHintCard(char),
                         const SizedBox(height: 10),
-                        if (_isTutorialStage) ...[
-                          _tutorialCard(),
-                          const SizedBox(height: 10),
-                        ],
                         _sentenceCard(),
                         if (_selectedNumber != null) ...[
                           const SizedBox(height: 6),
@@ -104,8 +103,18 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                     ),
             ),
           ),
+          if (_isTutorialStage) _tutorialOverlay(_tutorialCard()),
         ],
       ),
+    );
+  }
+
+  Widget _tutorialOverlay(Widget child) {
+    return Positioned(
+      top: 84,
+      left: 12,
+      right: 12,
+      child: IgnorePointer(child: child),
     );
   }
 
@@ -225,7 +234,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
+        color: Colors.white.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFB7D3FA)),
       ),
@@ -245,22 +254,22 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
           const SizedBox(height: 8),
           Text(
             focusNumber
-                ? '단계: 안내된 숫자 칸을 먼저 선택하세요.'
-                : '단계: 아래 키보드로 해당 문자를 입력하세요.',
+                ? '단계: 문장의 숫자 칸을 먼저 선택하세요.'
+                : '단계: 아래 알파벳 키보드로 해당 문자를 맞추세요.',
             style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
           ),
           const SizedBox(height: 4),
-          const Text('1) 숫자 칸을 순서대로 선택합니다.'),
+          const Text('1) 같은 숫자는 같은 철자입니다.'),
           const SizedBox(height: 3),
-          const Text('2) 아래 키보드에서 알파벳을 입력합니다.'),
+          const Text('2) 아래 단어 힌트에서 스펠링을 먼저 추리하세요.'),
           const SizedBox(height: 3),
-          const Text('3) 같은 숫자는 같은 알파벳입니다.'),
+          const Text('3) 단어에서 맞춘 철자는 문장 숫자 칸에도 바로 적용됩니다.'),
           const SizedBox(height: 3),
-          const Text('4) 힌트 없이 문장을 완성하면 클리어됩니다.'),
+          const Text('4) Stage 1은 일부 철자가 미리 공개된 고정 튜토리얼입니다.'),
           if (required != null) ...[
             const SizedBox(height: 8),
             Text(
-              '현재 선택해야 할 숫자: $required',
+              '지금 선택할 번호: $required',
               style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFD9480F)),
             ),
           ],
@@ -357,7 +366,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     if (selectedNumber == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('먼저 숫자 칸을 선택하세요.')),
+        const SnackBar(content: Text('癒쇱? ?レ옄 移몄쓣 ?좏깮?섏꽭??')),
       );
       return;
     }
@@ -394,7 +403,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   Future<void> _useHint() async {
     if (_isTutorialStage) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+        const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
       );
       return;
     }
@@ -505,7 +514,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   void _showTutorialOrderMessage(int required) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('튜토리얼: 숫자 $required 칸부터 선택하세요.')),
+      SnackBar(content: Text('?쒗넗由ъ뼹: ?レ옄 $required 移몃????좏깮?섏꽭??')),
     );
   }
 
@@ -529,4 +538,16 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     }
     return map;
   }
+
+  Set<String> _buildTutorialPresetLetters(String sentence, bool isTutorialStage) {
+    if (!isTutorialStage) return const <String>{};
+    final preset = <String>{};
+    for (final ch in sentence.split('')) {
+      if (!_letterPattern.hasMatch(ch)) continue;
+      preset.add(ch);
+      if (preset.length >= 2) break;
+    }
+    return preset;
+  }
 }
+
