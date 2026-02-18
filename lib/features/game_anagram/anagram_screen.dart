@@ -102,7 +102,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
                             if (_isTutorialStage) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
+                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
                               );
                               return;
                             }
@@ -320,11 +320,26 @@ class _AnagramScreenState extends State<AnagramScreen> {
   }
 
   Widget _tutorialOverlay(Widget child) {
-    return Positioned(
-      top: 84,
-      left: 12,
-      right: 12,
-      child: IgnorePointer(child: child),
+    final media = MediaQuery.of(context);
+    final compact = media.size.height < 760;
+    final preferBottom = compact && _tutorialStep <= 1;
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              preferBottom ? 0 : media.padding.top + 80,
+              12,
+              preferBottom ? 12 : 0,
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 
@@ -416,13 +431,13 @@ class _AnagramScreenState extends State<AnagramScreen> {
     final candidate = _input.toString().toUpperCase();
     if (_isTutorialStage && _tutorialStep < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('?쒗넗由ъ뼹: 癒쇱? 3湲???댁긽 議고빀?섏꽭??')),
+        const SnackBar(content: Text('튜토리얼: 먼저 3글자 이상 조합하세요.')),
       );
       return;
     }
     if (_isTutorialStage && candidate != _tutorialAnswer) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('?쒗넗由ъ뼹: Stage 1? STREAM ?쒖텧濡??꾨즺?⑸땲??')),
+        const SnackBar(content: Text('튜토리얼: Stage 1은 STREAM 제출로 완료됩니다.')),
       );
       return;
     }

@@ -236,18 +236,33 @@ class _WordClueScreenState extends State<WordClueScreen> {
   }
 
   Widget _tutorialOverlay(Widget child) {
-    return Positioned(
-      top: 84,
-      left: 12,
-      right: 12,
-      child: IgnorePointer(child: child),
+    final media = MediaQuery.of(context);
+    final compact = media.size.height < 760;
+    final preferBottom = compact && _tutorialStep <= 1;
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              preferBottom ? 0 : media.padding.top + 80,
+              12,
+              preferBottom ? 12 : 0,
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 
   void _pick(int index) {
     if (_isTutorialStage && _tutorialStep >= 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('?쒗넗由ъ뼹: 寃곌낵 ?뺤씤 ?꾩뿉???낅젰?????놁뒿?덈떎.')),
+        const SnackBar(content: Text('튜토리얼: 결과 확인 전에는 입력할 수 없습니다.')),
       );
       return;
     }
@@ -258,7 +273,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
         final tapped = _availableTiles[index];
         if (tapped != expected) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('?쒗넗由ъ뼹: ?ㅼ쓬 湲?먮뒗 $expected ?낅땲??')),
+            SnackBar(content: Text('튜토리얼: 다음 글자는 $expected 입니다.')),
           );
           return;
         }
@@ -314,7 +329,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
   Future<void> _showHint() async {
     if (_isTutorialStage) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
+        const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
       );
       return;
     }

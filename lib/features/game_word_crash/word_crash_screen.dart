@@ -270,7 +270,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                             if (_isTutorialStage) {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
+                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
                               );
                               return;
                             }
@@ -307,8 +307,10 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                       color: Colors.white.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(10),
                     ),
-            child: Text(
-                      '* ?ㅽ? 蹂대꼫?? ! ??깂, X 釉붾줈而?| ?⑥? ?ㅼ닔: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
+                    child: Text(
+                      _isTutorialStage
+                          ? '* 스타 보너스, ! 폭탄, X 블로커 | 튜토리얼 목표: GAME 1회 성공'
+                          : '* 스타 보너스, ! 폭탄, X 블로커 | 남은 실수: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -412,11 +414,26 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   }
 
   Widget _tutorialOverlay(Widget child) {
-    return Positioned(
-      top: 84,
-      left: 12,
-      right: 12,
-      child: IgnorePointer(child: child),
+    final media = MediaQuery.of(context);
+    final compact = media.size.height < 760;
+    final preferBottom = compact && _tutorialStep <= 1;
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              preferBottom ? 0 : media.padding.top + 80,
+              12,
+              preferBottom ? 12 : 0,
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 
@@ -572,7 +589,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
 
   Future<void> _submit(GameStateManager state) async {
     if (_isTutorialStage && _tutorialStep < 2) {
-      _showToast('?쒗넗由ъ뼹: 癒쇱? 議곌굔??留욊쾶 釉붾줉???좏깮?섏꽭??');
+      _showToast('튜토리얼: 먼저 조건에 맞게 블록을 선택하세요.');
       return;
     }
     final selectedTiles = selected.map((p) => grid[p.x][p.y]).toList();
@@ -607,7 +624,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       requireUnique: true,
     );
     if (_isTutorialStage && matchedWord != _tutorialTargetWord) {
-      _showToast('?쒗넗由ъ뼹: Stage 1? GAME ?좏깮?쇰줈 吏꾪뻾?⑸땲??');
+      _showToast('튜토리얼: Stage 1은 GAME 선택으로 진행됩니다.');
       return;
     }
     final hasBomb = selectedTiles.any((t) => t.isBomb);

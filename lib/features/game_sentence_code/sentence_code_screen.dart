@@ -110,11 +110,26 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   }
 
   Widget _tutorialOverlay(Widget child) {
-    return Positioned(
-      top: 84,
-      left: 12,
-      right: 12,
-      child: IgnorePointer(child: child),
+    final media = MediaQuery.of(context);
+    final compact = media.size.height < 760;
+    final preferBottom = _selectedNumber == null || compact;
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: preferBottom ? Alignment.bottomCenter : Alignment.topCenter,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              preferBottom ? 0 : media.padding.top + 80,
+              12,
+              preferBottom ? 12 : 0,
+            ),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 
@@ -230,6 +245,8 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   Widget _tutorialCard() {
     final required = _nextRequiredNumber();
     final focusNumber = _isTutorialStage && _selectedNumber == null;
+    final tutorialHintWord = _tutorialHintWord();
+    final tutorialHintProgress = tutorialHintWord == null ? null : _maskHintWord(tutorialHintWord);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -259,13 +276,25 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
             style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
           ),
           const SizedBox(height: 4),
-          const Text('1) 같은 숫자는 같은 철자입니다.'),
+          if (tutorialHintWord != null)
+            Text(
+              '1) 먼저 힌트 단어 $tutorialHintWord를 완성합니다.',
+            )
+          else
+            const Text('1) 먼저 힌트 단어를 완성합니다.'),
           const SizedBox(height: 3),
-          const Text('2) 아래 단어 힌트에서 스펠링을 먼저 추리하세요.'),
+          const Text('2) 같은 숫자는 같은 철자입니다.'),
           const SizedBox(height: 3),
           const Text('3) 단어에서 맞춘 철자는 문장 숫자 칸에도 바로 적용됩니다.'),
           const SizedBox(height: 3),
           const Text('4) Stage 1은 일부 철자가 미리 공개된 고정 튜토리얼입니다.'),
+          if (tutorialHintProgress != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '현재 힌트 단어 진행: $tutorialHintProgress',
+              style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
+            ),
+          ],
           if (required != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -366,7 +395,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     if (selectedNumber == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('癒쇱? ?レ옄 移몄쓣 ?좏깮?섏꽭??')),
+        const SnackBar(content: Text('먼저 숫자 칸을 선택하세요.')),
       );
       return;
     }
@@ -393,6 +422,13 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
       return;
     }
 
+    if (_isTutorialStage) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('튜토리얼: 힌트 단어를 먼저 맞춰보세요.')),
+      );
+      return;
+    }
     await state.consumeHeart();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -403,7 +439,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   Future<void> _useHint() async {
     if (_isTutorialStage) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('?쒗넗由ъ뼹 ?ㅽ뀒?댁??먯꽌???뚰듃瑜??ъ슜?????놁뒿?덈떎.')),
+        const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
       );
       return;
     }
@@ -503,6 +539,15 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   }
 
   int? _nextRequiredNumber() {
+    final tutorialHintWord = _tutorialHintWord();
+    if (tutorialHintWord != null) {
+      for (final ch in tutorialHintWord.split('')) {
+        if (!_letterPattern.hasMatch(ch)) continue;
+        if (_revealedLetters.contains(ch)) continue;
+        final number = _letterNumberMap[ch];
+        if (number != null) return number;
+      }
+    }
     for (final ch in _sentenceUpper.split('')) {
       if (!_letterPattern.hasMatch(ch)) continue;
       if (_revealedLetters.contains(ch)) continue;
@@ -514,7 +559,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   void _showTutorialOrderMessage(int required) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('?쒗넗由ъ뼹: ?レ옄 $required 移몃????좏깮?섏꽭??')),
+      SnackBar(content: Text('튜토리얼: 숫자 $required 칸부터 선택하세요.')),
     );
   }
 
@@ -548,6 +593,27 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
       if (preset.length >= 2) break;
     }
     return preset;
+  }
+
+  String? _tutorialHintWord() {
+    if (!_isTutorialStage) return null;
+    for (final hint in _level.visibleHints) {
+      final word = hint.word.toUpperCase();
+      if (word != 'ELEPHANT') continue;
+      final letters = word.split('').where((ch) => _letterPattern.hasMatch(ch)).toSet();
+      if (letters.isEmpty) continue;
+      final allMappable = letters.every((ch) => _letterNumberMap.containsKey(ch));
+      if (allMappable) return word;
+    }
+    for (final hint in _level.visibleHints) {
+      final word = hint.word.toUpperCase();
+      if (word.isEmpty) continue;
+      final letters = word.split('').where((ch) => _letterPattern.hasMatch(ch)).toSet();
+      if (letters.isEmpty) continue;
+      final allMappable = letters.every((ch) => _letterNumberMap.containsKey(ch));
+      if (allMappable) return word;
+    }
+    return null;
   }
 }
 
