@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 
@@ -9,7 +8,8 @@ import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
-import '../../core/widgets/game_hud.dart';
+import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/readable_result_dialog.dart';
 
 class AnagramScreen extends StatefulWidget {
   const AnagramScreen({super.key});
@@ -30,6 +30,8 @@ class _AnagramScreenState extends State<AnagramScreen> {
   int _stage = 1;
   bool _stageLoaded = false;
   bool _dialogOpen = false;
+  int _tutorialStep = 0;
+  bool get _isTutorialStage => _stage == 1;
 
   @override
   void initState() {
@@ -37,6 +39,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
     _round = _repo.getAnagramRoundForStage(1);
     _seedTiles = _round.seed.split('')..shuffle(Random());
     _pickedTileIndexes.clear();
+    _tutorialStep = 0;
   }
 
   @override
@@ -47,6 +50,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
     _round = _repo.getAnagramRoundForStage(_stage);
     _seedTiles = _round.seed.split('')..shuffle(Random());
     _pickedTileIndexes.clear();
+    _tutorialStep = _isTutorialStage ? 0 : 3;
     _stageLoaded = true;
   }
 
@@ -68,31 +72,17 @@ class _AnagramScreenState extends State<AnagramScreen> {
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      IconButton(onPressed: () => context.pop(), icon: const Icon(Icons.arrow_back_ios_new)),
-                      const Spacer(),
-                      const Text('ANAGRAM', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-                      const Spacer(),
-                      GameHud(state: state, textColor: AppColors.textPrimary),
-                    ],
+                  GameTopBar(
+                    title: 'ANAGRAM',
+                    stage: _stage,
+                    state: state,
+                    textColor: AppColors.textPrimary,
                   ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2455D6).withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text(
-                      'STAGE $_stage',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                  ),
+                  if (_isTutorialStage) ...[
+                    const SizedBox(height: 10),
+                    _tutorialCard(),
+                    const SizedBox(height: 8),
+                  ],
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -112,6 +102,13 @@ class _AnagramScreenState extends State<AnagramScreen> {
                         ),
                         TextButton(
                           onPressed: () async {
+                            if (_isTutorialStage) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                              );
+                              return;
+                            }
                             final result = await state.consumeHint(
                               gameId: 'anagram',
                               baseCost: 2,
@@ -171,7 +168,19 @@ class _AnagramScreenState extends State<AnagramScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Wrap(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _isTutorialStage && _tutorialStep <= 1
+                            ? const Color(0xFFD9480F)
+                            : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: _seedTiles.asMap().entries.map((entry) {
@@ -181,18 +190,14 @@ class _AnagramScreenState extends State<AnagramScreen> {
                       return ElevatedButton(
                         onPressed: disabled
                             ? null
-                            : () => setState(() {
-                                  _input.write(ch);
-                                  _pickedTileIndexes.add(index);
-                                  _seedTiles[index] = '';
-                                }),
+                            : () => _onTapSeedTile(index),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: disabled ? Colors.grey.shade400 : null,
                         ),
                         child: Text(ch, style: const TextStyle(fontWeight: FontWeight.w900)),
                       );
                     }).toList(),
-                  ),
+                  )),
                   const SizedBox(height: 10),
                   Container(
                     width: double.infinity,
@@ -201,9 +206,14 @@ class _AnagramScreenState extends State<AnagramScreen> {
                       color: Colors.white.withValues(alpha: 0.86),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
-                      _input.toString().isEmpty ? 'Build word...' : _input.toString(),
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                      child: Text(
+                        _input.toString().isEmpty ? 'Build word...' : _input.toString(),
+                        key: ValueKey('ana-${_input.toString()}'),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -219,6 +229,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
                               _seedTiles[lastIndex] = lastChar;
                               _input.clear();
                               _input.write(text.substring(0, text.length - 1));
+                              _updateTutorialStepFromInput();
                             }
                           }),
                           child: const Text('Back'),
@@ -231,6 +242,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
                             _seedTiles = _round.seed.split('')..shuffle(Random());
                             _pickedTileIndexes.clear();
                             _input.clear();
+                            _updateTutorialStepFromInput();
                           }),
                           child: const Text('Clear'),
                         ),
@@ -238,6 +250,11 @@ class _AnagramScreenState extends State<AnagramScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            side: _isTutorialStage && _tutorialStep == 2
+                                ? const BorderSide(color: Color(0xFFD9480F), width: 2)
+                                : null,
+                          ),
                           onPressed: () => _submitWord(state),
                           child: const Text('Submit'),
                         ),
@@ -321,8 +338,81 @@ class _AnagramScreenState extends State<AnagramScreen> {
     );
   }
 
+  Widget _tutorialCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB7D3FA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '튜토리얼 - 스테이지 1',
+            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _tutorialStep == 0
+                ? '1단계: 글자 타일을 눌러 단어를 만들기 시작하세요.'
+                : _tutorialStep == 1
+                    ? '2단계: 최소 3글자 이상 조합하세요.'
+                    : _tutorialStep == 2
+                        ? '3단계: Submit 버튼을 누르세요.'
+                        : '좋아요. 이제 일반 플레이를 진행하세요.',
+            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
+          ),
+          const SizedBox(height: 4),
+          const Text('1) 주어진 글자로 단어를 조합합니다.'),
+          const Text('2) Submit으로 정답을 확인합니다.'),
+          const Text('3) 핵심 단어를 모두 찾으면 스테이지 클리어입니다.'),
+          const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
+        ],
+      ),
+    );
+  }
+
+  void _onTapSeedTile(int index) {
+    final ch = _seedTiles[index];
+    if (ch.isEmpty) return;
+    setState(() {
+      _input.write(ch);
+      _pickedTileIndexes.add(index);
+      _seedTiles[index] = '';
+      if (_isTutorialStage && _tutorialStep == 0 && _input.isNotEmpty) {
+        _tutorialStep = 1;
+      }
+      if (_isTutorialStage && _tutorialStep == 1 && _input.length >= 3) {
+        _tutorialStep = 2;
+      }
+    });
+  }
+
+  void _updateTutorialStepFromInput() {
+    if (!_isTutorialStage) return;
+    final len = _input.length;
+    if (len == 0) {
+      _tutorialStep = 0;
+      return;
+    }
+    if (len < 3) {
+      _tutorialStep = 1;
+      return;
+    }
+    _tutorialStep = 2;
+  }
+
   Future<void> _submitWord(GameStateManager state) async {
     final candidate = _input.toString().toUpperCase();
+    if (_isTutorialStage && _tutorialStep < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('튜토리얼: 먼저 3글자 이상 조합하세요.')),
+      );
+      return;
+    }
     if (candidate.isEmpty) return;
     _input.clear();
     _pickedTileIndexes.clear();
@@ -390,20 +480,14 @@ class _AnagramScreenState extends State<AnagramScreen> {
     });
     await _showResultDialog(
       title: 'Stage Clear',
-      body: 'Cleared word: ${clearedRound.seedInfo.word}\n'
-          'POS: ${clearedRound.seedInfo.pos}\n'
-          'Theme: ${clearedRound.seedInfo.themeGroup} / ${clearedRound.seedInfo.themeCategory}\n'
-          '${clearedRound.seedInfo.meaning}\n'
-          '${_repo.hasKoreanMeaning(clearedRound.seedInfo.korMeaning) ? '${clearedRound.seedInfo.korMeaning}\n' : ''}'
-          'Synonym: ${clearedRound.seedInfo.synonym.isEmpty ? '-' : clearedRound.seedInfo.synonym}\n'
-          'Antonym: ${clearedRound.seedInfo.antonym.isEmpty ? '-' : clearedRound.seedInfo.antonym}',
+      seed: clearedRound.seedInfo,
       starsDelta: 5,
     );
   }
 
   Future<void> _showResultDialog({
     required String title,
-    required String body,
+    required WordData seed,
     required int starsDelta,
   }) async {
     if (!mounted || _dialogOpen) return;
@@ -412,17 +496,19 @@ class _AnagramScreenState extends State<AnagramScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(body),
-              const SizedBox(height: 10),
-              Text('Stars: +$starsDelta'),
-            ],
-          ),
+        return ReadableResultDialog(
+          title: title,
+          success: true,
+          headline: 'Cleared word: ${seed.word}',
+          lines: [
+            ResultLine(label: 'POS', value: seed.pos),
+            ResultLine(label: 'Theme', value: '${seed.themeGroup} / ${seed.themeCategory}'),
+            ResultLine(label: 'Meaning', value: seed.meaning),
+            if (_repo.hasKoreanMeaning(seed.korMeaning)) ResultLine(label: 'Korean', value: seed.korMeaning),
+            ResultLine(label: 'Synonym', value: seed.synonym.isEmpty ? '-' : seed.synonym),
+            ResultLine(label: 'Antonym', value: seed.antonym.isEmpty ? '-' : seed.antonym),
+            ResultLine(label: 'Reward', value: '+$starsDelta stars', accent: true),
+          ],
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.pop(context),

@@ -9,7 +9,8 @@ import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
 import '../../core/widgets/app_safe_area.dart';
-import '../../core/widgets/game_hud.dart';
+import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/readable_result_dialog.dart';
 
 enum CrashTileKind { letter, bomb, booster, blocker }
 
@@ -74,6 +75,8 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   int _wordsClearedInStage = 0;
   int _mistakesInStage = 0;
   late CrashStageGoal _goal;
+  int _tutorialStep = 0;
+  bool get _isTutorialStage => _stage == 1;
 
   @override
   void didChangeDependencies() {
@@ -109,6 +112,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     _combo = 0;
     _wordsClearedInStage = 0;
     _mistakesInStage = 0;
+    _tutorialStep = _isTutorialStage ? 0 : 3;
     _resetGrid();
   }
 
@@ -127,10 +131,10 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       return CrashTile(kind: CrashTileKind.blocker, value: 'X');
     }
     if (roll < _goal.bombRate + _goal.blockerRate) {
-      return CrashTile(kind: CrashTileKind.bomb, value: '●');
+      return CrashTile(kind: CrashTileKind.bomb, value: '!');
     }
     if (roll < _goal.bombRate + _goal.boosterRate + _goal.blockerRate) {
-      return CrashTile(kind: CrashTileKind.booster, value: '★');
+      return CrashTile(kind: CrashTileKind.booster, value: '*');
     }
     return CrashTile(kind: CrashTileKind.letter, value: _randomLetter());
   }
@@ -200,21 +204,11 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => context.pop(),
-                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-                      ),
-                      const Spacer(),
-                      const Text(
-                        'WORD CRASH',
-                        style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
-                      ),
-                      const Spacer(),
-                      GameHud(state: state),
-                    ],
-                  ),
+                  GameTopBar(title: 'WORD CRASH', stage: _stage, state: state, showStageChip: false),
+                  if (_isTutorialStage) ...[
+                    const SizedBox(height: 8),
+                    _tutorialCard(),
+                  ],
                   _stageGoalCard(),
                   const SizedBox(height: 8),
                   Container(
@@ -236,6 +230,13 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                         ),
                         TextButton(
                           onPressed: () async {
+                            if (_isTutorialStage) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                              );
+                              return;
+                            }
                             final result = await state.consumeHint(
                               gameId: 'word_crash',
                               baseCost: 3,
@@ -243,13 +244,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                             );
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  result.ok
-                                      ? 'Hint: ★ star bonus, ● bomb explode, X blocker.'
-                                      : result.message,
-                                ),
-                              ),
+                              SnackBar(content: Text(result.ok ? 'Hint used.' : result.message)),
                             );
                           },
                           child: const Text('Hint'),
@@ -275,62 +270,72 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                       color: Colors.white.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
-                      '★ Star  ● Bomb  X Blocker  |  Miss left: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+            child: Text(
+                      '* 스타 보너스, ! 폭탄, X 블로커 | 남은 실수: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Expanded(
                     child: AspectRatio(
                       aspectRatio: cols / rows,
-                      child: GridView.builder(
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: cols,
-                          mainAxisSpacing: 4,
-                          crossAxisSpacing: 4,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 140),
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _isTutorialStage && _tutorialStep <= 1
+                                ? const Color(0xFFD9480F)
+                                : Colors.transparent,
+                            width: 2,
+                          ),
                         ),
-                        itemCount: rows * cols,
-                        itemBuilder: (context, index) {
-                          final r = index ~/ cols;
-                          final c = index % cols;
-                          final point = Point(r, c);
-                          final tile = grid[r][c];
-                          final isPicked = selected.contains(point);
-                          final isPopping = _poppingCells.contains(point);
-                          return GestureDetector(
-                            onTap: () => _pick(point),
-                            child: AnimatedScale(
-                              scale: isPopping ? 0.05 : 1,
-                              duration: const Duration(milliseconds: 220),
-                              curve: Curves.easeInBack,
-                              child: AnimatedOpacity(
-                                opacity: isPopping ? 0 : 1,
-                                duration: const Duration(milliseconds: 190),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 120),
-                                  decoration: _tileDecoration(tile, isPicked),
-                                  child: Center(
-                                    child: Text(
-                                      tile.value,
-                                      style: TextStyle(
-                                        fontSize: tile.isLetter ? 21 : 19,
-                                        fontWeight: FontWeight.w900,
-                                        color: tile.isLetter
-                                            ? (isPicked ? Colors.white : const Color(0xFF0B132B))
-                                            : (tile.isBooster ? const Color(0xFF4A3200) : Colors.white),
+                        child: GridView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: cols,
+                            mainAxisSpacing: 4,
+                            crossAxisSpacing: 4,
+                          ),
+                          itemCount: rows * cols,
+                          itemBuilder: (context, index) {
+                            final r = index ~/ cols;
+                            final c = index % cols;
+                            final point = Point(r, c);
+                            final tile = grid[r][c];
+                            final isPicked = selected.contains(point);
+                            final isPopping = _poppingCells.contains(point);
+                            return GestureDetector(
+                              onTap: () => _pick(point),
+                              child: AnimatedScale(
+                                scale: isPopping ? 0.05 : (isPicked ? 1.06 : 1),
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeInBack,
+                                child: AnimatedOpacity(
+                                  opacity: isPopping ? 0 : 1,
+                                  duration: const Duration(milliseconds: 190),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 120),
+                                    decoration: _tileDecoration(tile, isPicked),
+                                    child: Center(
+                                      child: Text(
+                                        tile.value,
+                                        style: TextStyle(
+                                          fontSize: tile.isLetter ? 21 : 19,
+                                          fontWeight: FontWeight.w900,
+                                          color: tile.isLetter
+                                              ? (isPicked ? Colors.white : const Color(0xFF0B132B))
+                                              : (tile.isBooster ? const Color(0xFF4A3200) : Colors.white),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
@@ -338,13 +343,21 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => setState(selected.clear),
+                          onPressed: () => setState(() {
+                            selected.clear();
+                            if (_isTutorialStage) _tutorialStep = 0;
+                          }),
                           child: const Text('Clear Select'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            side: _isTutorialStage && _tutorialStep == 2
+                                ? const BorderSide(color: Color(0xFFD9480F), width: 2)
+                                : null,
+                          ),
                           onPressed: () => _submit(state),
                           child: const Text('Pop Word'),
                         ),
@@ -372,6 +385,44 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       child: Text(
         'STAGE $_stage | Clear words ${_goal.targetWords}$obstacle',
         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+
+  Widget _tutorialCard() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB7D3FA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '튜토리얼 - 스테이지 1',
+            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _tutorialStep == 0
+                ? '1단계: 첫 블록을 선택하세요.'
+                : _tutorialStep == 1
+                    ? '2단계: 3개 이상으로 선택을 확장하세요.'
+                    : _tutorialStep == 2
+                        ? '3단계: Pop Word 버튼을 누르세요.'
+                        : '좋아요. 이제 일반 플레이를 진행하세요.',
+            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
+          ),
+          const SizedBox(height: 4),
+          const Text('1) 인접한 블록을 선택해 단어를 만듭니다.'),
+          const Text('2) 글자 블록 2개 이상이 포함되어야 합니다.'),
+          const Text('3) Pop Word로 유효한 패턴을 제거합니다.'),
+          const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
+        ],
       ),
     );
   }
@@ -441,16 +492,25 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     setState(() {
       if (selected.isEmpty) {
         selected.add(point);
+        if (_isTutorialStage) {
+          _updateTutorialStepFromSelection();
+        }
         return;
       }
       if (selected.contains(point)) {
         selected.remove(point);
+        if (_isTutorialStage) {
+          _updateTutorialStepFromSelection();
+        }
         return;
       }
       final last = selected.last;
       final adjacent = (last.x - point.x).abs() <= 1 && (last.y - point.y).abs() <= 1;
       if (adjacent) {
         selected.add(point);
+        if (_isTutorialStage) {
+          _updateTutorialStepFromSelection();
+        }
       }
     });
   }
@@ -464,6 +524,10 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   }
 
   Future<void> _submit(GameStateManager state) async {
+    if (_isTutorialStage && _tutorialStep < 2) {
+      _showToast('튜토리얼: 먼저 조건에 맞게 블록을 선택하세요.');
+      return;
+    }
     final selectedTiles = selected.map((p) => grid[p.x][p.y]).toList();
     if (selectedTiles.length < 3) {
       _showToast('Select at least 3 blocks.');
@@ -498,6 +562,9 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       _combo = 0;
       _mistakesInStage += 1;
       selected.clear();
+      if (_isTutorialStage) {
+        _tutorialStep = 0;
+      }
       var consumedHeart = false;
       if (_mistakesInStage >= _goal.missLimitBeforeHeart) {
         await state.consumeHeart();
@@ -551,6 +618,9 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     }
     _collapseGrid();
     selected.clear();
+    if (_isTutorialStage) {
+      _tutorialStep = 0;
+    }
 
     final cleared = _wordsClearedInStage >= _goal.targetWords;
     if (cleared) {
@@ -624,19 +694,14 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Stage Clear'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Final word: $matchedWord'),
-              const SizedBox(height: 8),
-              Text('Words: $_wordsClearedInStage / ${_goal.targetWords}'),
-              const SizedBox(height: 10),
-              Text('Stars: +$starsDelta'),
-            ],
-          ),
+        return ReadableResultDialog(
+          title: 'Stage Clear',
+          success: true,
+          headline: 'Final word: $matchedWord',
+          lines: [
+            ResultLine(label: 'Stage Progress', value: '$_wordsClearedInStage / ${_goal.targetWords}'),
+            ResultLine(label: 'Reward', value: '+$starsDelta stars', accent: true),
+          ],
           actions: [
             TextButton(
               onPressed: () {
@@ -664,5 +729,20 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   void _showToast(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _updateTutorialStepFromSelection() {
+    if (!_isTutorialStage) return;
+    if (selected.isEmpty) {
+      _tutorialStep = 0;
+      return;
+    }
+    final selectedTiles = selected.map((p) => grid[p.x][p.y]).toList();
+    final letterCount = selectedTiles.where((t) => t.isLetter).length;
+    if (selected.length >= 3 && letterCount >= 2) {
+      _tutorialStep = 2;
+    } else {
+      _tutorialStep = 1;
+    }
   }
 }

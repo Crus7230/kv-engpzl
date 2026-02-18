@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/managers/character_manager.dart';
@@ -10,7 +9,8 @@ import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
-import '../../core/widgets/game_hud.dart';
+import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/readable_result_dialog.dart';
 
 class WordClueScreen extends StatefulWidget {
   const WordClueScreen({super.key});
@@ -28,6 +28,8 @@ class _WordClueScreenState extends State<WordClueScreen> {
   int _stage = 1;
   bool _stageLoaded = false;
   bool _dialogOpen = false;
+  int _tutorialStep = 0;
+  bool get _isTutorialStage => _stage == 1;
 
   @override
   void initState() {
@@ -49,6 +51,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
     _availableTiles = _round.word.toUpperCase().split('')..shuffle(Random());
     _picked.clear();
     _solved = false;
+    _tutorialStep = _isTutorialStage ? 0 : 3;
     setState(() {});
   }
 
@@ -68,37 +71,11 @@ class _WordClueScreenState extends State<WordClueScreen> {
               padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => context.pop(),
-                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-                      ),
-                      const Spacer(),
-                      const Text(
-                        'WORD CLUE',
-                        style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
-                      ),
-                      const Spacer(),
-                      GameHud(state: state),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2455D6).withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text(
-                      'STAGE $_stage',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                  ),
+                  GameTopBar(title: 'WORD CLUE', stage: _stage, state: state),
+                  if (_isTutorialStage) ...[
+                    const SizedBox(height: 10),
+                    _tutorialCard(),
+                  ],
                   const SizedBox(height: 10),
                   Container(
                     width: double.infinity,
@@ -163,22 +140,46 @@ class _WordClueScreenState extends State<WordClueScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.82),
                       borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Center(
-                      child: Text(
-                        _picked.join().padRight(_round.word.length, '_'),
-                        style: const TextStyle(letterSpacing: 4, fontSize: 30, fontWeight: FontWeight.w900),
+                      border: Border.all(
+                        color: _isTutorialStage && _tutorialStep == 1
+                            ? const Color(0xFFD9480F)
+                            : Colors.transparent,
+                        width: 2,
                       ),
                     ),
-                  ),
+                      child: Center(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                          child: Text(
+                            _picked.join().padRight(_round.word.length, '_'),
+                            key: ValueKey('picked-${_picked.join()}-${_round.word.length}'),
+                            style: const TextStyle(letterSpacing: 4, fontSize: 30, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 16),
-                  Wrap(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _isTutorialStage && _tutorialStep <= 1
+                            ? const Color(0xFFD9480F)
+                            : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     alignment: WrapAlignment.center,
@@ -191,7 +192,10 @@ class _WordClueScreenState extends State<WordClueScreen> {
                             ? null
                             : () async {
                                 _pick(index);
-                                if (_picked.length == _round.word.length) {
+                              if (_picked.length == _round.word.length) {
+                                  if (_isTutorialStage && _tutorialStep < 2) {
+                                    setState(() => _tutorialStep = 2);
+                                  }
                                   await _judge();
                                 }
                               },
@@ -202,7 +206,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
                         child: Text(ch.isEmpty ? ' ' : ch, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
                       );
                     }).toList(),
-                  ),
+                  )),
                   const Spacer(),
                   Row(
                     children: [
@@ -231,9 +235,18 @@ class _WordClueScreenState extends State<WordClueScreen> {
   }
 
   void _pick(int index) {
+    if (_isTutorialStage && _tutorialStep >= 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('튜토리얼: 결과 확인 전에는 입력할 수 없습니다.')),
+      );
+      return;
+    }
     setState(() {
       _picked.add(_availableTiles[index]);
       _availableTiles[index] = '';
+      if (_isTutorialStage && _tutorialStep == 0 && _picked.isNotEmpty) {
+        _tutorialStep = 1;
+      }
     });
   }
 
@@ -241,6 +254,9 @@ class _WordClueScreenState extends State<WordClueScreen> {
     setState(() {
       _availableTiles = _round.word.toUpperCase().split('')..shuffle(Random());
       _picked.clear();
+      if (_isTutorialStage) {
+        _tutorialStep = 0;
+      }
     });
   }
 
@@ -273,6 +289,12 @@ class _WordClueScreenState extends State<WordClueScreen> {
   }
 
   Future<void> _showHint() async {
+    if (_isTutorialStage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+      );
+      return;
+    }
     final state = context.read<GameStateManager>();
     final result = await state.consumeHint(
       gameId: 'word_clue',
@@ -282,6 +304,43 @@ class _WordClueScreenState extends State<WordClueScreen> {
     if (!mounted) return;
     final msg = result.ok ? 'Hint: first letter is ${_round.word[0]}' : result.message;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Widget _tutorialCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB7D3FA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '튜토리얼 - 스테이지 1',
+            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _tutorialStep == 0
+                ? '1단계: 타일 하나를 눌러 시작하세요.'
+                : _tutorialStep == 1
+                    ? '2단계: 모든 글자 칸을 채우세요.'
+                    : _tutorialStep == 2
+                        ? '3단계: 정답을 확인하는 중입니다...'
+                        : '좋아요. 이제 일반 플레이를 진행하세요.',
+            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
+          ),
+          const SizedBox(height: 4),
+          const Text('1) 뜻을 먼저 읽습니다.'),
+          const Text('2) 타일을 눌러 정답 단어를 만듭니다.'),
+          const Text('3) 순서가 틀리면 Clear로 다시 맞춥니다.'),
+          const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
+        ],
+      ),
+    );
   }
 
   Future<void> _showResultDialog({
@@ -298,36 +357,22 @@ class _WordClueScreenState extends State<WordClueScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(success ? 'Success' : 'Failed'),
-              const SizedBox(height: 8),
-              Text(body),
-              if (wordData != null) ...[
-                const SizedBox(height: 8),
-                Text('POS: ${wordData.pos}'),
-                const SizedBox(height: 4),
-                Text('Theme: ${wordData.themeGroup} / ${wordData.themeCategory}'),
-                const SizedBox(height: 4),
-                Text(wordData.meaning),
-                if (_repo.hasKoreanMeaning(wordData.korMeaning)) ...[
-                  const SizedBox(height: 4),
-                  Text(wordData.korMeaning),
-                ],
-                const SizedBox(height: 6),
-                Text('Synonym: ${wordData.synonym.isEmpty ? '-' : wordData.synonym}'),
-                const SizedBox(height: 4),
-                Text('Antonym: ${wordData.antonym.isEmpty ? '-' : wordData.antonym}'),
-              ],
-              const SizedBox(height: 10),
-              Text('Stars: ${starsDelta >= 0 ? '+' : ''}$starsDelta'),
-              Text('Hearts: ${heartDelta >= 0 ? '+' : ''}$heartDelta'),
+        return ReadableResultDialog(
+          title: title,
+          success: success,
+          headline: body,
+          lines: [
+            if (wordData != null) ...[
+              ResultLine(label: 'POS', value: wordData.pos),
+              ResultLine(label: 'Theme', value: '${wordData.themeGroup} / ${wordData.themeCategory}'),
+              ResultLine(label: 'Meaning', value: wordData.meaning),
+              if (_repo.hasKoreanMeaning(wordData.korMeaning)) ResultLine(label: 'Korean', value: wordData.korMeaning),
+              ResultLine(label: 'Synonym', value: wordData.synonym.isEmpty ? '-' : wordData.synonym),
+              ResultLine(label: 'Antonym', value: wordData.antonym.isEmpty ? '-' : wordData.antonym),
             ],
-          ),
+            ResultLine(label: 'Stars', value: '${starsDelta >= 0 ? '+' : ''}$starsDelta', accent: true),
+            ResultLine(label: 'Hearts', value: '${heartDelta >= 0 ? '+' : ''}$heartDelta', accent: true),
+          ],
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.pop(context),

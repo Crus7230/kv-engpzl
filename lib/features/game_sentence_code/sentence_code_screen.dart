@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/managers/character_manager.dart';
@@ -9,7 +8,8 @@ import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/sentence_code_repository.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/widgets/app_safe_area.dart';
-import '../../core/widgets/game_hud.dart';
+import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/readable_result_dialog.dart';
 
 class SentenceCodeScreen extends StatefulWidget {
   const SentenceCodeScreen({super.key});
@@ -28,9 +28,12 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   bool _hiddenHintOpened = false;
   bool _dialogOpen = false;
   int _stage = 1;
+  int? _selectedNumber;
   late SentenceCodeLevel _level;
   late String _sentenceUpper;
   Map<String, int> _letterNumberMap = const {};
+
+  bool get _isTutorialStage => _stage == 1;
 
   @override
   void didChangeDependencies() {
@@ -53,6 +56,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
       _sentenceUpper = upper;
       _revealedLetters.clear();
       _hiddenHintOpened = false;
+      _selectedNumber = null;
       _letterNumberMap = _buildLetterNumberMap(upper);
       _loading = false;
     });
@@ -63,6 +67,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     final skin = context.watch<SkinManager>().currentSkin;
     final state = context.watch<GameStateManager>();
     final char = CharacterManager().getById(state.selectedCharacterId);
+
     return Scaffold(
       body: Stack(
         children: [
@@ -75,37 +80,22 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : Column(
                       children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: () => context.pop(),
-                              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-                            ),
-                            const Spacer(),
-                            const Text(
-                              'SENTENCE CODE',
-                              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
-                            ),
-                            const Spacer(),
-                            GameHud(state: state),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1D4ED8).withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Text(
-                            'STAGE $_stage',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                          ),
-                        ),
+                        GameTopBar(title: 'SENTENCE CODE', stage: _stage, state: state),
                         const SizedBox(height: 10),
                         _characterHintCard(char),
                         const SizedBox(height: 10),
+                        if (_isTutorialStage) ...[
+                          _tutorialCard(),
+                          const SizedBox(height: 10),
+                        ],
                         _sentenceCard(),
+                        if (_selectedNumber != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Selected code: $_selectedNumber',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                          ),
+                        ],
                         const SizedBox(height: 10),
                         _hintsCard(),
                         const SizedBox(height: 10),
@@ -137,22 +127,25 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-          TextButton(
-            onPressed: _useHint,
-            child: const Text('Hint'),
-          ),
+          TextButton(onPressed: _useHint, child: const Text('Hint')),
         ],
       ),
     );
   }
 
   Widget _sentenceCard() {
-    return Container(
+    final highlight = _isTutorialStage && _selectedNumber == null;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: highlight ? const Color(0xFFD9480F) : Colors.transparent,
+          width: 2,
+        ),
       ),
       child: Wrap(
         spacing: 4,
@@ -161,29 +154,55 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
         children: _sentenceUpper.split('').map((ch) {
           if (_letterPattern.hasMatch(ch)) {
             final revealed = _revealedLetters.contains(ch);
-            final text = revealed ? ch : '${_letterNumberMap[ch] ?? ''}';
-            return Container(
-              width: 30,
-              height: 34,
-              decoration: BoxDecoration(
-                color: revealed ? const Color(0xFFDDEBFF) : const Color(0xFFF1F3F5),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFCBD5E1)),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                text,
-                style: TextStyle(
-                  fontSize: revealed ? 18 : 13,
-                  fontWeight: FontWeight.w800,
-                  color: revealed ? const Color(0xFF1D4ED8) : const Color(0xFF475569),
+            final number = _letterNumberMap[ch];
+            final text = revealed ? ch : '${number ?? ''}';
+            final selected = !revealed && number != null && number == _selectedNumber;
+
+            return GestureDetector(
+              onTap: revealed || number == null
+                  ? null
+                  : () {
+                      if (_isTutorialStage) {
+                        final required = _nextRequiredNumber();
+                        if (required != null && number != required) {
+                          _showTutorialOrderMessage(required);
+                          return;
+                        }
+                      }
+                      setState(() => _selectedNumber = number);
+                    },
+              child: Container(
+                width: 30,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: revealed
+                      ? const Color(0xFFDDEBFF)
+                      : (selected ? const Color(0xFFFFF3BF) : const Color(0xFFF1F3F5)),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: selected ? const Color(0xFFD9480F) : const Color(0xFFCBD5E1),
+                    width: selected ? 1.7 : 1,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: revealed ? 18 : 13,
+                    fontWeight: FontWeight.w800,
+                    color: revealed
+                        ? const Color(0xFF1D4ED8)
+                        : (selected ? const Color(0xFFD9480F) : const Color(0xFF475569)),
+                  ),
                 ),
               ),
             );
           }
+
           if (ch == ' ') {
             return const SizedBox(width: 10, height: 34);
           }
+
           return SizedBox(
             width: 16,
             height: 34,
@@ -199,11 +218,63 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     );
   }
 
+  Widget _tutorialCard() {
+    final required = _nextRequiredNumber();
+    final focusNumber = _isTutorialStage && _selectedNumber == null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB7D3FA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.school_rounded, size: 18, color: Color(0xFF1D4ED8)),
+              SizedBox(width: 6),
+              Text(
+                '튜토리얼 - 스테이지 1',
+                style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            focusNumber
+                ? '단계: 안내된 숫자 칸을 먼저 선택하세요.'
+                : '단계: 아래 키보드로 해당 문자를 입력하세요.',
+            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
+          ),
+          const SizedBox(height: 4),
+          const Text('1) 숫자 칸을 순서대로 선택합니다.'),
+          const SizedBox(height: 3),
+          const Text('2) 아래 키보드에서 알파벳을 입력합니다.'),
+          const SizedBox(height: 3),
+          const Text('3) 같은 숫자는 같은 알파벳입니다.'),
+          const SizedBox(height: 3),
+          const Text('4) 힌트 없이 문장을 완성하면 클리어됩니다.'),
+          if (required != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '현재 선택해야 할 숫자: $required',
+              style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFD9480F)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _hintsCard() {
     final hints = <SentenceHintData>[
       ..._level.visibleHints,
       if (_hiddenHintOpened && _level.hiddenHint != null) _level.hiddenHint!,
     ];
+
     return Expanded(
       child: Container(
         width: double.infinity,
@@ -222,6 +293,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
                 style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
               );
             }
+
             final hint = hints[index];
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,7 +317,18 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
 
   Widget _keyboard() {
     final letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-    return Wrap(
+    final highlight = _isTutorialStage && _selectedNumber != null;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: highlight ? const Color(0xFFD9480F) : Colors.transparent,
+          width: 2,
+        ),
+      ),
+      child: Wrap(
       spacing: 6,
       runSpacing: 6,
       alignment: WrapAlignment.center,
@@ -264,21 +347,43 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
           ),
         );
       }).toList(),
-    );
+    ));
   }
 
   Future<void> _onTapLetter(String letter) async {
     if (_revealedLetters.contains(letter)) return;
+
+    final selectedNumber = _selectedNumber;
+    if (selectedNumber == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('먼저 숫자 칸을 선택하세요.')),
+      );
+      return;
+    }
+
+    if (_isTutorialStage) {
+      final required = _nextRequiredNumber();
+      if (required != null && selectedNumber != required) {
+        _showTutorialOrderMessage(required);
+        return;
+      }
+    }
+
     final state = context.read<GameStateManager>();
-    if (_sentenceUpper.contains(letter)) {
+    final matched = _letterNumberMap.entries.where((e) => e.value == selectedNumber).toList(growable: false);
+
+    if (matched.isNotEmpty && matched.first.key == letter) {
       setState(() {
         _revealedLetters.add(letter);
+        _selectedNumber = null;
       });
       if (_isSolved()) {
         await _handleSolve(state);
       }
       return;
     }
+
     await state.consumeHeart();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -287,6 +392,13 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   }
 
   Future<void> _useHint() async {
+    if (_isTutorialStage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+      );
+      return;
+    }
+
     final state = context.read<GameStateManager>();
     final result = await state.consumeHint(
       gameId: 'sentence_code',
@@ -294,10 +406,12 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
       cooldown: const Duration(seconds: 20),
     );
     if (!mounted) return;
+
     if (!result.ok) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
       return;
     }
+
     if (!_hiddenHintOpened && _level.hiddenHint != null) {
       setState(() => _hiddenHintOpened = true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -313,11 +427,13 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
       );
       return;
     }
+
     setState(() => _revealedLetters.add(next));
     if (_isSolved()) {
       await _handleSolve(state);
       return;
     }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Hint used. Letter revealed: $next')),
     );
@@ -330,27 +446,20 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     _stage += 1;
     await state.setBestStageIfHigher('sentence_code', _stage);
     if (!mounted) return;
+
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Stage Clear'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(_sentenceUpper),
-              const SizedBox(height: 8),
-              if (_level.translation.trim().isNotEmpty) Text(_level.translation),
-              if (_level.similarProverb.trim().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text('Related: ${_level.similarProverb}'),
-              ],
-              const SizedBox(height: 8),
-              const Text('+10 stars'),
-            ],
-          ),
+        return ReadableResultDialog(
+          title: 'Stage Clear',
+          success: true,
+          headline: _sentenceUpper,
+          lines: [
+            if (_level.translation.trim().isNotEmpty) ResultLine(label: 'Translation', value: _level.translation),
+            if (_level.similarProverb.trim().isNotEmpty) ResultLine(label: 'Related', value: _level.similarProverb),
+            const ResultLine(label: 'Reward', value: '+10 stars', accent: true),
+          ],
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -360,6 +469,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
         );
       },
     );
+
     if (!mounted) return;
     await _loadLevelForStage(_stage);
     _dialogOpen = false;
@@ -381,6 +491,22 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
       }
     }
     return null;
+  }
+
+  int? _nextRequiredNumber() {
+    for (final ch in _sentenceUpper.split('')) {
+      if (!_letterPattern.hasMatch(ch)) continue;
+      if (_revealedLetters.contains(ch)) continue;
+      return _letterNumberMap[ch];
+    }
+    return null;
+  }
+
+  void _showTutorialOrderMessage(int required) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('튜토리얼: 숫자 $required 칸부터 선택하세요.')),
+    );
   }
 
   String _maskHintWord(String word) {

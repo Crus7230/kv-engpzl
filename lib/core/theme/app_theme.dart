@@ -28,6 +28,13 @@ class AppTheme {
         secondary: AppColors.secondary,
       ),
       fontFamily: GoogleFonts.notoSansKr().fontFamily,
+      fontFamilyFallback: const [
+        'Noto Sans KR',
+        'Noto Sans CJK KR',
+        'Apple SD Gothic Neo',
+        'Malgun Gothic',
+        'sans-serif',
+      ],
       textTheme: textTheme,
       primaryTextTheme: textTheme,
       appBarTheme: const AppBarTheme(

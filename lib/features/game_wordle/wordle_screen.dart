@@ -9,7 +9,8 @@ import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
-import '../../core/widgets/game_hud.dart';
+import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/readable_result_dialog.dart';
 import 'wordle_provider.dart';
 
 class WordleScreen extends StatefulWidget {
@@ -22,6 +23,9 @@ class WordleScreen extends StatefulWidget {
 class _WordleScreenState extends State<WordleScreen> {
   bool _dialogOpen = false;
   final RegExp _hangul = RegExp(r'[\uAC00-\uD7A3]');
+  int _tutorialStep = 0;
+  int _lastSeenStage = -1;
+  bool _isTutorialStage(int stage) => stage == 1;
 
   bool _hasKoreanMeaning(String text) {
     final value = text.trim();
@@ -36,6 +40,7 @@ class _WordleScreenState extends State<WordleScreen> {
     final skin = context.watch<SkinManager>().currentSkin;
     final gameState = context.watch<GameStateManager>();
     final character = CharacterManager().getById(gameState.selectedCharacterId);
+    _syncTutorialState(game);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _dialogOpen) return;
@@ -55,9 +60,17 @@ class _WordleScreenState extends State<WordleScreen> {
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
               child: Column(
                 children: [
-                  _header(context, game, gameState),
-                  const SizedBox(height: 10),
-                  _stageBadge(game),
+                  GameTopBar(
+                    title: 'WORDLE',
+                    stage: game.stage,
+                    state: gameState,
+                    stageLabel: 'STAGE ${game.stage}  -  ${game.badgeLabel}',
+                    badgeColor: game.badgeColor,
+                  ),
+                  if (_isTutorialStage(game.stage)) ...[
+                    const SizedBox(height: 10),
+                    _tutorialCard(game),
+                  ],
                   const SizedBox(height: 14),
                   _board(game, skin),
                   const SizedBox(height: 12),
@@ -69,42 +82,6 @@ class _WordleScreenState extends State<WordleScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _header(BuildContext context, WordleProvider game, GameStateManager state) {
-    return Row(
-      children: [
-        IconButton(
-          onPressed: () => context.pop(),
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-        ),
-        const Spacer(),
-        const Text(
-          'WORDLE',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const Spacer(),
-        GameHud(state: state),
-      ],
-    );
-  }
-
-  Widget _stageBadge(WordleProvider game) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: game.badgeColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        'STAGE ${game.stage}  -  ${game.badgeLabel}',
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
       ),
     );
   }
@@ -121,9 +98,21 @@ class _WordleScreenState extends State<WordleScreen> {
     final tileFontSize = (tileSize * 0.45).clamp(16.0, 26.0);
     final boardHeight = (tileSize * game.maxRows) + (6 * game.maxRows);
 
-    return SizedBox(
-      height: boardHeight,
-      child: Column(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _isTutorialStage(game.stage) && _tutorialStep <= 1
+              ? const Color(0xFFD9480F)
+              : Colors.transparent,
+          width: 2,
+        ),
+      ),
+      child: SizedBox(
+        height: boardHeight,
+        child: Column(
         children: List.generate(game.maxRows, (row) {
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -146,18 +135,25 @@ class _WordleScreenState extends State<WordleScreen> {
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: tileFontSize,
-                    fontWeight: FontWeight.w900,
-                    color: status == TileStatus.initial ? skin.textColor : Colors.white,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 170),
+                  switchInCurve: Curves.easeOutBack,
+                  transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                  child: Text(
+                    text,
+                    key: ValueKey('w-$row-$col-$text-$status'),
+                    style: TextStyle(
+                      fontSize: tileFontSize,
+                      fontWeight: FontWeight.w900,
+                      color: status == TileStatus.initial ? skin.textColor : Colors.white,
+                    ),
                   ),
                 ),
               );
             }),
           );
         }),
+        ),
       ),
     );
   }
@@ -182,6 +178,13 @@ class _WordleScreenState extends State<WordleScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              if (_isTutorialStage(game.stage)) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                );
+                return;
+              }
               final hintResult = await context.read<GameStateManager>().consumeHint(
                 gameId: 'wordle',
                 baseCost: 2,
@@ -200,6 +203,43 @@ class _WordleScreenState extends State<WordleScreen> {
     );
   }
 
+  Widget _tutorialCard(WordleProvider game) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFB7D3FA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '튜토리얼 - 스테이지 1',
+            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1D4ED8)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _tutorialStep == 0
+                ? '1단계: 첫 글자를 입력하세요.'
+                : _tutorialStep == 1
+                    ? '2단계: ${game.wordLength}글자 칸을 모두 채우세요.'
+                    : _tutorialStep == 2
+                        ? '3단계: ENTER를 눌러 제출하세요.'
+                        : '좋아요. 이제 일반 플레이를 진행하세요.',
+            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
+          ),
+          const SizedBox(height: 4),
+          const Text('1) 키보드로 단어를 입력합니다.'),
+          const Text('2) ENTER로 제출합니다.'),
+          const Text('3) 색상 힌트를 보고 다음 추측을 조정합니다.'),
+          const Text('4) 튜토리얼에서는 힌트가 비활성화됩니다.'),
+        ],
+      ),
+    );
+  }
+
   Widget _keyboard(WordleProvider game) {
     const rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
     return LayoutBuilder(
@@ -208,8 +248,20 @@ class _WordleScreenState extends State<WordleScreen> {
         final keyWidth = ((width - 48) / 10).clamp(24.0, 38.0).toDouble();
         final keyHeight = (keyWidth * 1.45).clamp(36.0, 52.0).toDouble();
         final actionWidth = (keyWidth * 2.5).clamp(94.0, 132.0).toDouble();
-        return Column(
-          children: [
+        final highlightKeys = _isTutorialStage(game.stage) && _tutorialStep <= 1;
+        final highlightEnter = _isTutorialStage(game.stage) && _tutorialStep == 2;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: (highlightKeys || highlightEnter) ? const Color(0xFFD9480F) : Colors.transparent,
+              width: 2,
+            ),
+          ),
+          child: Column(
+            children: [
             for (final line in rows)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -219,13 +271,15 @@ class _WordleScreenState extends State<WordleScreen> {
                     child: SizedBox(
                       width: keyWidth,
                       height: keyHeight,
-                      child: ElevatedButton(
-                        onPressed: () => game.typeKey(key),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _keyColor(game.keyboardStates[key]),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.zero,
-                        ),
+                        child: ElevatedButton(
+                          onPressed: () => _onTutorialTypeKey(game, key),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: highlightKeys
+                                ? const Color(0xFFD9480F)
+                                : _keyColor(game.keyboardStates[key]),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.zero,
+                          ),
                         child: Text(key, style: const TextStyle(fontWeight: FontWeight.w800)),
                       ),
                     ),
@@ -235,17 +289,30 @@ class _WordleScreenState extends State<WordleScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _actionKey('ENTER', actionWidth, keyHeight, () => _submitGuess(game)),
-                _actionKey('DEL', actionWidth, keyHeight, () => game.backspace()),
+                _actionKey(
+                  'ENTER',
+                  actionWidth,
+                  keyHeight,
+                  () => _submitGuess(game),
+                  emphasized: highlightEnter,
+                ),
+                _actionKey(
+                  'DEL',
+                  actionWidth,
+                  keyHeight,
+                  () => game.backspace(),
+                  emphasized: false,
+                ),
               ],
             ),
-          ],
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _actionKey(String label, double width, double height, VoidCallback onTap) {
+  Widget _actionKey(String label, double width, double height, VoidCallback onTap, {required bool emphasized}) {
     return Padding(
       padding: const EdgeInsets.all(4),
       child: SizedBox(
@@ -253,6 +320,9 @@ class _WordleScreenState extends State<WordleScreen> {
         height: height,
         child: ElevatedButton(
           onPressed: onTap,
+          style: ElevatedButton.styleFrom(
+            side: emphasized ? const BorderSide(color: Color(0xFFD9480F), width: 2) : null,
+          ),
           child: Text(
             label,
             maxLines: 1,
@@ -266,9 +336,52 @@ class _WordleScreenState extends State<WordleScreen> {
   }
 
   Future<void> _submitGuess(WordleProvider game) async {
+    if (_isTutorialStage(game.stage) && _tutorialStep < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('튜토리얼: 먼저 글자를 입력하세요.')),
+      );
+      return;
+    }
+    if (_isTutorialStage(game.stage) && _tutorialStep == 2 && game.currentCol < game.wordLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('튜토리얼: ENTER 전에 줄을 모두 채우세요.')),
+      );
+      return;
+    }
+    if (_isTutorialStage(game.stage) && _tutorialStep == 2) {
+      setState(() => _tutorialStep = 3);
+    }
     final message = await game.submit();
     if (!mounted || message == null) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _onTutorialTypeKey(WordleProvider game, String key) {
+    if (_isTutorialStage(game.stage) && _tutorialStep == 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('튜토리얼: 이제 ENTER를 누르세요.')),
+      );
+      return;
+    }
+    game.typeKey(key);
+    if (!_isTutorialStage(game.stage)) return;
+    if (_tutorialStep == 0 && game.currentCol > 0) {
+      setState(() => _tutorialStep = 1);
+      return;
+    }
+    if (_tutorialStep == 1 && game.currentCol >= game.wordLength) {
+      setState(() => _tutorialStep = 2);
+    }
+  }
+
+  void _syncTutorialState(WordleProvider game) {
+    if (_lastSeenStage == game.stage) return;
+    _lastSeenStage = game.stage;
+    if (_isTutorialStage(game.stage)) {
+      _tutorialStep = 0;
+    } else {
+      _tutorialStep = 3;
+    }
   }
 
   Color _tileColor(TileStatus status, GameSkin skin) {
@@ -303,30 +416,19 @@ class _WordleScreenState extends State<WordleScreen> {
       barrierDismissible: false,
       builder: (context) {
         final success = game.isWon;
-        return AlertDialog(
-          title: Text(success ? 'Stage Clear' : 'Failed'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Answer: ${game.currentWord.word}'),
-              const SizedBox(height: 8),
-              Text('POS: ${game.currentWord.pos}'),
-              const SizedBox(height: 6),
-              Text('Theme: ${game.currentWord.themeGroup} / ${game.currentWord.themeCategory}'),
-              const SizedBox(height: 6),
-              Text(game.currentWord.meaning),
-              if (_hasKoreanMeaning(game.currentWord.korMeaning)) ...[
-                const SizedBox(height: 6),
-                Text(game.currentWord.korMeaning),
-              ],
-              const SizedBox(height: 8),
-              Text('Synonym: ${game.currentWord.synonym.isEmpty ? '-' : game.currentWord.synonym}'),
-              const SizedBox(height: 4),
-              Text('Antonym: ${game.currentWord.antonym.isEmpty ? '-' : game.currentWord.antonym}'),
-              const SizedBox(height: 8),
-              Text(success ? 'Reward: +5 stars' : 'Penalty: -1 heart'),
-            ],
-          ),
+        return ReadableResultDialog(
+          title: success ? 'Stage Clear' : 'Failed',
+          success: success,
+          headline: 'Answer: ${game.currentWord.word}',
+          lines: [
+            ResultLine(label: 'POS', value: game.currentWord.pos),
+            ResultLine(label: 'Theme', value: '${game.currentWord.themeGroup} / ${game.currentWord.themeCategory}'),
+            ResultLine(label: 'Meaning', value: game.currentWord.meaning),
+            if (_hasKoreanMeaning(game.currentWord.korMeaning)) ResultLine(label: 'Korean', value: game.currentWord.korMeaning),
+            ResultLine(label: 'Synonym', value: game.currentWord.synonym.isEmpty ? '-' : game.currentWord.synonym),
+            ResultLine(label: 'Antonym', value: game.currentWord.antonym.isEmpty ? '-' : game.currentWord.antonym),
+            ResultLine(label: success ? 'Reward' : 'Penalty', value: success ? '+5 stars' : '-1 heart', accent: true),
+          ],
           actions: [
             TextButton(
               onPressed: () {
