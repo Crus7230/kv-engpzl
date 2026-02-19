@@ -259,7 +259,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const Expanded(
               child: Text(
-                '찾고 싶은 단어나 누락된 단어가 있나요? 제안해 주시면 검토 후 반영할게요.',
+                '찾고 싶은 단어나 누락된 단어가 있나요? / Missing a word you want? 제안해 주시면 검토 후 반영할게요.',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
               ),
             ),
@@ -267,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
             OutlinedButton.icon(
               onPressed: () => _openWordSuggestionSheet(context),
               icon: const Icon(Icons.send_rounded, size: 16),
-              label: const Text('Post'),
+              label: const Text('Post / 제안'),
             ),
           ],
         ),
@@ -299,10 +299,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Word Suggestion', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                  const Text('Word Suggestion / 단어 제안', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 6),
                   const Text(
-                    '단어가 누락되어 보이면 알려주세요. 관리자가 확인 후 승인하면 게임 단어집에 반영됩니다.',
+                    '누락된 단어를 제안해 주세요. 단어는 영어로, 이유는 한글/영어 모두 작성할 수 있습니다.\n'
+                    'Suggest missing words. Enter the word in English, and the reason in Korean or English.',
                     style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 12),
@@ -310,14 +311,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     controller: wordController,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(
-                      labelText: 'Suggested Word',
+                      labelText: 'Suggested Word (영어 단어)',
                       hintText: 'example: TREE',
                     ),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: gameId,
-                    decoration: const InputDecoration(labelText: 'Game'),
+                    decoration: const InputDecoration(labelText: 'Game (적용 게임)'),
                     items: const [
                       DropdownMenuItem(value: 'all', child: Text('All')),
                       DropdownMenuItem(value: 'wordle', child: Text('Wordle')),
@@ -339,8 +340,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     minLines: 2,
                     maxLines: 4,
                     decoration: const InputDecoration(
-                      labelText: 'Why should we add it?',
-                      hintText: 'Tell us where it felt missing.',
+                      labelText: 'Reason / 추가 이유 (한글 가능)',
+                      hintText: '예: Word Crash 5단계에서 자주 나오는 단어인데 사전에 없어요.',
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -367,13 +368,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                     gameId: gameId,
                                   );
                                   if (!mounted) return;
-                                  sheetNav.pop();
+                                  if (result.ok) {
+                                    sheetNav.pop();
+                                  } else {
+                                    setSheetState(() => submitting = false);
+                                  }
                                   rootMessenger.showSnackBar(
-                                    SnackBar(content: Text(result)),
+                                    SnackBar(content: Text(result.message)),
                                   );
                                 },
                           icon: const Icon(Icons.send_rounded, size: 16),
-                          label: const Text('Send'),
+                          label: const Text('Send / 전송'),
                         ),
                       ),
                     ],

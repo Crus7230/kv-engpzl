@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +8,16 @@ import 'package:flutter/foundation.dart';
 import '../../firebase_options.dart';
 import 'game_state_manager.dart';
 import 'user_profile_service.dart';
+
+class SubmitWordSuggestionResult {
+  const SubmitWordSuggestionResult({
+    required this.ok,
+    required this.message,
+  });
+
+  final bool ok;
+  final String message;
+}
 
 class CloudSyncManager {
   CloudSyncManager._internal();
@@ -217,21 +227,30 @@ class CloudSyncManager {
     }
   }
 
-  Future<String> submitWordSuggestion({
+  Future<SubmitWordSuggestionResult> submitWordSuggestion({
     required String word,
     required String description,
     String? gameId,
   }) async {
     if (!_enabled || _uid == null) {
-      return 'Server is not connected. Please try again when online.';
+      return const SubmitWordSuggestionResult(
+        ok: false,
+        message: '서버 연결이 필요합니다. 온라인 상태에서 다시 시도해 주세요.\nServer is not connected. Please try again when online.',
+      );
     }
     final normalizedWord = word.trim().toUpperCase();
     if (!_wordPattern.hasMatch(normalizedWord)) {
-      return 'Use one English word only (2-20 letters).';
+      return const SubmitWordSuggestionResult(
+        ok: false,
+        message: '단어는 영어 1개만 입력해 주세요 (2~20자).\nUse one English word only (2-20 letters).',
+      );
     }
     final memo = description.trim();
     if (memo.length < 5) {
-      return 'Please add a short reason so we can review it quickly.';
+      return const SubmitWordSuggestionResult(
+        ok: false,
+        message: '추가 이유를 5자 이상 작성해 주세요. 한글/영어 모두 가능합니다.\nPlease add a short reason (5+ chars). Korean and English are both allowed.',
+      );
     }
     try {
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(_uid).get();
@@ -246,12 +265,19 @@ class CloudSyncManager {
         'requestedByNick': (nickname == null || nickname.isEmpty) ? 'Guest' : nickname,
         'createdAt': FieldValue.serverTimestamp(),
       });
-      return 'Suggestion sent. Thanks for helping improve the dictionary.';
+      return const SubmitWordSuggestionResult(
+        ok: true,
+        message: '제안이 접수되었습니다. 사전 개선에 도움 주셔서 감사합니다.\nSuggestion sent. Thanks for helping improve the dictionary.',
+      );
     } catch (e) {
       if (kDebugMode) {
         debugPrint('submitWordSuggestion failed: $e');
       }
-      return 'Failed to send suggestion. Please try again.';
+      return const SubmitWordSuggestionResult(
+        ok: false,
+        message: '전송에 실패했습니다. 잠시 후 다시 시도해 주세요.\nFailed to send suggestion. Please try again.',
+      );
     }
   }
 }
+

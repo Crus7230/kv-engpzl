@@ -51,6 +51,38 @@ class WordRepository {
   final Random _random = Random();
   static final RegExp _alphaOnly = RegExp(r'^[A-Z]+$');
   static final RegExp _hangul = RegExp(r'[\uAC00-\uD7A3]');
+  static final RegExp _vowel = RegExp(r'[AEIOUY]');
+  static const Set<String> _crashWordBlocklist = {
+    'ANAL',
+    'ANUS',
+    'ARSE',
+    'ASS',
+    'ASSHOLE',
+    'BASTARD',
+    'BITCH',
+    'BITCHY',
+    'BLOWJOB',
+    'BOOB',
+    'BOOBS',
+    'COCK',
+    'CUNT',
+    'DICK',
+    'FAG',
+    'FAGGOT',
+    'FUCK',
+    'FUCKED',
+    'FUCKING',
+    'NIGGER',
+    'PENIS',
+    'PORN',
+    'PUSSY',
+    'RAPE',
+    'RAPED',
+    'RAPES',
+    'SHIT',
+    'SLUT',
+    'WHORE',
+  };
   static const Set<String> _allowedCluePos = {
     'Noun',
     'Verb',
@@ -334,6 +366,7 @@ class WordRepository {
   Set<String> _anagramLexicon = const <String>{};
   Set<String> _validWords = const <String>{};
   Map<String, WordData> _dictionaryByWord = {};
+  final Map<String, WordData> _generatedDictionaryByWord = <String, WordData>{};
 
   bool _loadedFromAssets = false;
   Future<void>? _loadTask;
@@ -372,7 +405,6 @@ class WordRepository {
       }
       if (crash.isNotEmpty) {
         _crashWords = crash;
-        _playableCrashWords = _buildPlayableCrashWords(crash);
       }
       if (clueWords.isNotEmpty) {
         _clueWords = clueWords.toList(growable: false);
@@ -392,6 +424,7 @@ class WordRepository {
       }
       _buildPlayableAnagramRounds();
       _rebuildDictionary();
+      _rebuildPlayableCrashWords();
       _buildWordleAnswerEntries();
       _rebuildAnagramLexicon();
       _loadedFromAssets = true;
@@ -404,6 +437,7 @@ class WordRepository {
       _localDictionaryWords = List<WordData>.from(_defaultClueWords, growable: false);
       _buildPlayableAnagramRounds();
       _rebuildDictionary();
+      _rebuildPlayableCrashWords();
       _buildWordleAnswerEntries();
       _rebuildAnagramLexicon();
     }
@@ -425,6 +459,33 @@ class WordRepository {
       map[seed.word.toUpperCase()] = seed;
     }
     _dictionaryByWord = map;
+  }
+
+  void _rebuildPlayableCrashWords() {
+    final curatedLexicon = <String>{
+      ..._dictionaryByWord.keys,
+    };
+    final curated = _buildPlayableCrashWords(
+      _crashWords,
+      curatedLexicon: curatedLexicon,
+    );
+    if (curated.length >= 400) {
+      _playableCrashWords = curated;
+      return;
+    }
+    final fallbackLexicon = <String>{
+      ..._validWords,
+      ..._dictionaryByWord.keys,
+    };
+    final fallback = _buildPlayableCrashWords(
+      _crashWords,
+      curatedLexicon: fallbackLexicon,
+    );
+    if (fallback.isNotEmpty) {
+      _playableCrashWords = fallback;
+      return;
+    }
+    _playableCrashWords = _buildPlayableCrashWords(_defaultCrashWords);
   }
 
   void _buildPlayableAnagramRounds() {
@@ -693,14 +754,14 @@ class WordRepository {
     if (word.length < 3 || word.length > 7) return false;
     final uniqueChars = word.split('').toSet().length;
     if (uniqueChars < 2) return false;
-    final hasVowel = RegExp(r'[AEIOUY]').hasMatch(word);
+    final hasVowel = _vowel.hasMatch(word);
     return hasVowel;
   }
 
   static bool _isNoVowelCrashWordCandidate(String word) {
     if (!_alphaOnly.hasMatch(word)) return false;
     if (word.length < 3 || word.length > 7) return false;
-    if (RegExp(r'[AEIOUY]').hasMatch(word)) return false;
+    if (_vowel.hasMatch(word)) return false;
     final uniqueChars = word.split('').toSet().length;
     if (uniqueChars < 2) return false;
     if (!RegExp(r'[RSTLN]').hasMatch(word)) return false;
@@ -708,11 +769,30 @@ class WordRepository {
     return true;
   }
 
-  static Set<String> _buildPlayableCrashWords(Set<String> source) {
+  static bool _isBlockedCrashWord(String word) {
+    return _crashWordBlocklist.contains(word);
+  }
+
+  static bool _looksLikeSafeCrashWord(String word) {
+    if (_isBlockedCrashWord(word)) return false;
+    if (!_alphaOnly.hasMatch(word)) return false;
+    if (word.length < 3 || word.length > 7) return false;
+    if (RegExp(r'(.)\1\1').hasMatch(word)) return false;
+    if (word.length == 3 && !_vowel.hasMatch(word)) return false;
+    return true;
+  }
+
+  static Set<String> _buildPlayableCrashWords(
+    Set<String> source, {
+    Set<String>? curatedLexicon,
+  }) {
     final base = <String>{};
     final extraNoVowel = <String>[];
+    final useLexiconFilter = curatedLexicon != null && curatedLexicon.isNotEmpty;
     final sorted = source.toList(growable: false)..sort();
     for (final word in sorted) {
+      if (!_looksLikeSafeCrashWord(word)) continue;
+      if (useLexiconFilter && !curatedLexicon.contains(word)) continue;
       if (_isPlayableCrashWord(word)) {
         base.add(word);
         continue;
@@ -721,7 +801,7 @@ class WordRepository {
         extraNoVowel.add(word);
       }
     }
-    const bonusLimit = 1100;
+    const bonusLimit = 220;
     for (int i = 0; i < extraNoVowel.length && i < bonusLimit; i++) {
       base.add(extraNoVowel[i]);
     }
@@ -977,7 +1057,17 @@ class WordRepository {
   }
 
   WordData? getDictionaryEntry(String word) {
-    return _dictionaryByWord[word.trim().toUpperCase()];
+    final normalized = word.trim().toUpperCase();
+    if (normalized.isEmpty || !_alphaOnly.hasMatch(normalized)) return null;
+    final direct = _dictionaryByWord[normalized];
+    if (direct != null) return direct;
+    if (!_validWords.contains(normalized) && !_playableCrashWords.contains(normalized)) {
+      return null;
+    }
+    return _generatedDictionaryByWord.putIfAbsent(
+      normalized,
+      () => _buildGeneratedDictionaryEntry(normalized),
+    );
   }
 
   bool hasKoreanMeaning(String text) {
@@ -985,6 +1075,71 @@ class WordRepository {
     if (value.isEmpty) return false;
     if (value.toLowerCase().contains('korean meaning pending')) return false;
     return _hangul.hasMatch(value);
+  }
+
+  WordData _buildGeneratedDictionaryEntry(String word) {
+    final pos = _inferPos(word);
+    return WordData(
+      word: word,
+      meaning: _buildFallbackMeaning(word, pos),
+      korMeaning: 'Korean meaning pending',
+      pos: pos,
+      themeGroup: pos,
+      themeCategory: 'General',
+      difficulty: _estimateDifficultyFromLength(word.length),
+      frequencyZipf: 0,
+    );
+  }
+
+  static int _estimateDifficultyFromLength(int length) {
+    if (length <= 4) return 2;
+    if (length <= 6) return 3;
+    return 4;
+  }
+
+  String _inferPos(String word) {
+    if (word.endsWith('LY')) return 'Adverb';
+    if (word.endsWith('ING') || word.endsWith('ED') || word.endsWith('EN')) return 'Verb';
+    if (word.endsWith('IZE') || word.endsWith('ISE') || word.endsWith('FY')) return 'Verb';
+    if (word.endsWith('OUS') ||
+        word.endsWith('FUL') ||
+        word.endsWith('ABLE') ||
+        word.endsWith('IBLE') ||
+        word.endsWith('AL') ||
+        word.endsWith('IVE') ||
+        word.endsWith('IC') ||
+        word.endsWith('LESS') ||
+        word.endsWith('ISH') ||
+        word.endsWith('Y')) {
+      return 'Adjective';
+    }
+    if (word.endsWith('TION') ||
+        word.endsWith('SION') ||
+        word.endsWith('MENT') ||
+        word.endsWith('NESS') ||
+        word.endsWith('ITY') ||
+        word.endsWith('SHIP') ||
+        word.endsWith('AGE') ||
+        word.endsWith('ER') ||
+        word.endsWith('OR')) {
+      return 'Noun';
+    }
+    return 'Word';
+  }
+
+  String _buildFallbackMeaning(String word, String pos) {
+    switch (pos) {
+      case 'Verb':
+        return 'To perform an action represented by "$word" in common English usage.';
+      case 'Adjective':
+        return 'Describing a quality related to "$word" in common English usage.';
+      case 'Adverb':
+        return 'Used to modify an action or state in a way related to "$word".';
+      case 'Noun':
+        return 'A noun used in English, represented by "$word".';
+      default:
+        return 'A commonly used English word represented by "$word".';
+    }
   }
 
   bool isValidAnagramWordForSeed({
@@ -1025,8 +1180,8 @@ class WordRepository {
     final wildcardCount = wildcard.isEmpty ? 0 : wildcard.allMatches(normalized).length;
     final lettersOnly = normalized.replaceAll(wildcard, '');
     if (lettersOnly.isEmpty || !_alphaOnly.hasMatch(lettersOnly)) return null;
-    if (wildcardCount > 1) return null;
-    String? matched;
+    if (wildcardCount > 2) return null;
+    final matches = <String>[];
     for (final word in _playableCrashWords) {
       if (word.length != normalized.length) continue;
       var match = true;
@@ -1039,11 +1194,30 @@ class WordRepository {
         }
       }
       if (match) {
-        if (!requireUnique) return word;
-        if (matched != null) return null;
-        matched = word;
+        matches.add(word);
       }
     }
-    return matched;
+    if (matches.isEmpty) return null;
+    if (requireUnique && matches.length > 1) return null;
+    if (matches.length == 1) return matches.first;
+    matches.sort((a, b) {
+      final scoreCompare = _scoreCrashWord(b).compareTo(_scoreCrashWord(a));
+      if (scoreCompare != 0) return scoreCompare;
+      return a.compareTo(b);
+    });
+    return matches.first;
+  }
+
+  double _scoreCrashWord(String word) {
+    final entry = getDictionaryEntry(word);
+    if (entry != null) {
+      final koreanBonus = hasKoreanMeaning(entry.korMeaning) ? 0.5 : 0.0;
+      return 30 + (entry.frequencyZipf * 5.0) - (entry.difficulty * 1.5) + koreanBonus;
+    }
+    var score = 0.0;
+    if (_validWords.contains(word)) score += 12;
+    if (_vowel.hasMatch(word)) score += 2;
+    score += word.length * 0.15;
+    return score;
   }
 }

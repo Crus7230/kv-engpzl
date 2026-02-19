@@ -148,16 +148,10 @@ def parse_legacy_entries(legacy_root: Path) -> dict[str, dict[str, str]]:
 
 
 def build_synthetic_entry(word: str) -> dict[str, str]:
-    first = word[0].upper()
-    last = word[-1].upper()
-    length = len(word)
     return {
         "word": word.upper(),
-        "meaning": (
-            f"A commonly used English word with {length} letters, "
-            f"starting with '{first}' and ending with '{last}'."
-        ),
-        "korMeaning": f"자주 쓰는 {length}글자 영어 단어 ({first}로 시작, {last}로 끝).",
+        "meaning": f"A common English word used in daily communication: {word.upper()}.",
+        "korMeaning": f"일상 영어에서 쓰이는 단어: {word.upper()}.",
         "pos": guess_pos(word),
         "synonym": "",
         "antonym": "",

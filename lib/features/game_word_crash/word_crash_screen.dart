@@ -68,10 +68,12 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   final List<List<CrashTile>> grid = [];
   final List<Point<int>> selected = [];
   final Set<Point<int>> _poppingCells = <Point<int>>{};
+  final List<String> _poppedWords = <String>[];
 
   bool _stageLoaded = false;
   bool _dialogOpen = false;
   bool _showTutorialIntro = false;
+  bool _bombFlashActive = false;
 
   int _stage = 1;
   int _combo = 0;
@@ -80,7 +82,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   late CrashStageGoal _goal;
   int _tutorialStep = 0;
   static const String _guide = '인접한 글자를 연결해 단어를 만들고, 폭탄/콤보를 활용해 고득점을 노리세요.';
-  static const String _guideTip = '긴 단어와 특수 블록을 연계하면 콤보 점수가 크게 올라갑니다.';
+  static const String _guideTip = '특수 블록 2개까지 조합할 수 있어 조커 활용도가 높아졌습니다.';
   bool get _isTutorialStage => _stage == 1;
 
   @override
@@ -101,8 +103,9 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     final targetWords = min(9, 3 + ((normalized - 1) ~/ 2));
     final injectCount = max(1, 4 - ((normalized - 1) ~/ 4));
     final maxWordLength = min(7, 4 + ((normalized - 1) ~/ 2));
-    final bombRate = (0.05 + (normalized * 0.002)).clamp(0.05, 0.11);
-    final boosterRate = (0.015 + (normalized * 0.0006)).clamp(0.015, 0.045);
+    // Keep joker blocks meaningful but less frequent than before.
+    final bombRate = (0.035 + (normalized * 0.0014)).clamp(0.035, 0.08);
+    final boosterRate = (0.01 + (normalized * 0.00045)).clamp(0.01, 0.028);
     final blockerRate = (normalized % 4 == 0 || normalized % 7 == 0) ? 0.08 : 0.0;
     final missLimitBeforeHeart = normalized <= 3 ? 2 : 1;
     return CrashStageGoal(
@@ -132,6 +135,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     _combo = 0;
     _wordsClearedInStage = 0;
     _mistakesInStage = 0;
+    _bombFlashActive = false;
     _showTutorialIntro = false;
     _tutorialStep = _isTutorialStage ? 0 : 3;
     _resetGrid();
@@ -181,10 +185,10 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       return CrashTile(kind: CrashTileKind.blocker, value: 'X');
     }
     if (roll < _goal.bombRate + _goal.blockerRate) {
-      return CrashTile(kind: CrashTileKind.bomb, value: '!');
+      return CrashTile(kind: CrashTileKind.bomb, value: '💣');
     }
     if (roll < _goal.bombRate + _goal.boosterRate + _goal.blockerRate) {
-      return CrashTile(kind: CrashTileKind.booster, value: '*');
+      return CrashTile(kind: CrashTileKind.booster, value: '⭐');
     }
     return CrashTile(kind: CrashTileKind.letter, value: _randomLetter());
   }
@@ -249,6 +253,24 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
         children: [
           Positioned.fill(child: Image.asset(skin.backgroundPath, fit: BoxFit.cover)),
           Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.1))),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: _bombFlashActive ? 0.45 : 0,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 0.9,
+                      colors: [Color(0x99FF6B6B), Color(0x00FF6B6B)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           AppSafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -275,26 +297,36 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                             style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        TextButton(
-                          onPressed: () async {
-                            if (_isTutorialStage) {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
-                              );
-                              return;
-                            }
-                            final result = await state.consumeHint(
-                              gameId: 'word_crash',
-                              baseCost: 3,
-                              cooldown: const Duration(seconds: 20),
-                            );
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(result.ok ? 'Hint used.' : result.message)),
-                            );
-                          },
-                          child: const Text('Hint'),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () async {
+                                if (_isTutorialStage) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                                  );
+                                  return;
+                                }
+                                final result = await state.consumeHint(
+                                  gameId: 'word_crash',
+                                  baseCost: 3,
+                                  cooldown: const Duration(seconds: 20),
+                                );
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(result.ok ? 'Hint used.' : result.message)),
+                                );
+                              },
+                              child: const Text('Hint'),
+                            ),
+                            TextButton.icon(
+                              onPressed: _openPoppedWordsSheet,
+                              icon: const Icon(Icons.menu_book_rounded, size: 16),
+                              label: Text('Words (${_poppedWords.length})'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -329,8 +361,8 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                     ),
                     child: Text(
                       _isTutorialStage
-                          ? '* 스타 보너스, ! 폭탄, X 블로커 | 튜토리얼 목표: GAME 1회 성공'
-                          : '* 스타 보너스, ! 폭탄, X 블로커 | 남은 실수: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
+                          ? '⭐ 스타 보너스, 💣 폭탄, X 블로커 | 특수 블록 최대 2개'
+                          : '⭐ 스타 보너스, 💣 폭탄, X 블로커 | 특수 블록 최대 2개 | 남은 실수: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -365,32 +397,67 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                             final tile = grid[r][c];
                             final isPicked = selected.contains(point);
                             final isPopping = _poppingCells.contains(point);
+                            final particleIcon = tile.isBomb
+                                ? Icons.local_fire_department_rounded
+                                : (tile.isBooster ? Icons.auto_awesome : Icons.bolt_rounded);
                             return GestureDetector(
                               onTap: () => _pick(point),
-                              child: AnimatedScale(
-                                scale: isPopping ? 0.05 : (isPicked ? 1.06 : 1),
-                                duration: const Duration(milliseconds: 220),
-                                curve: Curves.easeInBack,
-                                child: AnimatedOpacity(
-                                  opacity: isPopping ? 0 : 1,
-                                  duration: const Duration(milliseconds: 190),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 120),
-                                    decoration: _tileDecoration(tile, isPicked),
-                                    child: Center(
-                                      child: Text(
-                                        tile.value,
-                                        style: TextStyle(
-                                          fontSize: tile.isLetter ? 21 : 19,
-                                          fontWeight: FontWeight.w900,
-                                          color: tile.isLetter
-                                              ? (isPicked ? Colors.white : const Color(0xFF0B132B))
-                                              : (tile.isBooster ? const Color(0xFF4A3200) : Colors.white),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  AnimatedSlide(
+                                    offset: isPopping ? const Offset(0, -0.35) : Offset.zero,
+                                    duration: const Duration(milliseconds: 260),
+                                    curve: Curves.easeOutCubic,
+                                    child: AnimatedRotation(
+                                      turns: isPopping ? 0.08 : 0,
+                                      duration: const Duration(milliseconds: 240),
+                                      curve: Curves.easeInCubic,
+                                      child: AnimatedScale(
+                                        scale: isPopping ? 0.01 : (isPicked ? 1.08 : 1),
+                                        duration: const Duration(milliseconds: 240),
+                                        curve: Curves.easeInBack,
+                                        child: AnimatedOpacity(
+                                          opacity: isPopping ? 0 : 1,
+                                          duration: const Duration(milliseconds: 210),
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 120),
+                                            decoration: _tileDecoration(tile, isPicked),
+                                            child: Center(
+                                              child: Text(
+                                                tile.value,
+                                                style: TextStyle(
+                                                  fontSize: tile.isLetter ? 21 : 19,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: tile.isLetter
+                                                      ? (isPicked ? Colors.white : const Color(0xFF0B132B))
+                                                      : (tile.isBooster ? const Color(0xFF4A3200) : Colors.white),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
+                                  if (isPopping)
+                                    TweenAnimationBuilder<double>(
+                                      tween: Tween(begin: 0.35, end: 1.25),
+                                      duration: const Duration(milliseconds: 240),
+                                      curve: Curves.easeOutBack,
+                                      builder: (context, value, child) {
+                                        return Opacity(
+                                          opacity: (1.2 - value).clamp(0.0, 1.0).toDouble(),
+                                          child: Transform.scale(scale: value, child: child),
+                                        );
+                                      },
+                                      child: Icon(
+                                        particleIcon,
+                                        color: tile.isBomb ? const Color(0xFFFFD43B) : const Color(0xFFFF922B),
+                                        size: 24,
+                                      ),
+                                    ),
+                                ],
                               ),
                             );
                           },
@@ -483,44 +550,84 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     );
   }
 
+  bool _isVowelLetter(String value) {
+    if (value.isEmpty) return false;
+    return const {'A', 'E', 'I', 'O', 'U', 'Y'}.contains(value.toUpperCase());
+  }
+
   BoxDecoration _tileDecoration(CrashTile tile, bool isPicked) {
     if (tile.isBlocker) {
       return BoxDecoration(
-        color: const Color(0xFF343A40),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF495057), Color(0xFF212529)],
+        ),
         borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: Colors.black54),
+        border: Border.all(color: const Color(0xFF111418), width: 1.3),
+        boxShadow: const [
+          BoxShadow(color: Color(0x66000000), blurRadius: 5, offset: Offset(1, 3)),
+        ],
       );
     }
     if (tile.isBomb) {
       return BoxDecoration(
-        color: Colors.black,
+        gradient: const RadialGradient(
+          colors: [Color(0xFF495057), Color(0xFF000000)],
+          radius: 0.95,
+        ),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.75), width: 1.5),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.78), width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: Color(0x66000000), blurRadius: 6, offset: Offset(1, 3)),
+          BoxShadow(color: Color(0x22FFFFFF), blurRadius: 2, offset: Offset(-1, -1)),
+        ],
       );
     }
     if (tile.isBooster) {
       return BoxDecoration(
-        color: const Color(0xFFFFD43B),
+        gradient: const RadialGradient(
+          colors: [Color(0xFFFFF3BF), Color(0xFFFFD43B), Color(0xFFF08C00)],
+          radius: 1.0,
+        ),
         shape: BoxShape.circle,
         border: Border.all(color: const Color(0xFFCC9A06), width: 1.5),
+        boxShadow: const [
+          BoxShadow(color: Color(0x66F08C00), blurRadius: 6, offset: Offset(1, 3)),
+          BoxShadow(color: Color(0x44FFFFFF), blurRadius: 2, offset: Offset(-1, -1)),
+        ],
       );
     }
     if (isPicked) {
       return BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFF59F00), Color(0xFFF76707)]),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFFC078), Color(0xFFF76707)],
+        ),
         borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFFFFE8CC), width: 1.0),
+        boxShadow: const [
+          BoxShadow(color: Color(0x55F76707), blurRadius: 7, offset: Offset(0, 3)),
+        ],
       );
     }
+    final isVowel = _isVowelLetter(tile.value);
     return BoxDecoration(
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xFFF8F9FA), Color(0xFFE9ECEF)],
+        colors: isVowel
+            ? const [Color(0xFFFFF1F2), Color(0xFFFFE8CC)]
+            : const [Color(0xFFF8F9FA), Color(0xFFE9ECEF)],
       ),
       borderRadius: BorderRadius.circular(9),
-      border: Border.all(color: const Color(0xFFCED4DA)),
-      boxShadow: const [
-        BoxShadow(color: Color(0x22000000), blurRadius: 4, offset: Offset(0, 2)),
+      border: Border.all(
+        color: isVowel ? const Color(0xFFF8C4B4) : const Color(0xFFCED4DA),
+      ),
+      boxShadow: [
+        const BoxShadow(color: Color(0x26000000), blurRadius: 5, offset: Offset(1, 3)),
+        BoxShadow(color: Colors.white.withValues(alpha: 0.62), blurRadius: 2, offset: const Offset(-1, -1)),
       ],
     );
   }
@@ -604,8 +711,8 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       _showToast('Select at least 2 letter blocks.');
       return;
     }
-    if (wildcardCount > 1) {
-      _showToast('Only one special block can be used.');
+    if (wildcardCount > 2) {
+      _showToast('Use up to 2 special blocks.');
       return;
     }
 
@@ -613,13 +720,14 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     final matchedWord = _repo.findCrashWordByPattern(
       pattern,
       wildcard: _specialWildcard,
-      requireUnique: true,
     );
     if (_isTutorialStage && matchedWord != _tutorialTargetWord) {
       _showToast('튜토리얼: Stage 1은 GAME 선택으로 진행됩니다.');
       return;
     }
-    final hasBomb = selectedTiles.any((t) => t.isBomb);
+    // Bomb AoE triggers only when the submitted word selection includes bomb tiles.
+    final selectedBombCells = selected.where((p) => grid[p.x][p.y].isBomb).toList(growable: false);
+    final hasBomb = selectedBombCells.isNotEmpty;
     final hasBooster = selectedTiles.any((t) => t.isBooster);
 
     if (matchedWord == null) {
@@ -648,6 +756,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     _combo += 1;
     _wordsClearedInStage += 1;
     _mistakesInStage = 0;
+    _registerPoppedWord(matchedWord);
     final longWordBonus = matchedWord.length >= 6 ? 1 : 0;
     final gainedStars = (hasBooster ? 1 : 0) + longWordBonus;
     if (gainedStars > 0) {
@@ -656,8 +765,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
 
     final removalSet = <Point<int>>{...selected};
     if (hasBomb) {
-      final bombCells = selected.where((p) => grid[p.x][p.y].isBomb).toList();
-      for (final bomb in bombCells) {
+      for (final bomb in selectedBombCells) {
         for (int dr = -1; dr <= 1; dr++) {
           for (int dc = -1; dc <= 1; dc++) {
             final nr = bomb.x + dr;
@@ -671,11 +779,12 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
 
     if (!mounted) return;
     setState(() {
+      _bombFlashActive = hasBomb;
       _poppingCells
         ..clear()
         ..addAll(removalSet);
     });
-    await Future<void>.delayed(const Duration(milliseconds: 220));
+    await Future<void>.delayed(const Duration(milliseconds: 260));
 
     for (final point in removalSet) {
       grid[point.x][point.y] = CrashTile(kind: CrashTileKind.letter, value: '');
@@ -695,6 +804,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       if (!mounted) return;
       setState(() {
         _poppingCells.clear();
+        _bombFlashActive = false;
       });
       await _showStageClearDialog(
         matchedWord: matchedWord,
@@ -707,6 +817,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     if (!mounted) return;
     setState(() {
       _poppingCells.clear();
+      _bombFlashActive = false;
     });
     _showToast(
       gainedStars > 0
@@ -745,6 +856,82 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
       }
     }
     _injectPlayableWords(count: max(1, _goal.injectCount - 1), maxLength: _goal.maxWordLength);
+  }
+
+  void _registerPoppedWord(String word) {
+    _poppedWords.remove(word);
+    _poppedWords.insert(0, word);
+    if (_poppedWords.length > 120) {
+      _poppedWords.removeLast();
+    }
+  }
+
+  void _openPoppedWordsSheet() {
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.72,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Popped Words Dictionary',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  '이번 플레이에서 팝한 단어의 의미를 확인할 수 있습니다.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF495057)),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: _poppedWords.isEmpty
+                      ? const Center(
+                          child: Text(
+                            '아직 팝한 단어가 없습니다.\n단어를 팝하면 여기에 기록됩니다.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF6C757D)),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: _poppedWords.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final word = _poppedWords[index];
+                            final entry = _repo.getDictionaryEntry(word);
+                            final meaning = entry?.meaning.trim() ?? 'Meaning not available.';
+                            final pos = (entry?.pos ?? 'Word').trim();
+                            final kor = entry?.korMeaning.trim() ?? '';
+                            final hasKor = _repo.hasKoreanMeaning(kor);
+                            return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                              title: Text(
+                                word,
+                                style: const TextStyle(fontWeight: FontWeight.w900),
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  hasKor ? '[$pos] $meaning\n$kor' : '[$pos] $meaning',
+                                  style: const TextStyle(height: 1.35),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _showStageClearDialog({
