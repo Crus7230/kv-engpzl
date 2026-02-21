@@ -77,8 +77,9 @@ class _WordClueScreenState extends State<WordClueScreen> {
           AppSafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
                   GameTopBar(title: 'WORD CLUE', stage: _stage, state: state),
                   if (_isTutorialStage) const SizedBox(height: 10),
                   const SizedBox(height: 10),
@@ -205,7 +206,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
                       );
                     }).toList(),
                   )),
-                  const Spacer(),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       Expanded(
@@ -223,7 +224,8 @@ class _WordClueScreenState extends State<WordClueScreen> {
                       ),
                     ],
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

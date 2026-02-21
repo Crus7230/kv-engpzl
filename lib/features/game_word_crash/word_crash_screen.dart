@@ -279,8 +279,9 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
           AppSafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
                   GameTopBar(title: 'WORD CRASH', stage: _stage, state: state, showStageChip: false),
                   if (_isTutorialStage) const SizedBox(height: 8),
                   _stageGoalCard(),
@@ -356,108 +357,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Expanded(
-                    child: AspectRatio(
-                      aspectRatio: cols / rows,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 140),
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: _isTutorialStage && _tutorialStep <= 1
-                                ? const Color(0xFFD9480F)
-                                : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                        child: GridView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: cols,
-                            mainAxisSpacing: 4,
-                            crossAxisSpacing: 4,
-                          ),
-                          itemCount: rows * cols,
-                          itemBuilder: (context, index) {
-                            final r = index ~/ cols;
-                            final c = index % cols;
-                            final point = Point(r, c);
-                            final tile = grid[r][c];
-                            final isPicked = selected.contains(point);
-                            final isPopping = _poppingCells.contains(point);
-                            final particleIcon = tile.isBomb
-                                ? Icons.local_fire_department_rounded
-                                : (tile.isBooster ? Icons.auto_awesome : Icons.bolt_rounded);
-                            return GestureDetector(
-                              onTap: () => _pick(point),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  AnimatedSlide(
-                                    offset: isPopping ? const Offset(0, -0.35) : Offset.zero,
-                                    duration: const Duration(milliseconds: 260),
-                                    curve: Curves.easeOutCubic,
-                                    child: AnimatedRotation(
-                                      turns: isPopping ? 0.08 : 0,
-                                      duration: const Duration(milliseconds: 240),
-                                      curve: Curves.easeInCubic,
-                                      child: AnimatedScale(
-                                        scale: isPopping ? 0.01 : (isPicked ? 1.08 : 1),
-                                        duration: const Duration(milliseconds: 240),
-                                        curve: Curves.easeInBack,
-                                        child: AnimatedOpacity(
-                                          opacity: isPopping ? 0 : 1,
-                                          duration: const Duration(milliseconds: 210),
-                                          child: AnimatedContainer(
-                                            duration: const Duration(milliseconds: 120),
-                                            decoration: _tileDecoration(tile, isPicked),
-                                            child: Center(
-                                              child: Text(
-                                                tile.value,
-                                                style: TextStyle(
-                                                  fontSize: tile.isLetter ? 21 : 19,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: tile.isLetter
-                                                      ? (isPicked ? Colors.white : const Color(0xFF0B132B))
-                                                      : (tile.isBooster
-                                                            ? const Color(0xFF4A3200)
-                                                            : (tile.isBlocker
-                                                                  ? const Color(0xFF343A40)
-                                                                  : Colors.white)),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  if (isPopping)
-                                    TweenAnimationBuilder<double>(
-                                      tween: Tween(begin: 0.35, end: 1.25),
-                                      duration: const Duration(milliseconds: 240),
-                                      curve: Curves.easeOutBack,
-                                      builder: (context, value, child) {
-                                        return Opacity(
-                                          opacity: (1.2 - value).clamp(0.0, 1.0).toDouble(),
-                                          child: Transform.scale(scale: value, child: child),
-                                        );
-                                      },
-                                      child: Icon(
-                                        particleIcon,
-                                        color: tile.isBomb ? const Color(0xFFFFD43B) : const Color(0xFFFF922B),
-                                        size: 24,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
+                  _buildBoardGrid(),
                   Row(
                     children: [
                       Expanded(
@@ -483,7 +383,8 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                       ),
                     ],
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -514,6 +415,118 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
         text,
         style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD9480F)),
       ),
+    );
+  }
+
+  Widget _buildBoardGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boardWidth = min(constraints.maxWidth, 520.0);
+        final boardHeight = boardWidth / (cols / rows);
+        return Center(
+          child: SizedBox(
+            width: boardWidth,
+            height: boardHeight,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _isTutorialStage && _tutorialStep <= 1
+                      ? const Color(0xFFD9480F)
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: GridView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: cols,
+                  mainAxisSpacing: 4,
+                  crossAxisSpacing: 4,
+                ),
+                itemCount: rows * cols,
+                itemBuilder: (context, index) {
+                  final r = index ~/ cols;
+                  final c = index % cols;
+                  final point = Point(r, c);
+                  final tile = grid[r][c];
+                  final isPicked = selected.contains(point);
+                  final isPopping = _poppingCells.contains(point);
+                  final particleIcon = tile.isBomb
+                      ? Icons.local_fire_department_rounded
+                      : (tile.isBooster ? Icons.auto_awesome : Icons.bolt_rounded);
+                  return GestureDetector(
+                    onTap: () => _pick(point),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        AnimatedSlide(
+                          offset: isPopping ? const Offset(0, -0.35) : Offset.zero,
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeOutCubic,
+                          child: AnimatedRotation(
+                            turns: isPopping ? 0.08 : 0,
+                            duration: const Duration(milliseconds: 240),
+                            curve: Curves.easeInCubic,
+                            child: AnimatedScale(
+                              scale: isPopping ? 0.01 : (isPicked ? 1.08 : 1),
+                              duration: const Duration(milliseconds: 240),
+                              curve: Curves.easeInBack,
+                              child: AnimatedOpacity(
+                                opacity: isPopping ? 0 : 1,
+                                duration: const Duration(milliseconds: 210),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 120),
+                                  decoration: _tileDecoration(tile, isPicked),
+                                  child: Center(
+                                    child: Text(
+                                      tile.value,
+                                      style: TextStyle(
+                                        fontSize: tile.isLetter ? 21 : 19,
+                                        fontWeight: FontWeight.w900,
+                                        color: tile.isLetter
+                                            ? (isPicked ? Colors.white : const Color(0xFF0B132B))
+                                            : (tile.isBooster
+                                                  ? const Color(0xFF4A3200)
+                                                  : (tile.isBlocker
+                                                        ? const Color(0xFF343A40)
+                                                        : Colors.white)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (isPopping)
+                          TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.35, end: 1.25),
+                            duration: const Duration(milliseconds: 240),
+                            curve: Curves.easeOutBack,
+                            builder: (context, value, child) {
+                              return Opacity(
+                                opacity: (1.2 - value).clamp(0.0, 1.0).toDouble(),
+                                child: Transform.scale(scale: value, child: child),
+                              );
+                            },
+                            child: Icon(
+                              particleIcon,
+                              color: tile.isBomb ? const Color(0xFFFFD43B) : const Color(0xFFFF922B),
+                              size: 24,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

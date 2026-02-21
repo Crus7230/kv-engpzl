@@ -47,6 +47,46 @@ class _HomeScreenState extends State<HomeScreen> {
     Color(0xFF6FB7FF),
     Color(0xFFFF5FA2),
   ];
+  static const List<String> _attendanceReadyMentPool = [
+    '오늘 출석 도장 찍고 연속 기록 이어가요.',
+    '출석 보상 챙기고 바로 플레이 시작해요.',
+    '지금 출석하면 오늘 템포가 더 좋아져요.',
+    '오늘도 출석 완료 목표, 같이 달려요.',
+    '출석 먼저 하고 스테이지를 시원하게 밀어봐요.',
+    '출석 체크로 오늘의 스타 루틴 시작!',
+    '오늘 기록도 이어 붙이면 금방 고점 찍어요.',
+    '출석 후 플레이하면 흐름이 더 잘 붙어요.',
+    '지금 출석하면 연속출석 라인이 끊기지 않아요.',
+    '도장 하나 더 찍고 오늘도 깔끔하게 갑시다.',
+  ];
+  static const List<String> _attendanceDoneMentPool = [
+    '오늘 출석 완료! 이 기세로 스테이지를 밀어봐요.',
+    '출석 체크 끝, 이제 점수 올릴 시간이에요.',
+    '오늘 도장 찍었어요. 다음 클리어를 노려요.',
+    '출석 완료 상태 좋습니다. 바로 연승 모드 가요.',
+    '오늘 출석 반영 완료! 콤보 감각 이어가요.',
+    '출석 미션 성공, 이제 본게임 들어가요.',
+    '출석까지 끝냈으니 오늘 목표 달성 각이에요.',
+    '오늘 출석 완료! 남은 건 기록 갱신뿐이에요.',
+    '도장 완료 상태예요. 지금이 플레이 타이밍입니다.',
+    '오늘 출석 처리됐어요. 다음 단계로 바로 가요.',
+  ];
+  static const List<String> _attendanceReadyStatusPool = [
+    '오늘 출석 준비',
+    '출석 보상 대기',
+    '출석하러 가요',
+    '연속출석 이어가기',
+    '오늘 도장 찍기',
+    '출석 체크 가능',
+  ];
+  static const List<String> _attendanceDoneStatusPool = [
+    '오늘 출석 완료',
+    '출석 도장 완료',
+    '보상 수령 완료',
+    '연속출석 반영됨',
+    '오늘 체크 끝',
+    '내일도 이어가요',
+  ];
   static const List<_GameDef> _gameDefs = [
     _GameDef(
       id: 'wordle',
@@ -273,6 +313,38 @@ class _HomeScreenState extends State<HomeScreen> {
     return DateTime(parsed.year, parsed.month, parsed.day);
   }
 
+  String _attendanceCheerLine(CharacterProfile character, GameStateManager gameState) {
+    final pool = gameState.canCheckInToday ? _attendanceReadyMentPool : _attendanceDoneMentPool;
+    final index = _stableMessageIndex(
+      seed: '${_todayKey()}|${character.id}|${gameState.attendanceStreak}|${gameState.canCheckInToday ? 'ready' : 'done'}',
+      length: pool.length,
+    );
+    return pool[index];
+  }
+
+  String _attendanceStatusLabel(GameStateManager gameState) {
+    final pool = gameState.canCheckInToday ? _attendanceReadyStatusPool : _attendanceDoneStatusPool;
+    final index = _stableMessageIndex(
+      seed: '${_todayKey()}|status|${gameState.attendanceStreak}|${gameState.canCheckInToday ? 'ready' : 'done'}',
+      length: pool.length,
+    );
+    return pool[index];
+  }
+
+  int _stableMessageIndex({required String seed, required int length}) {
+    if (length <= 1) return 0;
+    int hash = 17;
+    for (final code in seed.codeUnits) {
+      hash = 37 * hash + code;
+    }
+    return hash.abs() % length;
+  }
+
+  String _todayKey() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
   EdgeInsets _sheetBottomPadding(BuildContext context) {
     final bottom = MediaQuery.of(context).viewPadding.bottom;
     return EdgeInsets.only(bottom: bottom + 12);
@@ -479,6 +551,8 @@ class _HomeScreenState extends State<HomeScreen> {
           final streak = gameState.attendanceStreak;
           final isHundredMilestone = streak > 0 && streak % 100 == 0;
           final isWeeklyMilestone = streak > 0 && streak % 7 == 0;
+          final attendanceCheer = _attendanceCheerLine(character, gameState);
+          final attendanceStatus = _attendanceStatusLabel(gameState);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -537,60 +611,58 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        character.hints['home'] ?? 'Ready for today\'s challenge?',
+                        attendanceCheer,
                         maxLines: compact ? 2 : 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: gameState.canCheckInToday ? const Color(0xFFFFF3BF) : const Color(0xFFD3F9D8),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            gameState.canCheckInToday
-                                ? '오늘 출석 대기'
-                                : '오늘 출석 완료',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        if (isHundredMilestone)
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 3),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF3BF),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFE0A800)),
-                            ),
-                            child: Text(
-                              'MILESTONE ${streak}d',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFFB08900),
+                    GestureDetector(
+                      onTap: () => _openAttendanceRecapDialog(context, gameState),
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: gameState.canCheckInToday ? const Color(0xFFFFF3BF) : const Color(0xFFD3F9D8),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                attendanceStatus,
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                                textAlign: TextAlign.center,
                               ),
                             ),
-                          ),
-                        TweenAnimationBuilder<double>(
-                          key: ValueKey('streak-$streak'),
-                          tween: Tween<double>(begin: isHundredMilestone ? 0.94 : 1, end: 1),
-                          duration: const Duration(milliseconds: 520),
-                          curve: Curves.easeOutBack,
-                          builder: (context, value, child) => Transform.scale(scale: value, child: child),
-                          child: GestureDetector(
-                            onTap: () => _openAttendanceRecapDialog(context, gameState),
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                            const SizedBox(height: 4),
+                            if (isHundredMilestone)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 3),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF3BF),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFE0A800)),
+                                ),
+                                child: Text(
+                                  'MILESTONE ${streak}d',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFFB08900),
+                                  ),
+                                ),
+                              ),
+                            TweenAnimationBuilder<double>(
+                              key: ValueKey('streak-$streak'),
+                              tween: Tween<double>(begin: isHundredMilestone ? 0.94 : 1, end: 1),
+                              duration: const Duration(milliseconds: 520),
+                              curve: Curves.easeOutBack,
+                              builder: (context, value, child) => Transform.scale(scale: value, child: child),
                               child: Text(
                                 'Streak ${streak}d',
                                 style: TextStyle(
@@ -602,9 +674,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),

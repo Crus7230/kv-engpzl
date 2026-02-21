@@ -92,33 +92,35 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
               padding: const EdgeInsets.all(12),
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : Column(
-                      children: [
-                        GameTopBar(title: 'SENTENCE CODE', stage: _stage, state: state),
-                        const SizedBox(height: 10),
-                        _characterHintCard(char),
-                        if (_isTutorialStage && !_showTutorialIntro) ...[
-                          const SizedBox(height: 8),
-                          _tutorialActionHint(
-                            _selectedNumber == null
-                                ? '튜토리얼: 숫자 칸을 선택해 ${_tutorialHintWord() ?? '힌트 단어'}를 먼저 완성하세요.'
-                                : '튜토리얼: 아래 키보드에서 선택한 번호의 알파벳을 맞추세요.',
-                          ),
+                  : SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          GameTopBar(title: 'SENTENCE CODE', stage: _stage, state: state),
+                          const SizedBox(height: 10),
+                          _characterHintCard(char),
+                          if (_isTutorialStage && !_showTutorialIntro) ...[
+                            const SizedBox(height: 8),
+                            _tutorialActionHint(
+                              _selectedNumber == null
+                                  ? '튜토리얼: 숫자 칸을 선택해 ${_tutorialHintWord() ?? '힌트 단어'}를 먼저 완성하세요.'
+                                  : '튜토리얼: 아래 키보드에서 선택한 번호의 알파벳을 맞추세요.',
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          _sentenceCard(),
+                          if (_selectedNumber != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Selected code: $_selectedNumber',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          _hintsCard(height: _hintsCardHeight(context)),
+                          const SizedBox(height: 10),
+                          _keyboard(),
                         ],
-                        const SizedBox(height: 10),
-                        _sentenceCard(),
-                        if (_selectedNumber != null) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            'Selected code: $_selectedNumber',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                        const SizedBox(height: 10),
-                        _hintsCard(),
-                        const SizedBox(height: 10),
-                        _keyboard(),
-                      ],
+                      ),
                     ),
             ),
           ),
@@ -242,13 +244,19 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     );
   }
 
-  Widget _hintsCard() {
+  double _hintsCardHeight(BuildContext context) {
+    final viewportHeight = MediaQuery.sizeOf(context).height;
+    return (viewportHeight * 0.26).clamp(140.0, 220.0);
+  }
+
+  Widget _hintsCard({required double height}) {
     final hints = <SentenceHintData>[
       ..._level.visibleHints,
       if (_hiddenHintOpened && _level.hiddenHint != null) _level.hiddenHint!,
     ];
 
-    return Expanded(
+    return SizedBox(
+      height: height,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
