@@ -16,6 +16,7 @@ import '../../core/managers/skin_manager.dart';
 import '../../core/managers/sound_manager.dart';
 import '../../core/managers/user_profile_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/attendance_checkin_dialog.dart';
 import '../../core/widgets/app_safe_area.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -231,6 +232,45 @@ class _HomeScreenState extends State<HomeScreen> {
     await gameState.increasePlayCount(gameId);
     if (!context.mounted) return;
     context.push(route);
+  }
+
+  Future<void> _openAttendanceRecapDialog(
+    BuildContext context,
+    GameStateManager gameState,
+  ) async {
+    if (gameState.attendanceStreak <= 0 || gameState.attendanceHistory.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('아직 출석 기록이 없어요.')),
+      );
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AttendanceCheckinDialog(
+        streak: gameState.attendanceStreak,
+        starsGained: _latestAttendanceReward(gameState.attendanceStreak),
+        today: _latestAttendanceDay(gameState.lastAttendanceDate),
+        attendanceHistory: gameState.attendanceHistory,
+        animateTodayStamp: false,
+      ),
+    );
+  }
+
+  int _latestAttendanceReward(int streak) {
+    if (streak <= 0) return 0;
+    final streakBonus = streak % 7 == 0 ? 5 : 0;
+    final milestoneBonus = streak % 100 == 0 ? streak : 0;
+    return 1 + streakBonus + milestoneBonus;
+  }
+
+  DateTime _latestAttendanceDay(String? isoDay) {
+    final parsed = isoDay == null ? null : DateTime.tryParse(isoDay);
+    if (parsed == null) {
+      final now = DateTime.now();
+      return DateTime(now.year, now.month, now.day);
+    }
+    return DateTime(parsed.year, parsed.month, parsed.day);
   }
 
   EdgeInsets _sheetBottomPadding(BuildContext context) {
@@ -546,14 +586,21 @@ class _HomeScreenState extends State<HomeScreen> {
                           duration: const Duration(milliseconds: 520),
                           curve: Curves.easeOutBack,
                           builder: (context, value, child) => Transform.scale(scale: value, child: child),
-                          child: Text(
-                            'Streak ${streak}d',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: isHundredMilestone
-                                  ? const Color(0xFFB08900)
-                                  : (isWeeklyMilestone ? const Color(0xFFB08900) : AppColors.textSecondary),
+                          child: GestureDetector(
+                            onTap: () => _openAttendanceRecapDialog(context, gameState),
+                            behavior: HitTestBehavior.opaque,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                              child: Text(
+                                'Streak ${streak}d',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: isHundredMilestone
+                                      ? const Color(0xFFB08900)
+                                      : (isWeeklyMilestone ? const Color(0xFFB08900) : AppColors.textSecondary),
+                                ),
+                              ),
                             ),
                           ),
                         ),

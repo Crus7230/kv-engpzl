@@ -47,7 +47,10 @@ class _AttendanceCheckinDialogState extends State<AttendanceCheckinDialog> {
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      child: Container(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).pop(),
+        child: Container(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
@@ -201,6 +204,7 @@ class _AttendanceCheckinDialogState extends State<AttendanceCheckinDialog> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -214,4 +218,3 @@ class _AttendanceCheckinDialogState extends State<AttendanceCheckinDialog> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 }
-
