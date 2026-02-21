@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/widgets.dart';
 
@@ -8,11 +10,17 @@ class SoundManager {
   static final SoundManager instance = SoundManager._internal();
 
   final AudioPlayer _bgmPlayer = AudioPlayer();
-  final AudioPlayer _sfxPlayer = AudioPlayer();
+  static const int _sfxPoolSize = 4;
+  final List<AudioPlayer> _sfxPlayers = List<AudioPlayer>.generate(
+    _sfxPoolSize,
+    (_) => AudioPlayer(),
+    growable: false,
+  );
   bool _initialized = false;
   bool _appInForeground = true;
   bool _resumeBgmOnForeground = false;
   int _currentTrackIndex = 0;
+  int _sfxCursor = 0;
 
   final List<String> _bgmFiles = const [
     '01_bgm_SandCastle.mp3',
@@ -42,8 +50,20 @@ class SoundManager {
     if (_initialized) return;
     await _bgmPlayer.setPlayerMode(PlayerMode.mediaPlayer);
     await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
-    await _sfxPlayer.setPlayerMode(PlayerMode.lowLatency);
-    await _sfxPlayer.setReleaseMode(ReleaseMode.stop);
+    await _bgmPlayer.setAudioContext(
+      AudioContextConfig(
+        focus: AudioContextConfigFocus.gain,
+      ).build(),
+    );
+    for (final player in _sfxPlayers) {
+      await player.setPlayerMode(PlayerMode.lowLatency);
+      await player.setReleaseMode(ReleaseMode.stop);
+      await player.setAudioContext(
+        AudioContextConfig(
+          focus: AudioContextConfigFocus.mixWithOthers,
+        ).build(),
+      );
+    }
     _initialized = true;
   }
 
@@ -65,20 +85,24 @@ class SoundManager {
     await _ensureInitialized();
     if (!_appInForeground) return;
     if (!SettingsManagerHolder.settings.sfxOn) return;
-    await _sfxPlayer.play(
+    final player = _nextSfxPlayer();
+    await player.play(
       AssetSource('audio/tap_01.mp3'),
       volume: SettingsManagerHolder.settings.sfxVolume,
     );
+    unawaited(_recoverBgmIfNeeded());
   }
 
   Future<void> playWin() async {
     await _ensureInitialized();
     if (!_appInForeground) return;
     if (!SettingsManagerHolder.settings.sfxOn) return;
-    await _sfxPlayer.play(
+    final player = _nextSfxPlayer();
+    await player.play(
       AssetSource('audio/win.mp3'),
       volume: SettingsManagerHolder.settings.sfxVolume,
     );
+    unawaited(_recoverBgmIfNeeded());
   }
 
   Future<void> applySettings() async {
@@ -86,9 +110,11 @@ class SoundManager {
     await _bgmPlayer.setVolume(
       SettingsManagerHolder.settings.bgmOn ? SettingsManagerHolder.settings.bgmVolume : 0,
     );
-    await _sfxPlayer.setVolume(
-      SettingsManagerHolder.settings.sfxOn ? SettingsManagerHolder.settings.sfxVolume : 0,
-    );
+    for (final player in _sfxPlayers) {
+      await player.setVolume(
+        SettingsManagerHolder.settings.sfxOn ? SettingsManagerHolder.settings.sfxVolume : 0,
+      );
+    }
     if (!SettingsManagerHolder.settings.bgmOn) {
       await _bgmPlayer.stop();
       return;
@@ -116,8 +142,23 @@ class SoundManager {
       _resumeBgmOnForeground = SettingsManagerHolder.settings.bgmOn && _appInForeground;
       _appInForeground = false;
       await _bgmPlayer.stop();
-      await _sfxPlayer.stop();
+      for (final player in _sfxPlayers) {
+        await player.stop();
+      }
     }
+  }
+
+  AudioPlayer _nextSfxPlayer() {
+    final player = _sfxPlayers[_sfxCursor];
+    _sfxCursor = (_sfxCursor + 1) % _sfxPlayers.length;
+    return player;
+  }
+
+  Future<void> _recoverBgmIfNeeded() async {
+    if (!_appInForeground) return;
+    if (!SettingsManagerHolder.settings.bgmOn) return;
+    if (_bgmPlayer.state == PlayerState.playing) return;
+    await playBgm(_currentTrackIndex);
   }
 }
 

@@ -9,7 +9,10 @@ import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
+import '../../core/widgets/compact_character_cheer_card.dart';
+import '../../core/widgets/game_attendance_helper.dart';
 import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/heart_gate_helper.dart';
 import '../../core/widgets/readable_result_dialog.dart';
 import '../../core/widgets/tutorial_intro_overlay.dart';
 import 'wordle_provider.dart';
@@ -27,6 +30,7 @@ class _WordleScreenState extends State<WordleScreen> {
   final RegExp _hangul = RegExp(r'[\uAC00-\uD7A3]');
   int _tutorialStep = 0;
   int _lastSeenStage = -1;
+  bool _heartGateScheduled = false;
   static const String _tutorialWarmupGuess = 'RACE';
   static const String _guide = '6번 안에 정답 단어를 맞히는 게임입니다. 색상 피드백으로 위치와 포함 여부를 파악하세요.';
   static const String _guideTip = '초반에는 모음과 자주 쓰는 자음을 섞어 입력하면 정답 후보를 빠르게 줄일 수 있습니다.';
@@ -44,6 +48,7 @@ class _WordleScreenState extends State<WordleScreen> {
     final game = context.watch<WordleProvider>();
     final skin = context.watch<SkinManager>().currentSkin;
     final gameState = context.watch<GameStateManager>();
+    _scheduleHeartGate(gameState);
     final character = CharacterManager().getById(gameState.selectedCharacterId);
     _syncTutorialState(game);
 
@@ -189,46 +194,29 @@ class _WordleScreenState extends State<WordleScreen> {
   }
 
   Widget _characterHint(CharacterProfile character, WordleProvider game) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(backgroundImage: AssetImage(character.imagePath)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${character.name}: ${character.hints['wordle'] ?? ''}',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (_isTutorialStage(game.stage)) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
-                );
-                return;
-              }
-              final hintResult = await context.read<GameStateManager>().consumeHint(
-                gameId: 'wordle',
-                baseCost: 2,
-                cooldown: const Duration(seconds: 20),
-              );
-              if (!mounted) return;
-              final msg = hintResult.ok ? game.applyHint() : hintResult.message;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(msg)),
-              );
-            },
-            child: const Text('Hint'),
-          ),
-        ],
+    return CompactCharacterCheerCard(
+      character: character,
+      trailing: ElevatedButton(
+        onPressed: () async {
+          if (_isTutorialStage(game.stage)) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+            );
+            return;
+          }
+          final hintResult = await context.read<GameStateManager>().consumeHint(
+            gameId: 'wordle',
+            baseCost: 2,
+            cooldown: const Duration(seconds: 20),
+          );
+          if (!mounted) return;
+          final msg = hintResult.ok ? game.applyHint() : hintResult.message;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg)),
+          );
+        },
+        child: const Text('Hint'),
       ),
     );
   }
@@ -467,49 +455,78 @@ class _WordleScreenState extends State<WordleScreen> {
   }
 
   Future<void> _showResult(BuildContext context, WordleProvider game) async {
+    if (game.isWon) {
+      if (!context.mounted) return;
+      await claimAttendanceAndShowDialog(context, this.context.read<GameStateManager>());
+      if (!context.mounted) return;
+    }
+    bool actionLocked = false;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         final success = game.isWon;
-        return ReadableResultDialog(
-          title: success ? 'Stage Clear' : 'Failed',
-          success: success,
-          headline: 'Answer: ${game.currentWord.word}',
-          lines: [
-            ResultLine(label: 'POS', value: game.currentWord.pos),
-            ResultLine(label: 'Theme', value: '${game.currentWord.themeGroup} / ${game.currentWord.themeCategory}'),
-            ResultLine(label: 'Meaning', value: game.currentWord.meaning),
-            if (_hasKoreanMeaning(game.currentWord.korMeaning)) ResultLine(label: 'Korean', value: game.currentWord.korMeaning),
-            ResultLine(label: 'Synonym', value: game.currentWord.synonym.isEmpty ? '-' : game.currentWord.synonym),
-            ResultLine(label: 'Antonym', value: game.currentWord.antonym.isEmpty ? '-' : game.currentWord.antonym),
-            ResultLine(label: success ? 'Reward' : 'Penalty', value: success ? '+5 stars' : '-1 heart', accent: true),
-          ],
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                this.context.pop();
-              },
-              child: const Text('Home'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                if (success) {
-                  await game.nextStage();
-                } else {
-                  await game.retryStage();
-                }
-                _dialogOpen = false;
-              },
-              child: Text(success ? 'Next' : 'Retry'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setDialogState) => ReadableResultDialog(
+            title: success ? 'Stage Clear' : 'Failed',
+            success: success,
+            headline: 'Answer: ${game.currentWord.word}',
+            lines: [
+              ResultLine(label: 'POS', value: game.currentWord.pos),
+              ResultLine(label: 'Theme', value: '${game.currentWord.themeGroup} / ${game.currentWord.themeCategory}'),
+              ResultLine(label: 'Meaning', value: game.currentWord.meaning),
+              if (_hasKoreanMeaning(game.currentWord.korMeaning)) ResultLine(label: 'Korean', value: game.currentWord.korMeaning),
+              ResultLine(label: 'Synonym', value: game.currentWord.synonym.isEmpty ? '-' : game.currentWord.synonym),
+              ResultLine(label: 'Antonym', value: game.currentWord.antonym.isEmpty ? '-' : game.currentWord.antonym),
+              ResultLine(label: success ? 'Reward' : 'Penalty', value: success ? '+5 stars' : '-1 heart', accent: true),
+            ],
+            actions: [
+              TextButton(
+                onPressed: actionLocked
+                    ? null
+                    : () {
+                        setDialogState(() => actionLocked = true);
+                        Navigator.pop(context);
+                        this.context.pop();
+                      },
+                child: const Text('Home'),
+              ),
+              ElevatedButton(
+                onPressed: actionLocked
+                    ? null
+                    : () async {
+                        setDialogState(() => actionLocked = true);
+                        Navigator.pop(context);
+                        if (success) {
+                          await game.nextStage();
+                        } else {
+                          await game.retryStage();
+                        }
+                        _dialogOpen = false;
+                      },
+                child: Text(success ? 'Next' : 'Retry'),
+              ),
+            ],
+          ),
         );
       },
     );
     _dialogOpen = false;
+  }
+
+  void _scheduleHeartGate(GameStateManager gameState) {
+    if (gameState.hasPlayableHeart) return;
+    if (_heartGateScheduled) return;
+    _heartGateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted) return;
+        if (context.read<GameStateManager>().hasPlayableHeart) return;
+        await showNoHeartsDialogAndGoHome(context);
+      } finally {
+        _heartGateScheduled = false;
+      }
+    });
   }
 }
 

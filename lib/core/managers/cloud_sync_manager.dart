@@ -61,6 +61,7 @@ class CloudSyncManager {
       final heartRefillStartedAtMs = (keGames['heartRefillStartedAtMs'] as num?)?.toInt();
       final attendanceStreak = (keGames['attendanceStreak'] as num?)?.toInt();
       final lastAttendanceDate = keGames['lastAttendanceDate'] as String?;
+      final attendanceHistory = (keGames['attendanceHistory'] as List?)?.whereType<String>().toList();
       final syncedStars = appStarsBalance ?? appTotalStars;
       if (syncedStars != null) {
         gameState.stars = syncedStars;
@@ -103,6 +104,7 @@ class CloudSyncManager {
       await gameState.applyRemoteState({
         'attendanceStreak': attendanceStreak,
         'lastAttendanceDate': lastAttendanceDate,
+        'attendanceHistory': attendanceHistory,
       });
       await gameState.persistLocalOnly();
       gameState.notifyUi();
@@ -134,6 +136,7 @@ class CloudSyncManager {
         final selectedCharacterId = payload['selectedCharacterId'] as String? ?? 'CHAR_A';
         final attendanceStreak = (payload['attendanceStreak'] as num?)?.toInt() ?? 0;
         final lastAttendanceDate = payload['lastAttendanceDate'] as String?;
+        final attendanceHistory = (payload['attendanceHistory'] as List?)?.whereType<String>().toList() ?? <String>[];
 
         await FirebaseFirestore.instance.collection('users').doc(_uid).set({
           'lastActive': FieldValue.serverTimestamp(),
@@ -150,6 +153,7 @@ class CloudSyncManager {
             'unlockedCharacters': unlockedChars,
             'attendanceStreak': attendanceStreak,
             'lastAttendanceDate': lastAttendanceDate,
+            'attendanceHistory': attendanceHistory,
             'updatedAt': FieldValue.serverTimestamp(),
           },
         }, SetOptions(merge: true));
@@ -235,21 +239,21 @@ class CloudSyncManager {
     if (!_enabled || _uid == null) {
       return const SubmitWordSuggestionResult(
         ok: false,
-        message: '서버 연결이 필요합니다. 온라인 상태에서 다시 시도해 주세요.\nServer is not connected. Please try again when online.',
+        message: '서버 연결이 필요해요. 온라인 상태에서 다시 시도해 주세요.',
       );
     }
     final normalizedWord = word.trim().toUpperCase();
     if (!_wordPattern.hasMatch(normalizedWord)) {
       return const SubmitWordSuggestionResult(
         ok: false,
-        message: '단어는 영어 1개만 입력해 주세요 (2~20자).\nUse one English word only (2-20 letters).',
+        message: '영어 단어 1개만 입력해 주세요. (2~20자)',
       );
     }
     final memo = description.trim();
     if (memo.length < 5) {
       return const SubmitWordSuggestionResult(
         ok: false,
-        message: '추가 이유를 5자 이상 작성해 주세요. 한글/영어 모두 가능합니다.\nPlease add a short reason (5+ chars). Korean and English are both allowed.',
+        message: '추가 이유를 5자 이상 입력해 주세요.',
       );
     }
     try {
@@ -267,7 +271,7 @@ class CloudSyncManager {
       });
       return const SubmitWordSuggestionResult(
         ok: true,
-        message: '제안이 접수되었습니다. 사전 개선에 도움 주셔서 감사합니다.\nSuggestion sent. Thanks for helping improve the dictionary.',
+        message: '제안이 접수되었습니다. 고맙습니다.',
       );
     } catch (e) {
       if (kDebugMode) {
@@ -275,7 +279,7 @@ class CloudSyncManager {
       }
       return const SubmitWordSuggestionResult(
         ok: false,
-        message: '전송에 실패했습니다. 잠시 후 다시 시도해 주세요.\nFailed to send suggestion. Please try again.',
+        message: '전송에 실패했습니다. 잠시 후 다시 시도해 주세요.',
       );
     }
   }

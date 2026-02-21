@@ -202,7 +202,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               .toList(),
                         ),
                       ),
-                      _buildWordSuggestionBar(context),
                     ],
                   ),
                 ),
@@ -229,12 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
-    final attendance = await gameState.increasePlayCount(gameId);
-    if (attendance?.claimed == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(attendance!.message)),
-      );
-    }
+    await gameState.increasePlayCount(gameId);
     if (!context.mounted) return;
     context.push(route);
   }
@@ -242,37 +236,6 @@ class _HomeScreenState extends State<HomeScreen> {
   EdgeInsets _sheetBottomPadding(BuildContext context) {
     final bottom = MediaQuery.of(context).viewPadding.bottom;
     return EdgeInsets.only(bottom: bottom + 12);
-  }
-
-  Widget _buildWordSuggestionBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white),
-        ),
-        child: Row(
-          children: [
-            const Expanded(
-              child: Text(
-                '찾고 싶은 단어나 누락된 단어가 있나요? / Missing a word you want? 제안해 주시면 검토 후 반영할게요.',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
-              ),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: () => _openWordSuggestionSheet(context),
-              icon: const Icon(Icons.send_rounded, size: 16),
-              label: const Text('Post / 제안'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _openWordSuggestionSheet(BuildContext context) {
@@ -299,11 +262,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Word Suggestion / 단어 제안', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                  const Text('단어 제안', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 6),
                   const Text(
-                    '누락된 단어를 제안해 주세요. 단어는 영어로, 이유는 한글/영어 모두 작성할 수 있습니다.\n'
-                    'Suggest missing words. Enter the word in English, and the reason in Korean or English.',
+                    '누락된 단어를 간단히 제안해 주세요.',
                     style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 12),
@@ -311,16 +273,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     controller: wordController,
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(
-                      labelText: 'Suggested Word (영어 단어)',
+                      labelText: '제안 단어 (영어)',
                       hintText: 'example: TREE',
                     ),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: gameId,
-                    decoration: const InputDecoration(labelText: 'Game (적용 게임)'),
+                    decoration: const InputDecoration(labelText: '적용 게임'),
                     items: const [
-                      DropdownMenuItem(value: 'all', child: Text('All')),
+                      DropdownMenuItem(value: 'all', child: Text('전체')),
                       DropdownMenuItem(value: 'wordle', child: Text('Wordle')),
                       DropdownMenuItem(value: 'word_clue', child: Text('Word Clue')),
                       DropdownMenuItem(value: 'sentence_code', child: Text('Sentence Code')),
@@ -340,8 +302,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     minLines: 2,
                     maxLines: 4,
                     decoration: const InputDecoration(
-                      labelText: 'Reason / 추가 이유 (한글 가능)',
-                      hintText: '예: Word Crash 5단계에서 자주 나오는 단어인데 사전에 없어요.',
+                      labelText: '추가 이유',
+                      hintText: '예: 자주 나오는데 사전에 없어요.',
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -350,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: submitting ? null : () => Navigator.pop(context),
-                          child: const Text('Cancel'),
+                          child: const Text('취소'),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -378,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   );
                                 },
                           icon: const Icon(Icons.send_rounded, size: 16),
-                          label: const Text('Send / 전송'),
+                          label: const Text('보내기'),
                         ),
                       ),
                     ],
@@ -419,6 +381,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _sideButton(icon: Icons.pets_rounded, label: 'Chars', compact: compact, onTap: () => _openCharacterShop(context)),
           _sideButton(icon: Icons.wallpaper_rounded, label: 'Skins', compact: compact, onTap: () => _openSkinPicker(context)),
           _sideButton(icon: Icons.help_outline_rounded, label: 'Guide', compact: compact, onTap: () => _openGameGuideSheet(context)),
+          _sideButton(icon: Icons.post_add_rounded, label: 'Post', compact: compact, onTap: () => _openWordSuggestionSheet(context)),
           _sideButton(icon: Icons.workspace_premium_rounded, label: 'Badges', compact: compact, onTap: () => _openBadgesSheet(context)),
           _sideButton(icon: Icons.group_rounded, label: 'Friends', compact: compact, onTap: () => _openFriendsSheet(context)),
           _sideButton(icon: Icons.emoji_events_rounded, label: 'Rank', compact: compact, onTap: () => _openRankingSheet(context)),
@@ -552,8 +515,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: Text(
                             gameState.canCheckInToday
-                                ? 'Play 1 game to check-in'
-                                : 'Today checked-in',
+                                ? '오늘 출석 대기'
+                                : '오늘 출석 완료',
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
                             textAlign: TextAlign.center,
                           ),

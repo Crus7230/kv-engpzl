@@ -9,7 +9,10 @@ import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
+import '../../core/widgets/compact_character_cheer_card.dart';
+import '../../core/widgets/game_attendance_helper.dart';
 import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/heart_gate_helper.dart';
 import '../../core/widgets/readable_result_dialog.dart';
 import '../../core/widgets/tutorial_intro_overlay.dart';
 
@@ -31,6 +34,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
   bool _stageLoaded = false;
   bool _dialogOpen = false;
   bool _showTutorialIntro = false;
+  bool _heartGateScheduled = false;
   int _tutorialStep = 0;
   static const String _guide = '의미와 품사를 보고 알파벳 타일을 조합해 단어를 완성하는 모드입니다.';
   static const String _guideTip = '품사와 의미를 먼저 확인하고, 길이가 짧은 단어부터 맞히면 진행이 쉬워집니다.';
@@ -62,6 +66,7 @@ class _WordClueScreenState extends State<WordClueScreen> {
   Widget build(BuildContext context) {
     final skin = context.watch<SkinManager>().currentSkin;
     final state = context.watch<GameStateManager>();
+    _scheduleHeartGate(state);
     final char = CharacterManager().getById(state.selectedCharacterId);
 
     return Scaffold(
@@ -115,28 +120,11 @@ class _WordClueScreenState extends State<WordClueScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.88),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(backgroundImage: AssetImage(char.imagePath)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${char.name}: ${char.hints['word_clue'] ?? ''}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: _showHint,
-                          child: const Text('Hint'),
-                        ),
-                      ],
+                  CompactCharacterCheerCard(
+                    character: char,
+                    trailing: TextButton(
+                      onPressed: _showHint,
+                      child: const Text('Hint'),
                     ),
                   ),
                   if (_isTutorialStage && !_showTutorialIntro) ...[
@@ -324,6 +312,9 @@ class _WordClueScreenState extends State<WordClueScreen> {
     if (answer == _round.word.toUpperCase()) {
       _solved = true;
       await state.addStars(4);
+      if (!mounted) return;
+      await claimAttendanceAndShowDialog(context, state);
+      if (!mounted) return;
       _stage += 1;
       await state.setBestStageIfHigher('word_clue', _stage);
       if (!mounted) return;
@@ -404,6 +395,21 @@ class _WordClueScreenState extends State<WordClueScreen> {
       },
     );
     _dialogOpen = false;
+  }
+
+  void _scheduleHeartGate(GameStateManager gameState) {
+    if (gameState.hasPlayableHeart) return;
+    if (_heartGateScheduled) return;
+    _heartGateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted) return;
+        if (context.read<GameStateManager>().hasPlayableHeart) return;
+        await showNoHeartsDialogAndGoHome(context);
+      } finally {
+        _heartGateScheduled = false;
+      }
+    });
   }
 
   WordData _buildTutorialRound() {

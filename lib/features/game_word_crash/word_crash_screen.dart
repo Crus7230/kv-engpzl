@@ -9,7 +9,10 @@ import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
 import '../../core/widgets/app_safe_area.dart';
+import '../../core/widgets/compact_character_cheer_card.dart';
+import '../../core/widgets/game_attendance_helper.dart';
 import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/heart_gate_helper.dart';
 import '../../core/widgets/readable_result_dialog.dart';
 import '../../core/widgets/tutorial_intro_overlay.dart';
 
@@ -74,6 +77,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   bool _dialogOpen = false;
   bool _showTutorialIntro = false;
   bool _bombFlashActive = false;
+  bool _heartGateScheduled = false;
 
   int _stage = 1;
   int _combo = 0;
@@ -245,6 +249,7 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   Widget build(BuildContext context) {
     final skin = context.watch<SkinManager>().currentSkin;
     final state = context.watch<GameStateManager>();
+    _scheduleHeartGate(state);
     final char = CharacterManager().getById(state.selectedCharacterId);
     final builtWord = _buildSelectedPreviewWord();
 
@@ -280,53 +285,37 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                   if (_isTutorialStage) const SizedBox(height: 8),
                   _stageGoalCard(),
                   const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.88),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
+                  CompactCharacterCheerCard(
+                    character: char,
+                    trailing: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        CircleAvatar(backgroundImage: AssetImage(char.imagePath)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${char.name}: ${char.hints['word_crash'] ?? ''}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
+                        TextButton(
+                          onPressed: () async {
+                            if (_isTutorialStage) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                              );
+                              return;
+                            }
+                            final result = await state.consumeHint(
+                              gameId: 'word_crash',
+                              baseCost: 3,
+                              cooldown: const Duration(seconds: 20),
+                            );
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(result.ok ? 'Hint used.' : result.message)),
+                            );
+                          },
+                          child: const Text('Hint'),
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () async {
-                                if (_isTutorialStage) {
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
-                                  );
-                                  return;
-                                }
-                                final result = await state.consumeHint(
-                                  gameId: 'word_crash',
-                                  baseCost: 3,
-                                  cooldown: const Duration(seconds: 20),
-                                );
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(result.ok ? 'Hint used.' : result.message)),
-                                );
-                              },
-                              child: const Text('Hint'),
-                            ),
-                            TextButton.icon(
-                              onPressed: _openPoppedWordsSheet,
-                              icon: const Icon(Icons.menu_book_rounded, size: 16),
-                              label: Text('Words (${_poppedWords.length})'),
-                            ),
-                          ],
+                        TextButton.icon(
+                          onPressed: _openPoppedWordsSheet,
+                          icon: const Icon(Icons.menu_book_rounded, size: 16),
+                          label: Text('Words (${_poppedWords.length})'),
                         ),
                       ],
                     ),
@@ -361,8 +350,8 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                     ),
                     child: Text(
                       _isTutorialStage
-                          ? '⭐ 스타 보너스, 💣 폭탄, X 블로커 | 특수 블록 최대 2개'
-                          : '⭐ 스타 보너스, 💣 폭탄, X 블로커 | 특수 블록 최대 2개 | 남은 실수: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
+                          ? '⭐ 스타 보너스, 💣 폭탄, X 회색 블로커 | 특수 블록 최대 2개'
+                          : '⭐ 스타 보너스, 💣 폭탄, X 회색 블로커 | 특수 블록 최대 2개 | 남은 실수: ${_goal.missLimitBeforeHeart - _mistakesInStage}',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -431,7 +420,11 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
                                                   fontWeight: FontWeight.w900,
                                                   color: tile.isLetter
                                                       ? (isPicked ? Colors.white : const Color(0xFF0B132B))
-                                                      : (tile.isBooster ? const Color(0xFF4A3200) : Colors.white),
+                                                      : (tile.isBooster
+                                                            ? const Color(0xFF4A3200)
+                                                            : (tile.isBlocker
+                                                                  ? const Color(0xFF343A40)
+                                                                  : Colors.white)),
                                                 ),
                                               ),
                                             ),
@@ -561,12 +554,12 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF495057), Color(0xFF212529)],
+          colors: [Color(0xFFE9ECEF), Color(0xFFADB5BD)],
         ),
         borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: const Color(0xFF111418), width: 1.3),
+        border: Border.all(color: const Color(0xFF6C757D), width: 1.3),
         boxShadow: const [
-          BoxShadow(color: Color(0x66000000), blurRadius: 5, offset: Offset(1, 3)),
+          BoxShadow(color: Color(0x55343A40), blurRadius: 5, offset: Offset(1, 3)),
         ],
       );
     }
@@ -799,6 +792,9 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
     if (cleared) {
       const stageBonus = 1;
       await state.addStars(stageBonus);
+      if (!mounted) return;
+      await claimAttendanceAndShowDialog(context, state);
+      if (!mounted) return;
       final nextStage = _stage + 1;
       await state.setBestStageIfHigher('word_crash', nextStage);
       if (!mounted) return;
@@ -980,6 +976,21 @@ class _WordCrashScreenState extends State<WordCrashScreen> {
   void _showToast(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _scheduleHeartGate(GameStateManager gameState) {
+    if (gameState.hasPlayableHeart) return;
+    if (_heartGateScheduled) return;
+    _heartGateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted) return;
+        if (context.read<GameStateManager>().hasPlayableHeart) return;
+        await showNoHeartsDialogAndGoHome(context);
+      } finally {
+        _heartGateScheduled = false;
+      }
+    });
   }
 
   void _updateTutorialStepFromSelection() {

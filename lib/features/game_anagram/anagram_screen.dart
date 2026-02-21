@@ -8,7 +8,10 @@ import '../../core/managers/skin_manager.dart';
 import '../../core/managers/word_repository.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_safe_area.dart';
+import '../../core/widgets/compact_character_cheer_card.dart';
+import '../../core/widgets/game_attendance_helper.dart';
 import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/heart_gate_helper.dart';
 import '../../core/widgets/readable_result_dialog.dart';
 import '../../core/widgets/tutorial_intro_overlay.dart';
 
@@ -34,6 +37,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
   bool _dialogOpen = false;
   bool _showTutorialIntro = false;
   int _tutorialStep = 0;
+  bool _heartGateScheduled = false;
   static const String _guide = '주어진 글자 조합으로 핵심 단어를 찾고, 추가 단어로 보너스 점수를 얻는 모드입니다.';
   static const String _guideTip = '2~3글자 단어를 먼저 확보하고, 핵심 단어 길이를 늘려가며 조합해 보세요.';
   bool get _isTutorialStage => _stage == 1;
@@ -65,6 +69,7 @@ class _AnagramScreenState extends State<AnagramScreen> {
   Widget build(BuildContext context) {
     final skin = context.watch<SkinManager>().currentSkin;
     final state = context.watch<GameStateManager>();
+    _scheduleHeartGate(state);
     final char = CharacterManager().getById(state.selectedCharacterId);
     final allCoreFound = _foundCore.length == _round.coreWords.length;
     final hasKorMeaning = _repo.hasKoreanMeaning(_round.seedInfo.korMeaning);
@@ -86,50 +91,33 @@ class _AnagramScreenState extends State<AnagramScreen> {
                     textColor: AppColors.textPrimary,
                   ),
                   if (_isTutorialStage) const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.86),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(backgroundImage: AssetImage(char.imagePath)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${char.name}: ${char.hints['anagram'] ?? ''}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                  CompactCharacterCheerCard(
+                    character: char,
+                    trailing: TextButton(
+                      onPressed: () async {
+                        if (_isTutorialStage) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
+                          );
+                          return;
+                        }
+                        final result = await state.consumeHint(
+                          gameId: 'anagram',
+                          baseCost: 2,
+                          cooldown: const Duration(seconds: 18),
+                        );
+                        if (!context.mounted) return;
+                        final first = _round.coreWords.first;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              result.ok ? 'Hint: core starts with ${first[0]}' : result.message,
+                            ),
                           ),
-                        ),
-                        TextButton(
-                          onPressed: () async {
-                            if (_isTutorialStage) {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('튜토리얼 스테이지에서는 힌트를 사용할 수 없습니다.')),
-                              );
-                              return;
-                            }
-                            final result = await state.consumeHint(
-                              gameId: 'anagram',
-                              baseCost: 2,
-                              cooldown: const Duration(seconds: 18),
-                            );
-                            if (!context.mounted) return;
-                            final first = _round.coreWords.first;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  result.ok ? 'Hint: core starts with ${first[0]}' : result.message,
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text('Hint'),
-                        ),
-                      ],
+                        );
+                      },
+                      child: const Text('Hint'),
                     ),
                   ),
                   if (_isTutorialStage && !_showTutorialIntro) ...[
@@ -483,6 +471,9 @@ class _AnagramScreenState extends State<AnagramScreen> {
   Future<void> _nextRound(GameStateManager state) async {
     final clearedRound = _round;
     await state.addStars(5);
+    if (!mounted) return;
+    await claimAttendanceAndShowDialog(context, state);
+    if (!mounted) return;
     _stage += 1;
     await state.setBestStageIfHigher('anagram', _stage);
     if (!mounted) return;
@@ -536,6 +527,21 @@ class _AnagramScreenState extends State<AnagramScreen> {
       },
     );
     _dialogOpen = false;
+  }
+
+  void _scheduleHeartGate(GameStateManager gameState) {
+    if (gameState.hasPlayableHeart) return;
+    if (_heartGateScheduled) return;
+    _heartGateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted) return;
+        if (context.read<GameStateManager>().hasPlayableHeart) return;
+        await showNoHeartsDialogAndGoHome(context);
+      } finally {
+        _heartGateScheduled = false;
+      }
+    });
   }
 
   AnagramRoundData _buildTutorialRound() {

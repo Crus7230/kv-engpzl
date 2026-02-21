@@ -28,6 +28,8 @@ class WordleProvider extends ChangeNotifier {
   bool isLoading = false;
   bool isWon = false;
   bool isLost = false;
+  bool _submittingGuess = false;
+  bool _stageTransitioning = false;
 
   late WordData currentWord;
   late int wordLength;
@@ -100,10 +102,21 @@ class WordleProvider extends ChangeNotifier {
       wordLength = 5;
     }
 
-    currentWord = await _wordRepository.getWordleWordForStage(
-      stage,
-      preferredLength: wordLength,
-    );
+    try {
+      currentWord = await _wordRepository.getWordleWordForStage(
+        stage,
+        preferredLength: wordLength,
+      );
+    } catch (_) {
+      currentWord = _wordRepository.getDictionaryEntry('BIRD') ??
+          const WordData(
+            word: 'BIRD',
+            meaning: 'A warm-blooded animal with feathers and wings.',
+            korMeaning: '새',
+            pos: 'Noun',
+            difficulty: 2,
+          );
+    }
     wordLength = currentWord.word.length;
     board = List.generate(maxRows, (_) => List.generate(wordLength, (_) => ''));
     statusBoard = List.generate(maxRows, (_) => List.generate(wordLength, (_) => TileStatus.initial));
@@ -134,74 +147,91 @@ class WordleProvider extends ChangeNotifier {
   }
 
   Future<String?> submit() async {
+    if (_submittingGuess) return null;
     if (isLoading || isWon || isLost) return null;
-    if (currentCol < wordLength) {
-      return 'Enter $wordLength letters first.';
-    }
-
-    final guess = board[currentRow].join().toUpperCase();
-    if (!_wordRepository.isValidWordleGuess(guess)) {
-      return '"$guess" is not a valid English word.';
-    }
-
-    final target = currentWord.word.toUpperCase();
-    final targetChars = target.split('');
-    final guessChars = guess.split('');
-    final usedTarget = List<bool>.filled(wordLength, false);
-
-    for (int i = 0; i < wordLength; i++) {
-      if (guessChars[i] == targetChars[i]) {
-        statusBoard[currentRow][i] = TileStatus.correct;
-        usedTarget[i] = true;
+    _submittingGuess = true;
+    try {
+      if (currentCol < wordLength) {
+        return 'Enter $wordLength letters first.';
       }
-    }
 
-    for (int i = 0; i < wordLength; i++) {
-      if (statusBoard[currentRow][i] == TileStatus.correct) continue;
-      final exact = _findUnusedIndex(targetChars, usedTarget, guessChars[i]);
-      if (exact != -1) {
-        usedTarget[exact] = true;
-        statusBoard[currentRow][i] = TileStatus.present;
-      } else {
-        statusBoard[currentRow][i] = TileStatus.absent;
+      final guess = board[currentRow].join().toUpperCase();
+      if (!_wordRepository.isValidWordleGuess(guess)) {
+        return '"$guess" is not a valid English word.';
       }
-    }
 
-    for (int i = 0; i < wordLength; i++) {
-      final ch = guessChars[i];
-      final next = statusBoard[currentRow][i];
-      final current = keyboardStates[ch];
-      keyboardStates[ch] = _prefer(current, next);
-    }
+      final target = currentWord.word.toUpperCase();
+      final targetChars = target.split('');
+      final guessChars = guess.split('');
+      final usedTarget = List<bool>.filled(wordLength, false);
 
-    if (guess == target) {
-      isWon = true;
-      await _gameState.addStars(5);
-      SoundManager.instance.playWin();
+      for (int i = 0; i < wordLength; i++) {
+        if (guessChars[i] == targetChars[i]) {
+          statusBoard[currentRow][i] = TileStatus.correct;
+          usedTarget[i] = true;
+        }
+      }
+
+      for (int i = 0; i < wordLength; i++) {
+        if (statusBoard[currentRow][i] == TileStatus.correct) continue;
+        final exact = _findUnusedIndex(targetChars, usedTarget, guessChars[i]);
+        if (exact != -1) {
+          usedTarget[exact] = true;
+          statusBoard[currentRow][i] = TileStatus.present;
+        } else {
+          statusBoard[currentRow][i] = TileStatus.absent;
+        }
+      }
+
+      for (int i = 0; i < wordLength; i++) {
+        final ch = guessChars[i];
+        final next = statusBoard[currentRow][i];
+        final current = keyboardStates[ch];
+        keyboardStates[ch] = _prefer(current, next);
+      }
+
+      if (guess == target) {
+        isWon = true;
+        await _gameState.addStars(5);
+        SoundManager.instance.playWin();
+        notifyListeners();
+        return null;
+      }
+
+      if (currentRow == maxRows - 1) {
+        isLost = true;
+        await _gameState.consumeHeart();
+        notifyListeners();
+        return null;
+      }
+
+      currentRow += 1;
+      currentCol = 0;
       notifyListeners();
       return null;
+    } finally {
+      _submittingGuess = false;
     }
-
-    if (currentRow == maxRows - 1) {
-      isLost = true;
-      await _gameState.consumeHeart();
-      notifyListeners();
-      return null;
-    }
-
-    currentRow += 1;
-    currentCol = 0;
-    notifyListeners();
-    return null;
   }
 
   Future<void> nextStage() async {
-    stage += 1;
-    await _gameState.setBestStageIfHigher('wordle', stage);
-    await initStage();
+    if (_stageTransitioning) return;
+    _stageTransitioning = true;
+    final previousStage = stage;
+    try {
+      stage += 1;
+      await initStage();
+      await _gameState.setBestStageIfHigher('wordle', stage);
+    } catch (_) {
+      stage = previousStage;
+      await initStage();
+    } finally {
+      _stageTransitioning = false;
+    }
   }
 
   Future<void> retryStage() async {
+    if (_stageTransitioning) return;
     await initStage();
   }
 

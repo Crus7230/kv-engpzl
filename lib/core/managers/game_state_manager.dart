@@ -60,6 +60,7 @@ class GameStateManager extends ChangeNotifier {
   final Set<String> stage1IntroSeenGames = <String>{};
   int attendanceStreak = 0;
   String? lastAttendanceDate;
+  final List<String> attendanceHistory = <String>[];
 
   final Map<String, DateTime> _lastHintUsedAt = {};
   final Map<String, int> _hintUseCount = {};
@@ -103,6 +104,10 @@ class GameStateManager extends ChangeNotifier {
     }
     attendanceStreak = (_prefs.getInt('attendance_streak') ?? 0).clamp(0, 9999);
     lastAttendanceDate = _prefs.getString('attendance_last_date');
+    final history = _prefs.getStringList('attendance_history') ?? const <String>[];
+    attendanceHistory
+      ..clear()
+      ..addAll(history.where((value) => value.trim().isNotEmpty));
     final recovered = _applyHeartRecoveryCatchUp();
     if (recovered) {
       await _save(triggerRemote: false);
@@ -128,6 +133,7 @@ class GameStateManager extends ChangeNotifier {
       'stage1IntroSeenGames': stage1IntroSeenGames.toList(growable: false),
       'attendanceStreak': attendanceStreak,
       'lastAttendanceDate': lastAttendanceDate,
+      'attendanceHistory': attendanceHistory.toList(growable: false),
       'updatedAt': DateTime.now().toIso8601String(),
     };
   }
@@ -184,6 +190,17 @@ class GameStateManager extends ChangeNotifier {
     if (remoteAttendanceDate != null && remoteAttendanceDate.trim().isNotEmpty) {
       lastAttendanceDate = remoteAttendanceDate;
     }
+    final remoteAttendanceHistory = payload['attendanceHistory'];
+    if (remoteAttendanceHistory is List) {
+      attendanceHistory
+        ..clear()
+        ..addAll(
+          remoteAttendanceHistory
+              .whereType<String>()
+              .map((value) => value.trim())
+              .where((value) => value.isNotEmpty),
+        );
+    }
 
     _applyHeartRecoveryCatchUp();
     _ensureHeartRefillTicker();
@@ -217,6 +234,7 @@ class GameStateManager extends ChangeNotifier {
     } else {
       await _prefs.setString('attendance_last_date', lastAttendanceDate!);
     }
+    await _prefs.setStringList('attendance_history', attendanceHistory.toList(growable: false));
     if (triggerRemote && _remoteSyncHandler != null) {
       unawaited(_remoteSyncHandler!(exportState()));
     }
@@ -269,6 +287,11 @@ class GameStateManager extends ChangeNotifier {
       attendanceStreak = 1;
     }
     lastAttendanceDate = today;
+    attendanceHistory.remove(today);
+    attendanceHistory.add(today);
+    if (attendanceHistory.length > 180) {
+      attendanceHistory.removeRange(0, attendanceHistory.length - 180);
+    }
 
     final dailyStars = 1;
     final streakBonus = attendanceStreak % 7 == 0 ? 5 : 0;
@@ -290,6 +313,11 @@ class GameStateManager extends ChangeNotifier {
       starsGained: starsGained,
       message: 'Attendance complete (${parts.join(', ')}).',
     );
+  }
+
+  Future<AttendanceResult?> claimAttendanceIfNeeded() async {
+    if (!canCheckInToday) return null;
+    return claimAttendance();
   }
 
   Future<void> recoverHeart() async {
@@ -335,6 +363,7 @@ class GameStateManager extends ChangeNotifier {
     stage1IntroSeenGames.clear();
     attendanceStreak = 0;
     lastAttendanceDate = null;
+    attendanceHistory.clear();
     _heartRefillStartedAt = null;
     _lastHintUsedAt.clear();
     _hintUseCount.clear();
@@ -389,16 +418,10 @@ class GameStateManager extends ChangeNotifier {
     return playCounts[gameId] ?? 0;
   }
 
-  Future<AttendanceResult?> increasePlayCount(String gameId) async {
+  Future<void> increasePlayCount(String gameId) async {
     playCounts[gameId] = (playCounts[gameId] ?? 0) + 1;
-    AttendanceResult? attendance;
-    if (canCheckInToday) {
-      attendance = await claimAttendance();
-      return attendance;
-    }
     await _save();
     notifyListeners();
-    return attendance;
   }
 
   Future<void> setBestStageIfHigher(String gameId, int stage) async {

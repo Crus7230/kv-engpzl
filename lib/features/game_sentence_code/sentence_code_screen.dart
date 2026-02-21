@@ -8,7 +8,10 @@ import '../../core/managers/game_state_manager.dart';
 import '../../core/managers/sentence_code_repository.dart';
 import '../../core/managers/skin_manager.dart';
 import '../../core/widgets/app_safe_area.dart';
+import '../../core/widgets/compact_character_cheer_card.dart';
+import '../../core/widgets/game_attendance_helper.dart';
 import '../../core/widgets/game_top_bar.dart';
+import '../../core/widgets/heart_gate_helper.dart';
 import '../../core/widgets/readable_result_dialog.dart';
 import '../../core/widgets/tutorial_intro_overlay.dart';
 
@@ -29,6 +32,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   bool _hiddenHintOpened = false;
   bool _dialogOpen = false;
   bool _showTutorialIntro = false;
+  bool _heartGateScheduled = false;
   int _stage = 1;
   int? _selectedNumber;
   late SentenceCodeLevel _level;
@@ -75,6 +79,7 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   Widget build(BuildContext context) {
     final skin = context.watch<SkinManager>().currentSkin;
     final state = context.watch<GameStateManager>();
+    _scheduleHeartGate(state);
     final char = CharacterManager().getById(state.selectedCharacterId);
 
     return Scaffold(
@@ -155,26 +160,9 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
   }
 
   Widget _characterHintCard(CharacterProfile char) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.88),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(backgroundImage: AssetImage(char.imagePath)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${char.name}: ${char.hints['sentence_code'] ?? 'Think in chunks, not single letters.'}',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          TextButton(onPressed: _useHint, child: const Text('Hint')),
-        ],
-      ),
+    return CompactCharacterCheerCard(
+      character: char,
+      trailing: TextButton(onPressed: _useHint, child: const Text('Hint')),
     );
   }
 
@@ -432,6 +420,9 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     if (_dialogOpen) return;
     _dialogOpen = true;
     await state.addStars(10);
+    if (!mounted) return;
+    await claimAttendanceAndShowDialog(context, state);
+    if (!mounted) return;
     _stage += 1;
     await state.setBestStageIfHigher('sentence_code', _stage);
     if (!mounted) return;
@@ -462,6 +453,21 @@ class _SentenceCodeScreenState extends State<SentenceCodeScreen> {
     if (!mounted) return;
     await _loadLevelForStage(_stage);
     _dialogOpen = false;
+  }
+
+  void _scheduleHeartGate(GameStateManager gameState) {
+    if (gameState.hasPlayableHeart) return;
+    if (_heartGateScheduled) return;
+    _heartGateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted) return;
+        if (context.read<GameStateManager>().hasPlayableHeart) return;
+        await showNoHeartsDialogAndGoHome(context);
+      } finally {
+        _heartGateScheduled = false;
+      }
+    });
   }
 
   bool _isSolved() {
