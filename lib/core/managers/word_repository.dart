@@ -462,17 +462,14 @@ class WordRepository {
   }
 
   void _rebuildPlayableCrashWords() {
-    final curatedLexicon = <String>{
-      ..._dictionaryByWord.keys,
-    };
-    final curated = _buildPlayableCrashWords(
-      _crashWords,
-      curatedLexicon: curatedLexicon,
-    );
-    if (curated.length >= 400) {
-      _playableCrashWords = curated;
+    // Prefer the curated crash source list directly so newly added safe words
+    // become playable without being blocked by dictionary intersection filters.
+    final direct = _buildPlayableCrashWords(_crashWords);
+    if (direct.isNotEmpty) {
+      _playableCrashWords = direct;
       return;
     }
+
     final fallbackLexicon = <String>{
       ..._validWords,
       ..._dictionaryByWord.keys,
