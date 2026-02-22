@@ -39,7 +39,8 @@ class _HomeScreenState extends State<HomeScreen> {
   static const List<int> _characterTierTargets = [3, 8, 14, 20, 26];
   static const List<int> _stageTierTargets = [5, 20, 50, 90, 140];
   static const List<String> _stageBadgeGames = ['wordle', 'word_clue', 'sentence_code', 'anagram', 'word_crash'];
-  static const List<String> _tierNames = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Mythic'];
+  static const List<String> _tierNames = ['브론즈', '실버', '골드', '플래티넘', '미틱'];
+  static const List<int> _badgeTierStarRewards = [5, 10, 15, 20, 25];
   static const List<Color> _tierColors = [
     Color(0xFFB87333),
     Color(0xFFA0A8B3),
@@ -47,52 +48,12 @@ class _HomeScreenState extends State<HomeScreen> {
     Color(0xFF6FB7FF),
     Color(0xFFFF5FA2),
   ];
-  static const List<String> _attendanceReadyMentPool = [
-    '오늘 출석 도장 찍고 연속 기록 이어가요.',
-    '출석 보상 챙기고 바로 플레이 시작해요.',
-    '지금 출석하면 오늘 템포가 더 좋아져요.',
-    '오늘도 출석 완료 목표, 같이 달려요.',
-    '출석 먼저 하고 스테이지를 시원하게 밀어봐요.',
-    '출석 체크로 오늘의 스타 루틴 시작!',
-    '오늘 기록도 이어 붙이면 금방 고점 찍어요.',
-    '출석 후 플레이하면 흐름이 더 잘 붙어요.',
-    '지금 출석하면 연속출석 라인이 끊기지 않아요.',
-    '도장 하나 더 찍고 오늘도 깔끔하게 갑시다.',
-  ];
-  static const List<String> _attendanceDoneMentPool = [
-    '오늘 출석 완료! 이 기세로 스테이지를 밀어봐요.',
-    '출석 체크 끝, 이제 점수 올릴 시간이에요.',
-    '오늘 도장 찍었어요. 다음 클리어를 노려요.',
-    '출석 완료 상태 좋습니다. 바로 연승 모드 가요.',
-    '오늘 출석 반영 완료! 콤보 감각 이어가요.',
-    '출석 미션 성공, 이제 본게임 들어가요.',
-    '출석까지 끝냈으니 오늘 목표 달성 각이에요.',
-    '오늘 출석 완료! 남은 건 기록 갱신뿐이에요.',
-    '도장 완료 상태예요. 지금이 플레이 타이밍입니다.',
-    '오늘 출석 처리됐어요. 다음 단계로 바로 가요.',
-  ];
-  static const List<String> _attendanceReadyStatusPool = [
-    '오늘 출석 준비',
-    '출석 보상 대기',
-    '출석하러 가요',
-    '연속출석 이어가기',
-    '오늘 도장 찍기',
-    '출석 체크 가능',
-  ];
-  static const List<String> _attendanceDoneStatusPool = [
-    '오늘 출석 완료',
-    '출석 도장 완료',
-    '보상 수령 완료',
-    '연속출석 반영됨',
-    '오늘 체크 끝',
-    '내일도 이어가요',
-  ];
   static const List<_GameDef> _gameDefs = [
     _GameDef(
       id: 'wordle',
       route: '/wordle',
       title: 'WORDLE',
-      subtitle: 'Wave difficulty, 6 tries, keyboard feedback',
+      subtitle: '6번 기회, 색상 피드백으로 정답 추론',
       guide: '6번 안에 정답 단어를 맞히는 게임입니다. 색상 피드백으로 위치와 포함 여부를 파악하세요.',
       icon: Icons.grid_view_rounded,
       color: Color(0xFF37B24D),
@@ -101,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
       id: 'word_clue',
       route: '/word-clue',
       title: 'WORD CLUE',
-      subtitle: 'Definition master with touch letter tiles',
+      subtitle: '뜻과 품사를 보고 알파벳 타일 조합',
       guide: '의미와 품사를 보고 알파벳 타일을 조합해 단어를 완성하는 모드입니다.',
       icon: Icons.quiz_rounded,
       color: Color(0xFFF08C00),
@@ -110,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
       id: 'sentence_code',
       route: '/sentence-code',
       title: 'SENTENCE CODE',
-      subtitle: 'Decode numbered letters to restore a sentence',
+      subtitle: '숫자 암호를 해독해 문장 복원',
       guide: '문장 속 알파벳이 번호로 암호화되어 있습니다. 단서 단어를 활용해 전체 문장을 복원하세요.',
       icon: Icons.lock_open_rounded,
       color: Color(0xFF1D4ED8),
@@ -119,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
       id: 'anagram',
       route: '/anagram',
       title: 'ANAGRAM',
-      subtitle: 'Core word clear + general word bonus',
+      subtitle: '핵심 단어 + 일반 단어 보너스 점수',
       guide: '주어진 글자 조합으로 핵심 단어를 찾고, 추가 단어로 보너스 점수를 얻는 모드입니다.',
       icon: Icons.shuffle_rounded,
       color: Color(0xFF7B2CBF),
@@ -128,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
       id: 'word_crash',
       route: '/word-crash',
       title: 'WORD CRASH',
-      subtitle: 'Swipe, pop, gravity, combo',
+      subtitle: '연결, 폭탄, 중력, 콤보로 고득점',
       guide: '인접한 글자를 연결해 단어를 만들고, 폭탄/콤보를 활용해 고득점을 노리세요.',
       icon: Icons.auto_awesome_motion_rounded,
       color: Color(0xFF1C7ED6),
@@ -195,7 +156,12 @@ class _HomeScreenState extends State<HomeScreen> {
           AppSafeArea(
             child: Row(
               children: [
-                _buildSideBar(context, width: sidebarWidth, compact: compactSidebar),
+                _buildSideBar(
+                  context,
+                  gameState: gameState,
+                  width: sidebarWidth,
+                  compact: compactSidebar,
+                ),
                 Expanded(
                   child: Column(
                     children: [
@@ -313,36 +279,27 @@ class _HomeScreenState extends State<HomeScreen> {
     return DateTime(parsed.year, parsed.month, parsed.day);
   }
 
-  String _attendanceCheerLine(CharacterProfile character, GameStateManager gameState) {
-    final pool = gameState.canCheckInToday ? _attendanceReadyMentPool : _attendanceDoneMentPool;
-    final index = _stableMessageIndex(
-      seed: '${_todayKey()}|${character.id}|${gameState.attendanceStreak}|${gameState.canCheckInToday ? 'ready' : 'done'}',
-      length: pool.length,
-    );
-    return pool[index];
-  }
-
-  String _attendanceStatusLabel(GameStateManager gameState) {
-    final pool = gameState.canCheckInToday ? _attendanceReadyStatusPool : _attendanceDoneStatusPool;
-    final index = _stableMessageIndex(
-      seed: '${_todayKey()}|status|${gameState.attendanceStreak}|${gameState.canCheckInToday ? 'ready' : 'done'}',
-      length: pool.length,
-    );
-    return pool[index];
-  }
-
-  int _stableMessageIndex({required String seed, required int length}) {
-    if (length <= 1) return 0;
-    int hash = 17;
-    for (final code in seed.codeUnits) {
-      hash = 37 * hash + code;
+  Future<void> _openAttendanceFromMenu(
+    BuildContext context,
+    GameStateManager gameState,
+  ) async {
+    final attendance = await gameState.claimAttendanceIfNeeded();
+    if (!mounted) return;
+    if (attendance != null && attendance.claimed) {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => AttendanceCheckinDialog(
+          streak: attendance.streak,
+          starsGained: attendance.starsGained,
+          today: DateTime.now(),
+          attendanceHistory: gameState.attendanceHistory,
+          animateTodayStamp: true,
+        ),
+      );
+      return;
     }
-    return hash.abs() % length;
-  }
-
-  String _todayKey() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month}-${now.day}';
+    await _openAttendanceRecapDialog(context, gameState);
   }
 
   EdgeInsets _sheetBottomPadding(BuildContext context) {
@@ -468,9 +425,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSideBar(
     BuildContext context, {
+    required GameStateManager gameState,
     required double width,
     required bool compact,
   }) {
+    final attendanceDone = !gameState.canCheckInToday;
+    final attendanceLabel = '${gameState.attendanceStreak}d';
     return Container(
       width: width,
       margin: const EdgeInsets.fromLTRB(8, 14, 8, 14),
@@ -490,14 +450,19 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _sideButton(icon: Icons.pets_rounded, label: 'Chars', compact: compact, onTap: () => _openCharacterShop(context)),
-          _sideButton(icon: Icons.wallpaper_rounded, label: 'Skins', compact: compact, onTap: () => _openSkinPicker(context)),
-          _sideButton(icon: Icons.help_outline_rounded, label: 'Guide', compact: compact, onTap: () => _openGameGuideSheet(context)),
-          _sideButton(icon: Icons.post_add_rounded, label: 'Post', compact: compact, onTap: () => _openWordSuggestionSheet(context)),
-          _sideButton(icon: Icons.workspace_premium_rounded, label: 'Badges', compact: compact, onTap: () => _openBadgesSheet(context)),
-          _sideButton(icon: Icons.group_rounded, label: 'Friends', compact: compact, onTap: () => _openFriendsSheet(context)),
-          _sideButton(icon: Icons.emoji_events_rounded, label: 'Rank', compact: compact, onTap: () => _openRankingSheet(context)),
-          _sideButton(icon: Icons.settings_rounded, label: 'Settings', compact: compact, onTap: () => _openSettingsSheet(context)),
+          _sideButton(icon: Icons.storefront_rounded, label: '상점', compact: compact, onTap: () => _openShopSheet(context)),
+          _sideButton(
+            icon: Icons.calendar_month_rounded,
+            label: attendanceLabel,
+            compact: compact,
+            muted: !attendanceDone,
+            onTap: () => _openAttendanceFromMenu(context, gameState),
+          ),
+          _sideButton(icon: Icons.workspace_premium_rounded, label: '뱃지', compact: compact, onTap: () => _openBadgesSheet(context)),
+          _sideButton(icon: Icons.emoji_events_rounded, label: '랭킹', compact: compact, onTap: () => _openRankingSheet(context)),
+          _sideButton(icon: Icons.group_rounded, label: '친구', compact: compact, onTap: () => _openFriendsSheet(context)),
+          _sideButton(icon: Icons.help_outline_rounded, label: '도움말', compact: compact, onTap: () => _openGameGuideSheet(context)),
+          _sideButton(icon: Icons.settings_rounded, label: '설정', compact: compact, onTap: () => _openSettingsSheet(context)),
         ],
       ),
     );
@@ -508,9 +473,14 @@ class _HomeScreenState extends State<HomeScreen> {
     required String label,
     required bool compact,
     required VoidCallback onTap,
+    bool muted = false,
   }) {
     final iconSize = compact ? 20.0 : 22.0;
     final circleSize = compact ? 38.0 : 42.0;
+    final iconColor = muted ? const Color(0xFF868E96) : AppColors.primary;
+    final chipColor = muted ? const Color(0xFFF1F3F5) : AppColors.background;
+    final borderColor = muted ? const Color(0xFFD0D7DE) : AppColors.primary.withValues(alpha: 0.22);
+    final labelColor = muted ? const Color(0xFF868E96) : AppColors.textSecondary;
     return InkWell(
       onTap: onTap,
       child: Column(
@@ -520,18 +490,18 @@ class _HomeScreenState extends State<HomeScreen> {
             width: circleSize,
             height: circleSize,
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: chipColor,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+              border: Border.all(color: borderColor),
             ),
-            child: Icon(icon, color: AppColors.primary, size: iconSize),
+            child: Icon(icon, color: iconColor, size: iconSize),
           ),
           const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
               fontSize: compact ? 10 : 11,
-              color: AppColors.textSecondary,
+              color: labelColor,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -542,144 +512,51 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader(CharacterProfile character, GameStateManager gameState) {
     final user = FirebaseAuth.instance.currentUser;
-    final displayName = user == null || user.isAnonymous ? 'Guest Mode' : (user.displayName ?? 'Signed In');
+    final displayName = user == null || user.isAnonymous ? '게스트 모드' : (user.displayName ?? 'Google 로그인');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 420;
-          final streak = gameState.attendanceStreak;
-          final isHundredMilestone = streak > 0 && streak % 100 == 0;
-          final isWeeklyMilestone = streak > 0 && streak % 7 == 0;
-          final attendanceCheer = _attendanceCheerLine(character, gameState);
-          final attendanceStatus = _attendanceStatusLabel(gameState);
-          return Column(
+          return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CircleAvatar(radius: compact ? 22 : 24, backgroundImage: AssetImage(character.imagePath)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Hello, ${character.name}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: compact ? 15 : 17, fontWeight: FontWeight.w800),
-                        ),
-                        Text(
-                          displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _statChip(
-                        icon: Icons.favorite,
-                        color: AppColors.error,
-                        text: '${gameState.hearts}',
-                        subText: gameState.hearts >= GameStateManager.maxHearts
-                            ? 'FULL'
-                            : 'Next +1 ${gameState.nextHeartCountdownText}',
-                      ),
-                      const SizedBox(height: 6),
-                      _statChip(icon: Icons.star, color: AppColors.secondary, text: '${gameState.stars}'),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white),
-                ),
-                child: Row(
+              CircleAvatar(radius: compact ? 22 : 24, backgroundImage: AssetImage(character.imagePath)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        attendanceCheer,
-                        maxLines: compact ? 2 : 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary),
-                      ),
+                    Text(
+                      '안녕하세요, ${character.name}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: compact ? 15 : 17, fontWeight: FontWeight.w800),
                     ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () => _openAttendanceRecapDialog(context, gameState),
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: gameState.canCheckInToday ? const Color(0xFFFFF3BF) : const Color(0xFFD3F9D8),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                attendanceStatus,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            if (isHundredMilestone)
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 3),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3BF),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFFE0A800)),
-                                ),
-                                child: Text(
-                                  'MILESTONE ${streak}d',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFFB08900),
-                                  ),
-                                ),
-                              ),
-                            TweenAnimationBuilder<double>(
-                              key: ValueKey('streak-$streak'),
-                              tween: Tween<double>(begin: isHundredMilestone ? 0.94 : 1, end: 1),
-                              duration: const Duration(milliseconds: 520),
-                              curve: Curves.easeOutBack,
-                              builder: (context, value, child) => Transform.scale(scale: value, child: child),
-                              child: Text(
-                                'Streak ${streak}d',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: isHundredMilestone
-                                      ? const Color(0xFFB08900)
-                                      : (isWeeklyMilestone ? const Color(0xFFB08900) : AppColors.textSecondary),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _statChip(
+                    icon: Icons.favorite,
+                    color: AppColors.error,
+                    text: '${gameState.hearts}',
+                    subText: gameState.hearts >= GameStateManager.maxHearts
+                        ? 'FULL'
+                        : '다음 +1 ${gameState.nextHeartCountdownText}',
+                  ),
+                  const SizedBox(height: 6),
+                  _statChip(icon: Icons.star, color: AppColors.secondary, text: '${gameState.stars}'),
+                ],
               ),
             ],
           );
@@ -761,10 +638,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openCharacterShop(BuildContext context) {
+  void _openShopSheet(BuildContext context) {
     final gameState = context.read<GameStateManager>();
-    final all = CharacterManager().characters;
-
+    final skinManager = context.read<SkinManager>();
+    final allCharacters = CharacterManager().characters;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -772,193 +649,225 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.white,
       builder: (sheetContext) => Padding(
         padding: _sheetBottomPadding(sheetContext),
-        child: StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.74,
-              child: Column(
-              children: [
-                const SizedBox(height: 12),
-                const Text('Character Collection', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                Text('Stars: ${gameState.stars}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                const Text('All characters cost 50 stars', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                      childAspectRatio: 0.8,
+        child: DefaultTabController(
+          length: 2,
+          child: StatefulBuilder(
+            builder: (sheetContext, setSheetState) {
+              return SizedBox(
+                height: MediaQuery.of(context).size.height * 0.8,
+                child: Column(
+                  children: [
+                    _sheetHeader('상점'),
+                    const SizedBox(height: 6),
+                    Text('보유 별: ${gameState.stars}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    const TabBar(
+                      tabs: [
+                        Tab(text: '캐릭터'),
+                        Tab(text: '스킨'),
+                      ],
                     ),
-                    itemCount: all.length,
-                    itemBuilder: (context, index) {
-                      final item = all[index];
-                      final owned = gameState.unlockedCharacters.contains(item.id);
-                      final selected = item.id == gameState.selectedCharacterId;
-                      return Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: selected ? const Color(0xFFE7F0FF) : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: selected ? AppColors.primary : Colors.grey.shade300, width: selected ? 2 : 1),
-                        ),
-                        child: Column(
-                          children: [
-                            CircleAvatar(radius: 24, backgroundImage: AssetImage(item.imagePath)),
-                            const SizedBox(height: 6),
-                            Text(item.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                            const Spacer(),
-                            if (!owned)
-                              ElevatedButton(
-                                onPressed: () async {
-                                  final success = await gameState.unlockCharacter(item.id, 50);
-                                  setSheetState(() {});
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(success ? '${item.name} unlocked.' : 'Not enough stars.')),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(30), textStyle: const TextStyle(fontSize: 11)),
-                                child: const Text('50 stars'),
-                              )
-                            else
-                              OutlinedButton(
-                                onPressed: () async {
-                                  await gameState.equipCharacter(item.id);
-                                  setSheetState(() {});
-                                },
-                                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(30), textStyle: const TextStyle(fontSize: 11)),
-                                child: Text(selected ? 'Equipped' : 'Equip'),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _buildCharacterShopTab(
+                            context,
+                            gameState: gameState,
+                            allCharacters: allCharacters,
+                            setSheetState: setSheetState,
+                          ),
+                          _buildSkinShopTab(
+                            context,
+                            gameState: gameState,
+                            skinManager: skinManager,
+                            setSheetState: setSheetState,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  void _openSkinPicker(BuildContext context) {
-    final skinManager = context.read<SkinManager>();
-    final gameState = context.read<GameStateManager>();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => Padding(
-        padding: _sheetBottomPadding(context),
-        child: StatefulBuilder(
-          builder: (context, setSheetState) {
-            final currentId = skinManager.currentSkin.id;
-            final width = MediaQuery.of(context).size.width;
-            final columns = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.78,
-              child: Column(
-              children: [
-                const SizedBox(height: 12),
-                const Text('Choose Skin', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text('Stars: ${gameState.stars}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                      childAspectRatio: 0.62,
-                    ),
-                    itemCount: skinManager.skins.length,
-                    itemBuilder: (context, index) {
-                      final skin = skinManager.skins[index];
-                      final selected = skin.id == currentId;
-                      final owned = skinManager.isUnlocked(skin.id);
-                      return Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected ? AppColors.primary : Colors.grey.shade300,
-                            width: selected ? 2 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
-                                child: Image.asset(skin.backgroundPath, fit: BoxFit.cover, width: double.infinity),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
-                              child: Text(
-                                skin.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
-                              child: selected
-                                  ? const Text('Equipped', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w800))
-                                  : owned
-                                      ? SizedBox(
-                                          width: double.infinity,
-                                          height: 28,
-                                          child: OutlinedButton(
-                                            onPressed: () async {
-                                              await skinManager.setSkinByIndex(index);
-                                              setSheetState(() {});
-                                            },
-                                            style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-                                            child: const Text('Equip', style: TextStyle(fontSize: 11)),
-                                          ),
-                                        )
-                                      : SizedBox(
-                                          width: double.infinity,
-                                          height: 28,
-                                          child: ElevatedButton(
-                                            onPressed: () async {
-                                              final ok = await skinManager.purchaseAndEquipByIndex(index, gameState);
-                                              if (!mounted) return;
-                                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(ok ? '${skin.name} purchased.' : 'Need ${skin.price} stars.'),
-                                                ),
-                                              );
-                                              setSheetState(() {});
-                                            },
-                                            style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
-                                            child: Text('${skin.price} stars', style: const TextStyle(fontSize: 11)),
-                                          ),
-                                        ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+  Widget _buildCharacterShopTab(
+    BuildContext context, {
+    required GameStateManager gameState,
+    required List<CharacterProfile> allCharacters,
+    required StateSetter setSheetState,
+  }) {
+    return Column(
+      children: [
+        const SizedBox(height: 4),
+        const Text('캐릭터는 모두 50별로 구매할 수 있어요.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 8),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.8,
+            ),
+            itemCount: allCharacters.length,
+            itemBuilder: (context, index) {
+              final item = allCharacters[index];
+              final owned = gameState.unlockedCharacters.contains(item.id);
+              final selected = item.id == gameState.selectedCharacterId;
+              return Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: selected ? const Color(0xFFE7F0FF) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected ? AppColors.primary : Colors.grey.shade300,
+                    width: selected ? 2 : 1,
                   ),
                 ),
-              ],
-            ),
-            );
-          },
+                child: Column(
+                  children: [
+                    CircleAvatar(radius: 24, backgroundImage: AssetImage(item.imagePath)),
+                    const SizedBox(height: 6),
+                    Text(item.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    const Spacer(),
+                    if (!owned)
+                      ElevatedButton(
+                        onPressed: () async {
+                          final success = await gameState.unlockCharacter(item.id, 50);
+                          setSheetState(() {});
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(content: Text(success ? '${item.name} 잠금 해제 완료' : '별이 부족합니다.')),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(30),
+                          textStyle: const TextStyle(fontSize: 11),
+                        ),
+                        child: const Text('50별'),
+                      )
+                    else
+                      OutlinedButton(
+                        onPressed: () async {
+                          await gameState.equipCharacter(item.id);
+                          setSheetState(() {});
+                        },
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(30),
+                          textStyle: const TextStyle(fontSize: 11),
+                        ),
+                        child: Text(selected ? '착용 중' : '착용'),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildSkinShopTab(
+    BuildContext context, {
+    required GameStateManager gameState,
+    required SkinManager skinManager,
+    required StateSetter setSheetState,
+  }) {
+    final currentId = skinManager.currentSkin.id;
+    final width = MediaQuery.of(context).size.width;
+    final columns = width >= 900 ? 4 : (width >= 600 ? 3 : 2);
+    return Column(
+      children: [
+        const SizedBox(height: 4),
+        const Text('원하는 배경 스킨을 구매하거나 착용하세요.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 8),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.62,
+            ),
+            itemCount: skinManager.skins.length,
+            itemBuilder: (context, index) {
+              final skin = skinManager.skins[index];
+              final selected = skin.id == currentId;
+              final owned = skinManager.isUnlocked(skin.id);
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected ? AppColors.primary : Colors.grey.shade300,
+                    width: selected ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+                        child: Image.asset(skin.backgroundPath, fit: BoxFit.cover, width: double.infinity),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
+                      child: Text(
+                        skin.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
+                      child: selected
+                          ? const Text('착용 중', style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w800))
+                          : owned
+                              ? SizedBox(
+                                  width: double.infinity,
+                                  height: 28,
+                                  child: OutlinedButton(
+                                    onPressed: () async {
+                                      await skinManager.setSkinByIndex(index);
+                                      setSheetState(() {});
+                                    },
+                                    style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+                                    child: const Text('착용', style: TextStyle(fontSize: 11)),
+                                  ),
+                                )
+                              : SizedBox(
+                                  width: double.infinity,
+                                  height: 28,
+                                  child: ElevatedButton(
+                                    onPressed: () async {
+                                      final ok = await skinManager.purchaseAndEquipByIndex(index, gameState);
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(this.context).showSnackBar(
+                                        SnackBar(content: Text(ok ? '${skin.name} 구매 완료' : '${skin.price}별이 필요합니다.')),
+                                      );
+                                      setSheetState(() {});
+                                    },
+                                    style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
+                                    child: Text('${skin.price}별', style: const TextStyle(fontSize: 11)),
+                                  ),
+                                ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -973,7 +882,7 @@ class _HomeScreenState extends State<HomeScreen> {
           height: MediaQuery.of(context).size.height * 0.78,
           child: Column(
           children: [
-            _sheetHeader('Game Guide'),
+            _sheetHeader('게임 가이드'),
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.all(12),
@@ -1067,7 +976,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Example: answer TRAIN, guess TRAIL'),
+          const Text('예시: 정답 TRAIN, 입력 TRAIL'),
           const SizedBox(height: 8),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1080,7 +989,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('Green: exact match  |  Gray: not in word', style: TextStyle(fontSize: 11)),
+          const Text('초록: 위치 일치  |  주황: 포함  |  회색: 없음', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -1097,7 +1006,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Definition: water that falls from clouds'),
+          const Text('예시 뜻: 구름에서 내리는 물'),
           const SizedBox(height: 8),
           const Row(
             children: [
@@ -1123,7 +1032,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('Tap letters in order and complete the target word.', style: TextStyle(fontSize: 11)),
+          const Text('글자를 순서대로 눌러 목표 단어를 완성하세요.', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -1140,11 +1049,11 @@ class _HomeScreenState extends State<HomeScreen> {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Sentence letters are replaced with numbers.'),
+          Text('문장 알파벳이 숫자로 치환됩니다.'),
           SizedBox(height: 8),
           Text('1 2 3 4   5 2 6 7 8   9 10 6 11'),
           SizedBox(height: 8),
-          Text('Use clue words to infer letters and restore the full sentence.', style: TextStyle(fontSize: 11)),
+          Text('단서 단어를 바탕으로 알파벳을 추론해 문장을 복원하세요.', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -1161,7 +1070,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Seed letters: C A R E'),
+          const Text('시드 글자: C A R E'),
           const SizedBox(height: 8),
           const Wrap(
             spacing: 6,
@@ -1173,7 +1082,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('Fill core words first, then add bonus words for extra score.', style: TextStyle(fontSize: 11)),
+          const Text('핵심 단어를 먼저 채우고, 보너스 단어로 추가 점수를 얻으세요.', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -1190,7 +1099,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Connect nearby blocks to build words.'),
+          const Text('인접 블록을 연결해 단어를 만드세요.'),
           const SizedBox(height: 8),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1203,18 +1112,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('Tip: STAR + bomb(B) cleanup gives a strong combo score.', style: TextStyle(fontSize: 11)),
+          const Text('팁: STAR + 폭탄(B) 정리 조합은 콤보 점수가 높아요.', style: TextStyle(fontSize: 11)),
         ],
       ),
     );
   }
 
   void _openSettingsSheet(BuildContext context) {
-    final gameState = context.read<GameStateManager>();
     final settings = context.read<SettingsManager>();
-    final nicknameController = TextEditingController();
-    var nicknameInitialized = false;
-
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1227,164 +1132,122 @@ class _HomeScreenState extends State<HomeScreen> {
                 bottom: MediaQuery.of(context).viewInsets.bottom + _sheetBottomPadding(context).bottom,
               ),
               child: SizedBox(
-                height: MediaQuery.of(context).size.height * 0.8,
-                child: FutureBuilder<Map<String, String>>(
-                  future: UserProfileService.instance.getMyProfile(),
-                  builder: (context, snapshot) {
-                    final profile = snapshot.data ?? {'nickname': 'Loading...', 'handle': '....#0000'};
-                    if (!nicknameInitialized && snapshot.hasData) {
-                      nicknameController.text = profile['nickname']!;
-                      nicknameInitialized = true;
-                    }
-                    final isAnon = _auth.currentUser?.isAnonymous ?? true;
-                    return ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        _sheetHeader('Settings'),
-                        const SizedBox(height: 12),
-                        _sheetCard(
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('User ID: ${_auth.currentUser?.uid ?? 'none'}', style: const TextStyle(fontSize: 12)),
-                              Text('Friend Code: ${profile['handle']}'),
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: nicknameController,
-                                decoration: const InputDecoration(labelText: 'Nickname'),
-                              ),
-                            ],
+                height: MediaQuery.of(context).size.height * 0.74,
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _sheetHeader('설정'),
+                    const SizedBox(height: 12),
+                    _sheetCard(
+                      Column(
+                        children: [
+                          SwitchListTile(
+                            value: settings.bgmOn,
+                            title: const Text('배경음악 사용'),
+                            onChanged: (v) async {
+                              await settings.setBgmOn(v);
+                              await SoundManager.instance.applySettings();
+                              if (v) {
+                                await SoundManager.instance.playBgm(settings.bgmTrackIndex);
+                              } else {
+                                await SoundManager.instance.stopBgm();
+                              }
+                              setSheetState(() {});
+                            },
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: () async {
-                            final name = nicknameController.text.trim();
-                            if (name.isEmpty) return;
-                            await UserProfileService.instance.updateNickname(name);
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(content: Text('Nickname updated.')),
-                            );
-                            setSheetState(() {});
-                          },
-                          child: const Text('Save Nickname'),
-                        ),
-                        const Divider(height: 30),
-                        _sheetCard(
-                          Column(
+                          const SizedBox(height: 4),
+                          Row(
                             children: [
-                        SwitchListTile(
-                          value: settings.bgmOn,
-                          title: const Text('BGM On'),
-                          onChanged: (v) async {
-                            await settings.setBgmOn(v);
-                            await SoundManager.instance.applySettings();
-                            if (v) {
-                              await SoundManager.instance.playBgm(settings.bgmTrackIndex);
-                            } else {
-                              await SoundManager.instance.stopBgm();
-                            }
-                            setSheetState(() {});
-                          },
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Text('BGM Track', style: TextStyle(fontWeight: FontWeight.w700)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: DropdownButton<int>(
-                                isExpanded: true,
-                                value: settings.bgmTrackIndex,
-                                items: List.generate(
-                                  SoundManager.instance.bgmTitles.length,
-                                  (index) => DropdownMenuItem<int>(
-                                    value: index,
-                                    child: Text(
-                                      '${index + 1}. ${SoundManager.instance.bgmTitles[index]}',
-                                      overflow: TextOverflow.ellipsis,
+                              const Text('배경음악 트랙', style: TextStyle(fontWeight: FontWeight.w700)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButton<int>(
+                                  isExpanded: true,
+                                  value: settings.bgmTrackIndex,
+                                  items: List.generate(
+                                    SoundManager.instance.bgmTitles.length,
+                                    (index) => DropdownMenuItem<int>(
+                                      value: index,
+                                      child: Text(
+                                        '${index + 1}. ${SoundManager.instance.bgmTitles[index]}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                   ),
+                                  onChanged: (value) async {
+                                    if (value == null) return;
+                                    await settings.setBgmTrackIndex(value);
+                                    if (settings.bgmOn) {
+                                      await SoundManager.instance.playBgm(value);
+                                    }
+                                    setSheetState(() {});
+                                  },
                                 ),
-                                onChanged: (value) async {
-                                  if (value == null) return;
-                                  await settings.setBgmTrackIndex(value);
-                                  if (settings.bgmOn) {
-                                    await SoundManager.instance.playBgm(value);
-                                  }
-                                  setSheetState(() {});
-                                },
                               ),
-                            ),
-                          ],
-                        ),
-                        Slider(
-                          value: settings.bgmVolume,
-                          onChanged: settings.bgmOn
-                              ? (v) async {
-                                  await settings.setBgmVolume(v);
-                                  await SoundManager.instance.applySettings();
-                                  setSheetState(() {});
-                                }
-                              : null,
-                        ),
-                        SwitchListTile(
-                          value: settings.sfxOn,
-                          title: const Text('SFX On'),
-                          onChanged: (v) async {
-                            await settings.setSfxOn(v);
-                            await SoundManager.instance.applySettings();
-                            setSheetState(() {});
-                          },
-                        ),
-                        Slider(
-                          value: settings.sfxVolume,
-                          onChanged: settings.sfxOn
-                              ? (v) async {
-                                  await settings.setSfxVolume(v);
-                                  await SoundManager.instance.applySettings();
-                                  setSheetState(() {});
-                                }
-                              : null,
-                        ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (isAnon)
-                          ElevatedButton(
-                            onPressed: () async {
-                              final user = await _auth.linkWithGoogle(gameState);
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    user != null
-                                        ? 'Signed in with Google.'
-                                        : 'Google login failed. Check Firebase setup.',
-                                  ),
-                                ),
-                              );
-                              setSheetState(() {});
-                            },
-                            child: const Text('Google Login (Optional)'),
-                          )
-                        else
-                          OutlinedButton(
-                            onPressed: () async {
-                              await _auth.signOutToAnonymous(gameState);
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                const SnackBar(content: Text('Signed out. Guest mode active.')),
-                              );
-                              setSheetState(() {});
-                            },
-                            child: const Text('Sign Out'),
+                          Slider(
+                            value: settings.bgmVolume,
+                            onChanged: settings.bgmOn
+                                ? (v) async {
+                                    await settings.setBgmVolume(v);
+                                    await SoundManager.instance.applySettings();
+                                    setSheetState(() {});
+                                  }
+                                : null,
                           ),
-                      ],
-                    );
-                  },
+                          SwitchListTile(
+                            value: settings.sfxOn,
+                            title: const Text('효과음 사용'),
+                            onChanged: (v) async {
+                              await settings.setSfxOn(v);
+                              await SoundManager.instance.applySettings();
+                              setSheetState(() {});
+                            },
+                          ),
+                          Slider(
+                            value: settings.sfxVolume,
+                            onChanged: settings.sfxOn
+                                ? (v) async {
+                                    await settings.setSfxVolume(v);
+                                    await SoundManager.instance.applySettings();
+                                    setSheetState(() {});
+                                  }
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _sheetCard(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('포스트', style: TextStyle(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          const Text(
+                            '누락 단어나 개선 의견을 보내고 싶다면 포스트를 열어 제안해 주세요.',
+                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                Future<void>.delayed(const Duration(milliseconds: 120), () {
+                                  if (!mounted) return;
+                                  _openWordSuggestionSheet(this.context);
+                                });
+                              },
+                              icon: const Icon(Icons.post_add_rounded),
+                              label: const Text('포스트 열기'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -1395,91 +1258,145 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openFriendsSheet(BuildContext context) {
+    final gameState = context.read<GameStateManager>();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return Padding(
-          padding: _sheetBottomPadding(context),
-          child: Container(
-            height: MediaQuery.of(context).size.height * 0.85,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                _sheetHeader('Friends'),
-                const SizedBox(height: 8),
-                FutureBuilder<Map<String, String>>(
-                  future: UserProfileService.instance.getMyProfile(),
-                  builder: (context, snapshot) {
-                    final profile = snapshot.data ?? {'nickname': 'Loading...', 'handle': '....#0000'};
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(profile['nickname']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(8)),
-                                  child: Text(profile['handle']!, style: const TextStyle(fontWeight: FontWeight.w800)),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: () => _openAddFriendDialog(context),
-                            icon: const Icon(Icons.person_add),
-                            label: const Text('Add'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final isAnon = _auth.currentUser?.isAnonymous ?? true;
+            return Padding(
+              padding: _sheetBottomPadding(context),
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.85,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                const Divider(height: 1),
-                Expanded(
-                  child: StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: _friends.getMyFriendsStream(),
-                    builder: (context, snapshot) {
-                      final list = snapshot.data ?? const [];
-                      if (list.isEmpty) {
-                        return const Center(child: Text('No friends yet. Add with friend code.'));
-                      }
-                      return ListView.separated(
-                        itemCount: list.length,
-                        separatorBuilder: (_, index) => const Divider(),
-                        itemBuilder: (context, index) {
-                          final f = list[index];
-                          final online = _friends.isUserOnline(f['lastActive'] as Timestamp?);
-                          return ListTile(
-                            title: Text(f['nickname'] as String? ?? 'Unknown'),
-                            subtitle: Text('${f['handle']} | ${online ? 'Online' : 'Offline'}'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              onPressed: () => _friends.removeFriend(f['uid'] as String),
-                            ),
+                child: Column(
+                  children: [
+                    _sheetHeader('친구'),
+                    const SizedBox(height: 8),
+                    FutureBuilder<Map<String, String>>(
+                      future: UserProfileService.instance.getMyProfile(),
+                      builder: (context, snapshot) {
+                        final profile = snapshot.data ?? {'nickname': '로딩 중...', 'handle': '....#0000'};
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(profile['nickname']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.shade100,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(profile['handle']!, style: const TextStyle(fontWeight: FontWeight.w800)),
+                                    ),
+                                    if (isAnon) ...[
+                                      const SizedBox(height: 6),
+                                      const Text(
+                                        '현재 게스트 계정입니다. 친구 추가는 가능하며, Google 로그인 시 친구 목록을 병합합니다.',
+                                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => _openAddFriendDialog(context),
+                                    icon: const Icon(Icons.person_add),
+                                    label: const Text('친구 추가'),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  if (isAnon)
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        final user = await _auth.linkWithGoogle(gameState);
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(this.context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              user != null
+                                                  ? 'Google 로그인 완료. 친구 목록을 병합했습니다.'
+                                                  : 'Google 로그인 실패: Firebase 설정을 확인해 주세요.',
+                                            ),
+                                          ),
+                                        );
+                                        setSheetState(() {});
+                                      },
+                                      icon: const Icon(Icons.login_rounded),
+                                      label: const Text('Google 로그인'),
+                                    )
+                                  else
+                                    OutlinedButton(
+                                      onPressed: () async {
+                                        await _auth.signOutToAnonymous(gameState);
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(this.context).showSnackBar(
+                                          const SnackBar(content: Text('로그아웃 완료. 게스트 모드로 전환됐습니다.')),
+                                        );
+                                        setSheetState(() {});
+                                      },
+                                      child: const Text('로그아웃'),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: StreamBuilder<List<Map<String, dynamic>>>(
+                        stream: _friends.getMyFriendsStream(),
+                        builder: (context, snapshot) {
+                          final list = snapshot.data ?? const [];
+                          if (list.isEmpty) {
+                            return const Center(child: Text('저장된 친구가 없습니다. 친구 코드를 입력해 추가해 보세요.'));
+                          }
+                          return ListView.separated(
+                            itemCount: list.length,
+                            separatorBuilder: (_, index) => const Divider(),
+                            itemBuilder: (context, index) {
+                              final f = list[index];
+                              final online = _friends.isUserOnline(f['lastActive'] as Timestamp?);
+                              return ListTile(
+                                title: Text(f['nickname'] as String? ?? '알 수 없음'),
+                                subtitle: Text('${f['handle']} | ${online ? '온라인' : '오프라인'}'),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                  onPressed: () => _friends.removeFriend(f['uid'] as String),
+                                ),
+                              );
+                            },
                           );
                         },
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -1490,13 +1407,13 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Friend'),
+        title: const Text('친구 추가'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(hintText: 'abcd#1234'),
+          decoration: const InputDecoration(hintText: '친구 코드 입력 (예: abcd#1234)'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('취소')),
           ElevatedButton(
             onPressed: () async {
               final dialogNav = Navigator.of(dialogContext);
@@ -1504,19 +1421,36 @@ class _HomeScreenState extends State<HomeScreen> {
               final code = controller.text.trim();
               final target = await _friends.searchUserByHandle(code);
               if (target == null) {
-                rootMessenger.showSnackBar(const SnackBar(content: Text('User not found.')));
+                rootMessenger.showSnackBar(const SnackBar(content: Text('사용자를 찾을 수 없습니다.')));
                 return;
               }
               final result = await _friends.addFriend(target);
               if (!mounted) return;
               dialogNav.pop();
-              rootMessenger.showSnackBar(SnackBar(content: Text(result)));
+              rootMessenger.showSnackBar(SnackBar(content: Text(_friendResultText(result))));
             },
-            child: const Text('Add'),
+            child: const Text('추가'),
           ),
         ],
       ),
     );
+  }
+
+  String _friendResultText(String raw) {
+    switch (raw) {
+      case 'Login required.':
+        return '로그인이 필요합니다.';
+      case 'Invalid target user.':
+        return '잘못된 친구 정보입니다.';
+      case 'You cannot add yourself.':
+        return '자기 자신은 추가할 수 없습니다.';
+      case 'Already added.':
+        return '이미 추가된 친구입니다.';
+      case 'Added':
+        return '친구가 추가되었습니다.';
+      default:
+        return raw;
+    }
   }
 
   void _openBadgesSheet(BuildContext context) {
@@ -1532,7 +1466,7 @@ class _HomeScreenState extends State<HomeScreen> {
           height: MediaQuery.of(context).size.height * 0.84,
           child: Column(
             children: [
-              _sheetHeader('Badges'),
+              _sheetHeader('뱃지'),
               const SizedBox(height: 8),
               Expanded(
                 child: ListView.separated(
@@ -1559,7 +1493,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     Text(card.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
                                     Text(
-                                      '${card.currentValue} / ${card.targets.last}  |  TIER ${tier + 1}/5',
+                                      '${card.currentValue} / ${card.targets.last}  |  티어 ${tier + 1}/5',
                                       style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                     ),
                                   ],
@@ -1656,21 +1590,26 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Text('${card.title} · ${_tierNames[tierIndex]}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
             const SizedBox(height: 8),
-            Text('Condition: ${card.description} $target', style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text('조건: ${card.description} $target', style: const TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            Text('Current: ${card.currentValue}', style: const TextStyle(color: AppColors.textSecondary)),
+            Text('현재: ${card.currentValue}', style: const TextStyle(color: AppColors.textSecondary)),
             if (nextTarget != null) ...[
               const SizedBox(height: 4),
-              Text('Next Tier Target: $nextTarget', style: const TextStyle(color: AppColors.textSecondary)),
+              Text('다음 티어 목표: $nextTarget', style: const TextStyle(color: AppColors.textSecondary)),
             ],
             const SizedBox(height: 6),
             Text(
-              reached ? 'Status: Unlocked' : 'Status: Locked ($remain left)',
+              reached ? '상태: 달성' : '상태: 미달성 (남음 $remain)',
               style: TextStyle(fontWeight: FontWeight.w800, color: reached ? const Color(0xFF2B8A3E) : AppColors.textSecondary),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '티어 보상: +${_badgeTierStarRewards[tierIndex]}별',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
             ),
             if (achievedAt != null) ...[
               const SizedBox(height: 6),
-              Text('Unlocked at: ${_shortDate(achievedAt)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              Text('달성일: ${_shortDate(achievedAt)}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
             ],
             const SizedBox(height: 10),
           ],
@@ -1683,8 +1622,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final list = <_BadgeCard>[
       _BadgeCard(
         id: 'attendance',
-        title: 'Attendance',
-        description: 'Consecutive days',
+        title: '출석',
+        description: '연속 출석 일수',
         icon: Icons.calendar_month_rounded,
         color: const Color(0xFF2F9E44),
         currentValue: gameState.attendanceStreak,
@@ -1692,8 +1631,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       _BadgeCard(
         id: 'stars',
-        title: 'Star Collector',
-        description: 'Total stars earned',
+        title: '별 수집가',
+        description: '누적 획득 별',
         icon: Icons.star_rounded,
         color: const Color(0xFFF08C00),
         currentValue: gameState.totalStarsEarned,
@@ -1701,8 +1640,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       _BadgeCard(
         id: 'characters',
-        title: 'Character Hunter',
-        description: 'Unlocked characters',
+        title: '캐릭터 수집가',
+        description: '잠금 해제 캐릭터 수',
         icon: Icons.pets_rounded,
         color: const Color(0xFF7048E8),
         currentValue: gameState.unlockedCharacters.length,
@@ -1714,8 +1653,8 @@ class _HomeScreenState extends State<HomeScreen> {
       list.add(
         _BadgeCard(
           id: 'stage_$gameId',
-          title: '${game.title} Stage',
-          description: 'Best stage reached',
+          title: '${game.title} 스테이지',
+          description: '최고 도달 스테이지',
           icon: game.icon,
           color: game.color,
           currentValue: gameState.getBestStage(gameId),
@@ -1745,11 +1684,21 @@ class _HomeScreenState extends State<HomeScreen> {
       if (unlockedNow.isEmpty) return;
       final now = DateTime.now().toIso8601String();
       final prefs = await SharedPreferences.getInstance();
+      int starBonus = 0;
       for (final key in unlockedNow) {
+        final parts = key.split(':');
+        final tierIndex = int.tryParse(parts.last) ?? 0;
+        final safeTier = tierIndex < 0
+            ? 0
+            : (tierIndex >= _badgeTierStarRewards.length ? _badgeTierStarRewards.length - 1 : tierIndex);
+        starBonus += _badgeTierStarRewards[safeTier];
         _badgeAchievedAt[key] = now;
         await prefs.setString('badge_achieved_at::$key', now);
       }
       await prefs.setStringList('badge_achieved_keys', _badgeAchievedAt.keys.toList());
+      if (starBonus > 0) {
+        await gameState.addStars(starBonus);
+      }
       if (!mounted) return;
       final first = unlockedNow.first;
       final parts = first.split(':');
@@ -1757,7 +1706,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final tierIndex = int.tryParse(parts.last) ?? 0;
       final card = cards.firstWhere((c) => c.id == cardId, orElse: () => cards.first);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Badge unlocked: ${card.title} · ${_tierNames[tierIndex]}')),
+        SnackBar(
+          content: Text('뱃지 달성 ${unlockedNow.length}개 · 보너스 +$starBonus별 (${card.title} · ${_tierNames[tierIndex]})'),
+        ),
       );
       setState(() {});
     });
@@ -1795,16 +1746,16 @@ class _HomeScreenState extends State<HomeScreen> {
             height: MediaQuery.of(context).size.height * 0.82,
             child: Column(
             children: [
-              _sheetHeader('Ranking'),
+              _sheetHeader('랭킹'),
               const TabBar(
                 isScrollable: true,
                 tabs: [
-                  Tab(text: 'Stars'),
+                  Tab(text: '별'),
                   Tab(text: 'Wordle'),
-                  Tab(text: 'Clue'),
-                  Tab(text: 'Sentence'),
+                  Tab(text: 'Word Clue'),
+                  Tab(text: 'Sentence Code'),
                   Tab(text: 'Anagram'),
-                  Tab(text: 'Crash'),
+                  Tab(text: 'Word Crash'),
                 ],
               ),
               Expanded(
@@ -1836,14 +1787,14 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, snapshot) {
         final list = snapshot.data ?? const [];
         if (list.isEmpty) {
-          return const Center(child: Text('No ranking data yet.'));
+          return const Center(child: Text('아직 랭킹 데이터가 없습니다.'));
         }
         return ListView.separated(
           itemCount: list.length,
           separatorBuilder: (_, index) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final item = list[index];
-            final nick = (item['nickname'] as String?) ?? 'Unknown';
+            final nick = (item['nickname'] as String?) ?? '알 수 없음';
             final value = (item[valueKey] as num?)?.toInt() ?? 0;
             return ListTile(
               leading: CircleAvatar(child: Text('${index + 1}')),
