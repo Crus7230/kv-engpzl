@@ -192,7 +192,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               .map(
                                 (g) => _GameCard(
                                   title: g.title,
-                                  subtitle: g.subtitle,
                                   icon: g.icon,
                                   color: g.color,
                                   bestStage: gameState.getBestStage(g.id),
@@ -1888,7 +1887,6 @@ class _GuideWordBadge extends StatelessWidget {
 class _GameCard extends StatelessWidget {
   const _GameCard({
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.color,
     required this.bestStage,
@@ -1897,12 +1895,31 @@ class _GameCard extends StatelessWidget {
   });
 
   final String title;
-  final String subtitle;
   final IconData icon;
   final Color color;
   final int bestStage;
   final int playCount;
   final VoidCallback onTap;
+
+  bool _fitsSingleLine({
+    required String text,
+    required double maxWidth,
+    required TextStyle style,
+  }) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth);
+    return !tp.didExceedMaxLines;
+  }
+
+  String _splitTitleByWords(String raw) {
+    final words = raw.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.length <= 1) return raw;
+    if (words.length == 2) return '${words[0]}\n${words[1]}';
+    return '${words.sublist(0, words.length - 1).join(' ')}\n${words.last}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1937,67 +1954,85 @@ class _GameCard extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.14),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(icon, color: color, size: 30),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final widthScale = (constraints.maxWidth / 320).clamp(0.8, 1.08);
+                    final horizontalPadding = (14 * widthScale).clamp(10.0, 16.0);
+                    final verticalPadding = (10 * widthScale).clamp(8.0, 12.0);
+                    final iconWrapPadding = (10 * widthScale).clamp(8.0, 11.0);
+                    final iconSize = (30 * widthScale).clamp(22.0, 32.0);
+                    final gap = (10 * widthScale).clamp(6.0, 12.0);
+                    final titleSize = (19 * widthScale).clamp(13.0, 19.0);
+                    final statusSize = (10.6 * widthScale).clamp(9.0, 11.5);
+                    final arrowSize = (24 * widthScale).clamp(18.0, 26.0);
+                    final titleFactor = title.length <= 11
+                        ? 1.0
+                        : (title.length <= 14 ? 0.92 : 0.84);
+                    final safeTitleSize = (titleSize * titleFactor).clamp(12.0, titleSize);
+                    return Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: horizontalPadding,
+                        vertical: verticalPadding,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
-                            const SizedBox(height: 4),
-                            Text(
-                              subtitle,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            padding: EdgeInsets.all(iconWrapPadding),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              borderRadius: BorderRadius.circular(10),
+                              color: color.withValues(alpha: 0.14),
+                              shape: BoxShape.circle,
                             ),
-                            child: Text(
-                              'BEST $bestStage',
-                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+                            child: Icon(icon, color: color, size: iconSize),
+                          ),
+                          SizedBox(width: gap),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                LayoutBuilder(
+                                  builder: (context, textConstraints) {
+                                    final titleStyle = TextStyle(
+                                      fontSize: safeTitleSize,
+                                      fontWeight: FontWeight.w900,
+                                    );
+                                    final words = title.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+                                    final singleWord = words.length <= 1;
+                                    final fitsSingle = _fitsSingleLine(
+                                      text: title,
+                                      maxWidth: textConstraints.maxWidth,
+                                      style: titleStyle,
+                                    );
+                                    final useWordWrappedTwoLines = !singleWord && !fitsSingle;
+                                    final displayTitle = useWordWrappedTwoLines ? _splitTitleByWords(title) : title;
+                                    return Text(
+                                      displayTitle,
+                                      maxLines: useWordWrappedTwoLines ? 2 : 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: titleStyle,
+                                    );
+                                  },
+                                ),
+                                SizedBox(height: (4 * widthScale).clamp(2.0, 5.0)),
+                                Text(
+                                  'BEST $bestStage | PLAYS $playCount',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: statusSize,
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              'PLAYS $playCount',
-                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Icon(Icons.play_arrow_rounded, size: 30, color: Colors.black26),
+                          SizedBox(width: (6 * widthScale).clamp(4.0, 8.0)),
+                          Icon(Icons.play_arrow_rounded, size: arrowSize, color: Colors.black26),
                         ],
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
