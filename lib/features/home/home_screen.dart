@@ -1,4 +1,6 @@
 ﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -33,12 +35,36 @@ class _HomeScreenState extends State<HomeScreen> {
   final Map<String, String> _badgeAchievedAt = <String, String>{};
   bool _badgeSyncScheduled = false;
   bool _badgeStoreLoaded = false;
+  final Random _random = Random();
+  int _cheerMessageIndex = 0;
 
   static const List<int> _attendanceTierTargets = [7, 30, 90, 180, 365];
   static const List<int> _starsTierTargets = [300, 1200, 3000, 5500, 9000];
   static const List<int> _characterTierTargets = [3, 8, 14, 20, 26];
   static const List<int> _stageTierTargets = [5, 20, 50, 90, 140];
   static const List<String> _stageBadgeGames = ['wordle', 'word_clue', 'sentence_code', 'anagram', 'word_crash'];
+  static const List<String> _headerCheerMessages = [
+    'Let us collect today attendance first.',
+    'Keep the streak alive. You are doing great.',
+    'Push one more stage and set a new best.',
+    'A short session still counts as progress.',
+    'Spend hearts wisely, save stars smartly.',
+    'Try a different mode to refresh your focus.',
+    'One clean combo can change the whole run.',
+    'Your keyboard is ready. So are we.',
+    'Today is a good day for a surprise clear.',
+    'Warm up with one game, then go for high score.',
+    'Friendly reminder: taps are stronger than excuses.',
+    'Mission: no panic, only precision.',
+    'If confused, pretend it is all part of the strategy.',
+    'Yes, even that weird guess might work today.',
+    'Drink water. Then conquer another stage.',
+    'You are not stuck. You are buffering greatness.',
+    'Tiny win now, big win later.',
+    'Attendance first, glory second, snacks third.',
+    'Your character believes in your next combo.',
+    'Press play and let chaos become points.',
+  ];
   static const List<String> _tierNames = ['브론즈', '실버', '골드', '플래티넘', '미틱'];
   static const List<int> _badgeTierStarRewards = [5, 10, 15, 20, 25];
   static const List<Color> _tierColors = [
@@ -100,6 +126,23 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadBadgeStore();
+    _seedCheerMessage();
+  }
+
+  void _seedCheerMessage() {
+    if (_headerCheerMessages.isEmpty) return;
+    _cheerMessageIndex = _random.nextInt(_headerCheerMessages.length);
+  }
+
+  void _nextCheerMessage() {
+    if (_headerCheerMessages.length <= 1) return;
+    setState(() {
+      int next = _random.nextInt(_headerCheerMessages.length);
+      while (next == _cheerMessageIndex) {
+        next = _random.nextInt(_headerCheerMessages.length);
+      }
+      _cheerMessageIndex = next;
+    });
   }
 
   Future<void> _loadBadgeStore() async {
@@ -166,21 +209,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     children: [
                       _buildHeader(character, gameState),
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(18, 4, 18, 2),
-                        child: Row(
-                          children: [
-                            Text(
-                              'Choose Your Game',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                       Expanded(
                         child: GridView.count(
                           crossAxisCount: isPortrait ? 1 : crossAxisCount,
@@ -449,7 +477,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _sideButton(icon: Icons.storefront_rounded, label: '상점', compact: compact, onTap: () => _openShopSheet(context)),
+          _sideButton(icon: Icons.storefront_rounded, label: 'Shop', compact: compact, onTap: () => _openShopSheet(context)),
           _sideButton(
             icon: Icons.calendar_month_rounded,
             label: attendanceLabel,
@@ -457,11 +485,11 @@ class _HomeScreenState extends State<HomeScreen> {
             muted: !attendanceDone,
             onTap: () => _openAttendanceFromMenu(context, gameState),
           ),
-          _sideButton(icon: Icons.workspace_premium_rounded, label: '뱃지', compact: compact, onTap: () => _openBadgesSheet(context)),
-          _sideButton(icon: Icons.emoji_events_rounded, label: '랭킹', compact: compact, onTap: () => _openRankingSheet(context)),
-          _sideButton(icon: Icons.group_rounded, label: '친구', compact: compact, onTap: () => _openFriendsSheet(context)),
-          _sideButton(icon: Icons.help_outline_rounded, label: '도움말', compact: compact, onTap: () => _openGameGuideSheet(context)),
-          _sideButton(icon: Icons.settings_rounded, label: '설정', compact: compact, onTap: () => _openSettingsSheet(context)),
+          _sideButton(icon: Icons.workspace_premium_rounded, label: 'Badges', compact: compact, onTap: () => _openBadgesSheet(context)),
+          _sideButton(icon: Icons.emoji_events_rounded, label: 'Ranking', compact: compact, onTap: () => _openRankingSheet(context)),
+          _sideButton(icon: Icons.group_rounded, label: 'Friends', compact: compact, onTap: () => _openFriendsSheet(context)),
+          _sideButton(icon: Icons.help_outline_rounded, label: 'Guide', compact: compact, onTap: () => _openGameGuideSheet(context)),
+          _sideButton(icon: Icons.settings_rounded, label: 'Settings', compact: compact, onTap: () => _openSettingsSheet(context)),
         ],
       ),
     );
@@ -511,51 +539,96 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader(CharacterProfile character, GameStateManager gameState) {
     final user = FirebaseAuth.instance.currentUser;
-    final displayName = user == null || user.isAnonymous ? '게스트 모드' : (user.displayName ?? 'Google 로그인');
+    final statusLabel = user == null || user.isAnonymous ? 'Guest' : 'Signed In';
+    final cheer = _headerCheerMessages[_cheerMessageIndex % _headerCheerMessages.length];
+    final combinedMessage = 'Hello, ${character.name}. $cheer';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 420;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          return Column(
             children: [
-              CircleAvatar(radius: compact ? 22 : 24, backgroundImage: AssetImage(character.imagePath)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '안녕하세요, ${character.name}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: compact ? 15 : 17, fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
                 children: [
-                  _statChip(
+                  Expanded(
+                    child: Material(
+                      color: Colors.white.withValues(alpha: 0.93),
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: _nextCheerMessage,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 10 : 12,
+                            vertical: compact ? 8 : 9,
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(radius: compact ? 20 : 22, backgroundImage: AssetImage(character.imagePath)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      character.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(fontSize: compact ? 14 : 16, fontWeight: FontWeight.w800),
+                                    ),
+                                    Text(
+                                      statusLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.touch_app_rounded, size: 16, color: AppColors.textSecondary),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _statPill(
                     icon: Icons.favorite,
                     color: AppColors.error,
                     text: '${gameState.hearts}',
                     subText: gameState.hearts >= GameStateManager.maxHearts
                         ? 'FULL'
-                        : '다음 +1 ${gameState.nextHeartCountdownText}',
+                        : 'Next +1 ${gameState.nextHeartCountdownText}',
                   ),
-                  const SizedBox(height: 6),
-                  _statChip(icon: Icons.star, color: AppColors.secondary, text: '${gameState.stars}'),
+                  const SizedBox(width: 6),
+                  _statPill(
+                    icon: Icons.star,
+                    color: AppColors.secondary,
+                    text: '${gameState.stars}',
+                  ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white),
+                ),
+                child: Text(
+                  combinedMessage,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: compact ? 12 : 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ),
             ],
           );
@@ -564,32 +637,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _statChip({
+  Widget _statPill({
     required IconData icon,
     required Color color,
     required String text,
     String? subText,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 18),
+          Icon(icon, color: color, size: 17),
           const SizedBox(width: 4),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(text, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
               if (subText != null)
                 Text(
                   subText,
                   style: const TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600,
                   ),
