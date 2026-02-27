@@ -1857,7 +1857,21 @@ class _HomeScreenState extends State<HomeScreen> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: future,
       builder: (context, snapshot) {
-        final list = snapshot.data ?? const [];
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                '랭킹을 불러오지 못했습니다.\n네트워크 상태를 확인하고 다시 시도해 주세요.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+        final list = snapshot.data ?? const <Map<String, dynamic>>[];
         if (list.isEmpty) {
           return const Center(child: Text('아직 랭킹 데이터가 없습니다.'));
         }
