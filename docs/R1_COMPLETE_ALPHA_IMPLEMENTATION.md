@@ -61,7 +61,7 @@ D/J는 처음부터, L은 C02 S10, U는 C03 S10에서 확정 해금한다. 기�
 | 해금·일일 추천·중복 없는 완료 | `lib/features/progress/domain/` |
 | 6장면·24node·4이야기 | `lib/features/garden/data/garden_catalog.dart` |
 | 지도·정원·결과·복원 화면 | `lib/app/math_adventure_app.dart`, `lib/features/garden/presentation/` |
-| 미디어 팩 | `assets/asset_manifest.json`, `lib/core/assets/retained_asset_bundle.dart`, `android/app/src/main/kotlin/com/user/kvm/MainActivity.kt` |
+| 미디어 팩 | `assets/asset_manifest.json`, `lib/core/assets/retained_asset_bundle.dart`, `android/app/src/main/kotlin/com/crus7230/kvm/renewal/MainActivity.kt` |
 
 ## 검증과 프리뷰
 

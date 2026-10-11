@@ -20,7 +20,7 @@ Android 첫 전체 설치 후 배경과 캐릭터 이미지를 재설치하지 �
 
 ## 업데이트 조건
 
-앱을 삭제하지 않고 같은 `com.user.kvm`, 같은 signing key와 더 높은 versionCode로 업데이트한다. 기존 Kotlin 앱 또는 다른 서명 APK와 호환되는지는 실제 배포 서명과 versionCode를 확인해야 한다. 현재 Gradle 템플릿의 debug 서명을 정식 배포용 서명으로 해석하지 않는다.
+v0.1.1부터 Renewal은 `com.crus7230.kvm.renewal`이라는 별도 앱이다. 기존 Kotlin 앱과 v0.1.0의 `com.user.kvm`을 업데이트하지 않으며 기존 진행이나 미디어 팩을 자동 이관하지 않는다. 새 앱의 최초 설치에는 전체 APK가 필요하다. 이후 Renewal을 업데이트할 때는 앱을 삭제하지 않고 같은 `com.crus7230.kvm.renewal`, 같은 signing key와 더 높은 versionCode를 사용한다. 현재 Gradle 템플릿의 debug 서명을 정식 배포용 서명으로 해석하지 않는다.
 
 Android 앱 전용 파일은 일반 APK 업데이트에서 재사용할 수 있지만 앱 삭제나 데이터 지우기 후에는 남지 않는다. 새 기기와 초기화 후에는 전체 APK가 필요하다. [Android 앱 전용 저장소](https://developer.android.com/training/data-storage/app-specific)와 [Flutter Android 배포](https://docs.flutter.dev/deployment/android)의 설치 및 서명 조건을 따른다.
 

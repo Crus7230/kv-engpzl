@@ -1,4 +1,4 @@
-package com.user.kvm
+package com.crus7230.kvm.renewal
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
