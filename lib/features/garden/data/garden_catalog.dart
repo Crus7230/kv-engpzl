@@ -119,15 +119,17 @@ const r1CharacterStories = <GardenCharacterStory>[
   GardenCharacterStory(
     id: 'r01-character-d-intro',
     characterId: 'CHAR_D',
-    title: '작은 시작',
+    requiredStageId: 'r01-c01-s10',
+    title: '첫 갈림길의 길잡이',
     text:
-        'D는 비어 있는 화단에 첫 씨앗을 심습니다. '
-        '한 번에 모든 길을 만들 필요는 없어요. 오늘 찾은 관계 하나가 시작이니까요.',
+        '첫 다리가 이어지자 D를 구조할 수 있었습니다. '
+        '혼자서 모든 길을 찾을 필요는 없어요. 오늘 찾은 관계 하나부터 함께 이어 보세요.',
   ),
   GardenCharacterStory(
     id: 'r01-character-j-intro',
     characterId: 'CHAR_J',
-    title: '정원에서 찾는 관계',
+    requiredStageId: 'r01-c01-s10',
+    title: '탐험길에서 찾는 관계',
     text:
         'J는 퍼즐에서 찾은 숫자 조각을 나란히 놓습니다. '
         '조각을 많이 모으는 것만큼 중요한 건, 문장 속에서 어떻게 이어지는지 찾는 일이에요.',
@@ -135,20 +137,20 @@ const r1CharacterStories = <GardenCharacterStory>[
   GardenCharacterStory(
     id: 'r01-character-l-intro',
     characterId: 'CHAR_L',
-    requiredStageId: 'r01-c02-s10',
+    requiredStageId: 'r01-c03-s10',
     title: '함께 만드는 물길',
     text:
-        '과수원의 길이 이어지자 L이 평원에 합류합니다. '
+        '오래된 수문이 열리자 L을 구조하고 탐험대에 맞이합니다. '
         '같은 묶음을 보고, 남은 것을 세어 보세요. 서로 다른 계산도 하나의 물길로 이어질 수 있어요.',
   ),
   GardenCharacterStory(
     id: 'r01-character-u-intro',
     characterId: 'CHAR_U',
-    requiredStageId: 'r01-c03-s10',
-    title: '다시 돌아올 정원',
+    requiredStageId: 'r01-c05-s10',
+    title: '다시 살펴보는 탐험길',
     text:
-        '연못이 완성되자 U가 기억의 씨앗을 가져옵니다. '
-        '같은 관계가 다른 문장으로 돌아오면 다시 찾아보세요. 잠깐 쉬었다 돌아와도 정원은 그대로 기다립니다.',
+        '봉인 공방으로 가는 길이 열리자 U를 구조했습니다. '
+        '같은 관계가 다른 문장으로 돌아오면 다시 찾아보세요. 잠깐 쉬었다 돌아와도 탐험한 길은 그대로 남아 있습니다.',
   ),
 ];
 

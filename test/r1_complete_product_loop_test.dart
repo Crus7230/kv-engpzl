@@ -13,6 +13,8 @@ import 'package:kvm/features/discovery/presentation/stage_session_controller.dar
 import 'package:kvm/features/garden/data/garden_catalog.dart';
 import 'package:kvm/features/garden/domain/garden_models.dart';
 import 'package:kvm/features/garden/presentation/garden_screens.dart';
+import 'package:kvm/features/companions/presentation/companion_screens.dart';
+import 'package:kvm/features/exploration/data/r1_expedition_catalog.dart';
 import 'package:kvm/features/progress/progress.dart';
 
 void _viewport(WidgetTester tester) {
@@ -22,6 +24,12 @@ void _viewport(WidgetTester tester) {
   addTearDown(tester.view.resetPhysicalSize);
 }
 
+SaveEnvelopeV1 _existingPlayer(SaveEnvelopeV1 save) => save.copyWith(
+  playerCharacterId: 'CHAR_D',
+  onboardingCompleted: true,
+  unlockedCharacterIds: {...save.unlockedCharacterIds, 'CHAR_D', 'CHAR_J'},
+);
+
 Future<void> _boot(
   WidgetTester tester,
   MemoryKeyValueSaveStore store,
@@ -29,7 +37,10 @@ Future<void> _boot(
 ) async {
   await tester.pumpWidget(
     MathAdventureApp(
-      repository: ProgressRepository(store),
+      repository: ProgressRepository(
+        store,
+        initialFactory: () => _existingPlayer(SaveEnvelopeV1.initial()),
+      ),
       assetBundle: rootBundle,
       now: () => now,
     ),
@@ -83,9 +94,16 @@ Future<void> _restore(
     find.byType(RestorationRevealScreen),
   );
   expect(screen.node!.id, node.id);
-  expect(find.text(node.storyText!), findsOneWidget);
-  await _tap(tester, find.text(gardenDecorationLabel(decoration)), node.id);
-  await _tap(tester, find.text('이 모습으로 꾸미기'), '${node.id} finish restoration');
+  expect(find.text(expeditionMilestoneTitle(node)), findsOneWidget);
+  await _tap(tester, find.text(expeditionDecorationLabel(decoration)), node.id);
+  await _tap(tester, find.text('탐험을 계속하기'), '${node.id} finish discovery');
+  while (find.byType(CompanionArrivalScreen).evaluate().isNotEmpty) {
+    await _tap(
+      tester,
+      find.byKey(const Key('companion-arrival-continue')),
+      '${node.id} companion arrival',
+    );
+  }
   expect(find.byType(CampaignRegionGardenScreen), findsOneWidget);
 }
 
@@ -151,7 +169,7 @@ void main() {
           );
           await _tap(
             tester,
-            find.text('열린 정원 복원하기'),
+            find.text('탐험의 흔적 남기기'),
             '${stage.id} restoration reward',
           );
           await _restore(tester, node, gardenDecorationIds[index % 3]);
@@ -184,30 +202,32 @@ void main() {
         region.featuredCharacterIds.toSet(),
       );
       expect(complete.unlockedStageIds, contains('r02-c01-s01'));
-      expect(find.text('계산의 평원 완료 · 다음 지역 업데이트 예정'), findsOneWidget);
+      expect(find.text('평원 탐험 완료 · 다음 지역 업데이트 예정'), findsOneWidget);
       final completeGarden = tester.widget<CampaignRegionGardenScreen>(
         find.byType(CampaignRegionGardenScreen),
       );
       expect(completeGarden.onPlay, isNull);
-      expect(find.text('탐험 묶음 완료'), findsOneWidget);
+      expect(find.text('평원 탐험 완료'), findsOneWidget);
 
-      // Every project tab selects its own composited scene and chapter path.
-      final labels = ['C01', 'C02', 'C03', '기억', '공방', '심화'];
+      // Every destination tab retains its original ten stable stage nodes.
+      final labels = ['입구', '수확길', '수문', '기억길', '공방', '전망대'];
       for (var chapter = 0; chapter < labels.length; chapter++) {
         await _tap(
           tester,
           find.text(labels[chapter]),
           'project ${labels[chapter]}',
         );
-        final scene = tester.widget<GardenScene>(find.byType(GardenScene));
-        expect(scene.project!.chapterId, 'r01-c0${chapter + 1}');
+        expect(
+          find.byKey(ValueKey('expedition-stage-r01-c0${chapter + 1}-s01')),
+          findsOneWidget,
+        );
       }
 
       // Read every unlocked character story. Merely unlocking a character did
       // not mark these stories viewed during the campaign completion loop.
       for (final story in r1CharacterStories) {
         expect(complete.viewedStoryIds, isNot(contains(story.id)));
-        await _tap(tester, find.text('친구들의 이야기'), '${story.id} chooser');
+        await _tap(tester, find.byTooltip('탐험 이야기'), '${story.id} chooser');
         final storyEntry = find.text(
           '${story.characterId.substring(5)} · ${story.title}',
         );
@@ -237,11 +257,11 @@ void main() {
       // completion receipts remain untouched.
       final beforeDecoration = await ProgressRepository(store).load();
       final firstNode = garden.restorationNodes.first;
-      await _tap(tester, find.text('정원 돌보기'), 'per-node decoration chooser');
-      expect(find.text('돌볼 정원을 고르세요'), findsOneWidget);
+      await _tap(tester, find.text('탐험 흔적'), 'per-node decoration chooser');
+      expect(find.text('탐험 흔적 고르기'), findsOneWidget);
       await _tap(
         tester,
-        find.text(firstNode.title),
+        find.text(expeditionMilestoneTitle(firstNode)),
         'choose first restored node',
       );
       await _restore(tester, firstNode, 'herbs');
@@ -264,7 +284,11 @@ void main() {
 
       // R2's stable unlock metadata is present, but no planned region has an
       // executable puzzle or exploration button in this release.
-      await _tap(tester, find.byTooltip('이전 화면'), 'garden back to world');
+      await _tap(
+        tester,
+        find.byTooltip('탐험 지도에서 월드맵으로'),
+        'trail back to world',
+      );
       await _tap(
         tester,
         find.byTooltip('규칙과 패턴의 숲 · 업데이트 예정'),
@@ -312,7 +336,7 @@ void main() {
       expect(afterReview.restoredNodeIds, hasLength(24));
       expect(afterReview.rewardLedger, hasLength(61));
       expect(afterReview.dailyReviewActions['2026-10-12'], 1);
-      await _tap(tester, find.text('정원으로 돌아가기'), 'review natural endpoint');
+      await _tap(tester, find.text('탐험 지도로 돌아가기'), 'review natural endpoint');
       expect(find.byType(CampaignRegionGardenScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -328,9 +352,11 @@ void main() {
       final store = MemoryKeyValueSaveStore();
       await ProgressRepository(
         store,
-        initialFactory: () => SaveEnvelopeV1(
-          unlockedStageIds: const ['r02-c01-s01'],
-          completedStageIds: const ['r01-c03-s10'],
+        initialFactory: () => _existingPlayer(
+          SaveEnvelopeV1(
+            unlockedStageIds: const ['r02-c01-s01'],
+            completedStageIds: const ['r01-c03-s10'],
+          ),
         ),
       ).update(
         (save) => save.copyWith(viewedStoryIds: const ['fixture-ready']),
@@ -365,23 +391,24 @@ void main() {
     final store = MemoryKeyValueSaveStore();
     await ProgressRepository(
       store,
-      initialFactory: () => SaveEnvelopeV1(
-        unlockedStageIds: targets.map((stage) => stage.id),
-        completedStageIds: targets.map(
-          (stage) => stage.recurrencePlan!.sourceStageId,
+      initialFactory: () => _existingPlayer(
+        SaveEnvelopeV1(
+          unlockedStageIds: targets.map((stage) => stage.id),
+          completedStageIds: targets.map(
+            (stage) => stage.recurrencePlan!.sourceStageId,
+          ),
         ),
       ),
     ).update((save) => save.copyWith(viewedStoryIds: const ['fixture-ready']));
     await _boot(tester, store, DateTime(2026, 10, 11));
     await _tap(tester, find.text('계산의 평원'), 'R1 chapter gates');
     for (var index = 0; index < targets.length; index++) {
-      await _tap(tester, find.text(index == 0 ? '공방' : '심화'), 'gated tab');
-      final tile = find.ancestor(
-        of: find.text('S01 · ${targets[index].title}'),
-        matching: find.byType(ListTile),
+      await _tap(tester, find.text(index == 0 ? '공방' : '전망대'), 'gated tab');
+      final tile = find.byKey(
+        ValueKey('expedition-stage-${targets[index].id}'),
       );
       expect(tile, findsOneWidget);
-      expect(tester.widget<ListTile>(tile).onTap, isNull);
+      expect(tester.widget<InkResponse>(tile).onTap, isNull);
       expect(find.byType(DiscoveryPuzzleScreen), findsNothing);
     }
     expect((await ProgressRepository(store).load()).rewardLedger, isEmpty);

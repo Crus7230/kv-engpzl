@@ -15,6 +15,9 @@ import '../features/garden/data/garden_catalog.dart';
 import '../features/discovery/presentation/discovery_puzzle_screen.dart';
 import '../features/discovery/presentation/stage_session_controller.dart';
 import '../features/garden/presentation/garden_screens.dart';
+import '../features/companions/companions.dart';
+import '../features/exploration/data/r1_expedition_catalog.dart';
+import '../features/onboarding/presentation/expedition_onboarding_screen.dart';
 import '../features/progress/progress.dart';
 
 void runMathAdventureApp() {
@@ -108,6 +111,9 @@ enum RenewalRoute {
   puzzle,
   result,
   restoration,
+  onboarding,
+  companions,
+  companionArrival,
 }
 
 class _MathAdventureAppState extends State<MathAdventureApp>
@@ -130,8 +136,12 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   String? _reviewTicketId;
   bool _isDailyReview = false;
   String? _restorationNodeId;
+  CompanionRecruitment? _arrival;
+  bool _arrivalReplay = false;
+  RenewalRoute _companionReturnRoute = RenewalRoute.worldMap;
   CampaignDefinition get _campaign => widget.campaign ?? initialCampaign;
   bool get _usesPrototype => identical(_campaign, prototypeCampaign);
+  bool get _needsOnboarding => !_usesPrototype && !_save!.onboardingCompleted;
   DateTime get _now => widget.now?.call() ?? DateTime.now();
   StageDefinition get _stage =>
       _selectedStage ??
@@ -194,11 +204,16 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       setState(() => _loadError = null);
     }
     try {
-      final save = await _repository.load();
+      final save = _usesPrototype
+          ? await _repository.load()
+          : await CompanionProgressService(_repository).reconcileEligibility();
       if (mounted)
         setState(() {
           _save = save;
           _loadError = null;
+          if (!_usesPrototype && !save.onboardingCompleted) {
+            _route = RenewalRoute.onboarding;
+          }
         });
     } catch (error) {
       if (mounted) setState(() => _loadError = error);
@@ -231,10 +246,152 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     if (mounted) setState(() => _save = save);
   }
 
-  void _showRegion(String id) => setState(() {
+  void _showRegion(String id) {
     _regionId = id;
-    _route = RenewalRoute.regionGarden;
+    _returnToExpedition();
+  }
+
+  void _returnToExpedition() {
+    if (!mounted) return;
+    final arrival = _usesPrototype || _needsOnboarding
+        ? null
+        : nextUnviewedCompanionArrival(_save!, regionId: _regionId);
+    setState(() {
+      _arrival = arrival;
+      _arrivalReplay = false;
+      _route = _needsOnboarding
+          ? RenewalRoute.onboarding
+          : arrival != null
+          ? RenewalRoute.companionArrival
+          : RenewalRoute.regionGarden;
+    });
+  }
+
+  void _navigateBack() {
+    if (_busy) return;
+    if (_route == RenewalRoute.puzzle) {
+      unawaited(_exitPuzzle());
+    } else if (_route == RenewalRoute.companions) {
+      setState(() => _route = _companionReturnRoute);
+    } else if (_route == RenewalRoute.companionArrival) {
+      setState(() {
+        _route = _arrivalReplay
+            ? RenewalRoute.companions
+            : RenewalRoute.regionGarden;
+        _arrivalReplay = false;
+      });
+    } else if (_route == RenewalRoute.regionGarden) {
+      setState(() => _route = RenewalRoute.worldMap);
+    } else if (_route != RenewalRoute.worldMap &&
+        _route != RenewalRoute.onboarding) {
+      _returnToExpedition();
+    }
+  }
+
+  void _showCompanions() => setState(() {
+    _arrivalReplay = false;
+    _companionReturnRoute = _route == RenewalRoute.worldMap
+        ? RenewalRoute.worldMap
+        : RenewalRoute.regionGarden;
+    _route = RenewalRoute.companions;
   });
+
+  void _replayArrival(String id) {
+    final arrival = companionRecruitmentById(id);
+    if (arrival == null ||
+        _save!.playerCharacterId == id ||
+        !_save!.unlockedCharacterIds.contains(id) ||
+        !isCompanionRecruitmentEligible(arrival, _save!.completedStageIds)) {
+      return;
+    }
+    setState(() {
+      _arrival = arrival;
+      _arrivalReplay = true;
+      _route = RenewalRoute.companionArrival;
+    });
+  }
+
+  Future<void> _finishArrival() async {
+    final arrival = _arrival;
+    if (_busy || arrival == null) return;
+    setState(() => _busy = true);
+    try {
+      final save = await CompanionProgressService(
+        _repository,
+      ).markArrivalViewed(arrival.characterId);
+      if (!mounted) return;
+      setState(() {
+        _save = save;
+        _statusMessage = null;
+      });
+      if (_arrivalReplay) {
+        setState(() {
+          _arrivalReplay = false;
+          _route = RenewalRoute.companions;
+        });
+      } else {
+        _returnToExpedition();
+      }
+    } catch (error) {
+      _onSaveError(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _choosePlayer(String id) async {
+    if (_busy || !_needsOnboarding || companionProfileById(id) == null) return;
+    setState(() => _busy = true);
+    try {
+      await _update((save) {
+        if (save.onboardingCompleted || save.playerCharacterId != null)
+          return save;
+        return save.copyWith(
+          playerCharacterId: id,
+          unlockedCharacterIds: {...save.unlockedCharacterIds, id},
+        );
+      });
+      if (mounted) setState(() => _statusMessage = null);
+    } catch (error) {
+      _onSaveError(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _startTutorial() {
+    if (_save!.playerCharacterId == null || _busy) return;
+    final stage = _campaign.stageById('r01-c01-s01');
+    if (stage == null || !_canEnterStage(stage)) return;
+    setState(() {
+      _selectedStage = stage;
+      _reviewTicketId = null;
+      _isDailyReview = false;
+      _route = RenewalRoute.briefing;
+    });
+  }
+
+  Future<void> _depart() async {
+    if (_busy || !_needsOnboarding) return;
+    setState(() => _busy = true);
+    try {
+      await _update((save) {
+        if (save.playerCharacterId == null ||
+            !save.completedStageIds.contains('r01-c01-s01'))
+          return save;
+        return save.copyWith(onboardingCompleted: true);
+      });
+      if (!_needsOnboarding) {
+        if (mounted) setState(() => _statusMessage = null);
+        _returnToExpedition();
+      }
+    } catch (error) {
+      _onSaveError(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   void _showBriefing() {
     if (_regionId != 'region-01-calculation') return;
     final active = _save!.activeSession;
@@ -399,7 +556,9 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       if (!mounted) return;
       setState(() {
         _save = save;
-        _route = RenewalRoute.regionGarden;
+        _route = _needsOnboarding
+            ? RenewalRoute.onboarding
+            : RenewalRoute.regionGarden;
         _session = null;
       });
       session.dispose();
@@ -464,7 +623,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     final selected = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('돌볼 정원을 고르세요'),
+        title: Text(_usesPrototype ? '돌볼 정원을 고르세요' : '탐험 흔적 고르기'),
         content: SizedBox(
           width: 400,
           child: ListView(
@@ -485,11 +644,11 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                           ? Icons.local_florist_outlined
                           : Icons.grass_outlined,
                     ),
-                    title: Text(node.title),
+                    title: Text(expeditionMilestoneTitle(node)),
                     subtitle: Text(
                       _save!.restoredNodeIds.contains(node.id)
-                          ? '무료로 장식 바꾸기'
-                          : '복원할 준비가 되었어요',
+                          ? '무료로 표식 바꾸기'
+                          : '새로운 탐험의 흔적',
                     ),
                     onTap: () => Navigator.pop(context, node.id),
                   ),
@@ -533,9 +692,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                         ? _save!.viewedStoryIds.contains(entry.id)
                               ? '다시 읽기'
                               : '새 이야기'
-                        : entry.requiredStageId == 'r01-c02-s10'
-                        ? 'C02 S10에서 만나요'
-                        : 'C03 S10에서 만나요',
+                        : '${(entry.requiredStageId?.substring(4) ?? '다음 탐험').toUpperCase().replaceAll('-', ' ')}에서 만나요',
                   ),
                   onTap: unlocked.contains(entry.characterId)
                       ? () => Navigator.pop(context, entry.id)
@@ -635,7 +792,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         );
       });
       if (!_save!.restoredNodeIds.contains(nodeId)) return;
-      if (mounted) setState(() => _route = RenewalRoute.regionGarden);
+      if (mounted) _returnToExpedition();
     } catch (error) {
       _onSaveError(error);
     } finally {
@@ -777,64 +934,81 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             ))
           region.id,
     };
+    final showRegionFoundation =
+        !_needsOnboarding &&
+        _route != RenewalRoute.worldMap &&
+        (_route != RenewalRoute.companions ||
+            _companionReturnRoute == RenewalRoute.regionGarden);
     final pages = <Page<void>>[
       MaterialPage(
-        key: const ValueKey(RenewalRoute.worldMap),
-        child: WorldMapScreen(
-          unlockedRegionIds: unlockedRegions,
-          restoredNodeIds: save.restoredNodeIds,
-          totalStars: save.bestStars.values.fold(0, (a, b) => a + b),
-          weeklyActions: _weeklyActions(save),
-          onExplore:
-              daily.explorationStage == null && save.activeSession == null
-              ? null
-              : () {
-                  _regionId = 'region-01-calculation';
-                  _showBriefing();
-                },
-          onReview: daily.reviewStage == null
-              ? null
-              : () => unawaited(
-                  _openStage(
-                    context,
-                    daily.reviewStage!,
-                    reviewTicketId:
-                        daily.reviewKind == DailyReviewKind.dueReview
-                        ? daily.reviewTicket?.id
-                        : null,
-                    isReview: true,
-                  ),
-                ),
-          reviewDetail: _usesPrototype
-              ? null
-              : daily.reviewCompletedToday
-              ? '오늘의 복습 완료'
-              : daily.reviewStage == null
-              ? '첫 탐험 뒤 내일부터 복습해요'
-              : daily.reviewKind == DailyReviewKind.dueReview
-              ? '돌아온 개념 · 기억 꺼내기'
-              : '하루 한 개 · 가볍게 다시 풀기',
-          explorationDetail: _usesPrototype
-              ? null
-              : save.activeSession != null
-              ? '저장된 탐험 이어가기'
-              : daily.explorationStage == null
-              ? daily.completedRegionIds.contains('region-01-calculation')
-                    ? '평원 완료 · 다음 지역 업데이트 예정'
-                    : '새 묶음 준비 중 · 복습은 계속'
-              : '${daily.explorationStage!.chapterId.toUpperCase()} S${daily.explorationStage!.number.toString().padLeft(2, '0')}',
-          onRestore: _canRestore
-              ? () {
-                  _regionId = 'region-01-calculation';
-                  _showRestoration(daily.pendingRestorationNodeId);
-                }
-              : null,
-          onSelectRegion: _showRegion,
-          onSettings: () => unawaited(_settings(context)),
-          statusMessage: _statusMessage,
+        key: ValueKey(
+          _needsOnboarding ? RenewalRoute.onboarding : RenewalRoute.worldMap,
         ),
+        child: _needsOnboarding
+            ? ExpeditionOnboardingScreen(
+                save: save,
+                saving: _busy,
+                errorMessage: _statusMessage,
+                onChoosePlayer: (id) => unawaited(_choosePlayer(id)),
+                onStartTutorial: _startTutorial,
+                onDepart: () => unawaited(_depart()),
+              )
+            : WorldMapScreen(
+                unlockedRegionIds: unlockedRegions,
+                restoredNodeIds: save.restoredNodeIds,
+                totalStars: save.bestStars.values.fold(0, (a, b) => a + b),
+                weeklyActions: _weeklyActions(save),
+                onExplore:
+                    daily.explorationStage == null && save.activeSession == null
+                    ? null
+                    : () {
+                        _regionId = 'region-01-calculation';
+                        _showBriefing();
+                      },
+                onReview: daily.reviewStage == null
+                    ? null
+                    : () => unawaited(
+                        _openStage(
+                          context,
+                          daily.reviewStage!,
+                          reviewTicketId:
+                              daily.reviewKind == DailyReviewKind.dueReview
+                              ? daily.reviewTicket?.id
+                              : null,
+                          isReview: true,
+                        ),
+                      ),
+                reviewDetail: _usesPrototype
+                    ? null
+                    : daily.reviewCompletedToday
+                    ? '오늘의 복습 완료'
+                    : daily.reviewStage == null
+                    ? '첫 탐험 뒤 내일부터 복습해요'
+                    : daily.reviewKind == DailyReviewKind.dueReview
+                    ? '돌아온 개념 · 기억 꺼내기'
+                    : '하루 한 개 · 가볍게 다시 풀기',
+                explorationDetail: _usesPrototype
+                    ? null
+                    : save.activeSession != null
+                    ? '저장된 탐험 이어가기'
+                    : daily.explorationStage == null
+                    ? daily.completedRegionIds.contains('region-01-calculation')
+                          ? '평원 완료 · 다음 지역 업데이트 예정'
+                          : '새 묶음 준비 중 · 복습은 계속'
+                    : '${daily.explorationStage!.chapterId.toUpperCase()} S${daily.explorationStage!.number.toString().padLeft(2, '0')}',
+                onRestore: _canRestore
+                    ? () {
+                        _regionId = 'region-01-calculation';
+                        _showRestoration(daily.pendingRestorationNodeId);
+                      }
+                    : null,
+                onSelectRegion: _showRegion,
+                onSettings: () => unawaited(_settings(context)),
+                onCompanions: _usesPrototype ? null : _showCompanions,
+                statusMessage: _statusMessage,
+              ),
       ),
-      if (_route != RenewalRoute.worldMap)
+      if (showRegionFoundation)
         MaterialPage(
           key: const ValueKey(RenewalRoute.regionGarden),
           child: !_usesPrototype && _regionId == 'region-01-calculation'
@@ -846,6 +1020,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                   decorationChoices: save.decorationChoices,
                   nextStageId: daily.explorationStage?.id,
                   unlockedCharacterIds: save.unlockedCharacterIds,
+                  playerCharacterId: save.playerCharacterId,
+                  onCompanions: _showCompanions,
                   canEnterStage: _canEnterStage,
                   onStories: () => unawaited(_viewCharacterStories(context)),
                   onBack: () => setState(() => _route = RenewalRoute.worldMap),
@@ -879,11 +1055,12 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         MaterialPage(
           key: const ValueKey(RenewalRoute.briefing),
           child: StageBriefingScreen(
+            playerCharacterId: save.playerCharacterId,
             stage: _usesPrototype || _stage.id == verticalSliceStage.id
                 ? null
                 : _stage,
             isReview: _isDailyReview || _stage.chapterId == 'r01-c04',
-            onBack: () => setState(() => _route = RenewalRoute.regionGarden),
+            onBack: _returnToExpedition,
             onStart: () => unawaited(_start(context)),
             resume: save.activeSession != null,
           ),
@@ -909,22 +1086,30 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             hasRestoration: _receipt!.unlockedRestorationNodeIds.isNotEmpty,
             continueLabel: _usesPrototype
                 ? null
+                : _needsOnboarding
+                ? '모험 출발하기'
                 : _receipt!.unlockedRestorationNodeIds.isNotEmpty
-                ? '열린 정원 복원하기'
+                ? '탐험의 흔적 남기기'
                 : daily.explorationStage == null
-                ? '정원으로 돌아가기'
+                ? '탐험 지도로 돌아가기'
                 : '다음 탐험 안내',
             stars: _receipt!.stars,
             firstCompletion: _receipt!.firstCompletion,
             onContinue: () {
-              if (_receipt!.unlockedRestorationNodeIds.isNotEmpty)
+              if (_needsOnboarding) {
+                unawaited(_depart());
+              } else if (_receipt!.unlockedRestorationNodeIds.isNotEmpty)
                 _showRestoration(_receipt!.unlockedRestorationNodeIds.first);
+              else if (!_usesPrototype &&
+                  nextUnviewedCompanionArrival(save, regionId: _regionId) !=
+                      null)
+                _returnToExpedition();
               else if (!_usesPrototype && daily.explorationStage != null)
                 unawaited(_openStage(context, daily.explorationStage!));
               else
-                setState(() => _route = RenewalRoute.regionGarden);
+                _returnToExpedition();
             },
-            onBack: () => setState(() => _route = RenewalRoute.regionGarden),
+            onBack: _returnToExpedition,
           ),
         ),
       if (_route == RenewalRoute.restoration)
@@ -947,25 +1132,49 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             onFinish: () => unawaited(_finishRestoration()),
           ),
         ),
+      if (_route == RenewalRoute.companions)
+        MaterialPage(
+          key: const ValueKey(RenewalRoute.companions),
+          child: CompanionCollectionScreen(
+            save: save,
+            onBack: () => setState(() => _route = _companionReturnRoute),
+            onReplayArrival: _replayArrival,
+          ),
+        ),
+      if (_route == RenewalRoute.companionArrival && _arrival != null)
+        MaterialPage(
+          key: ValueKey(_arrival!.arrivalStoryId),
+          child: CompanionArrivalScreen(
+            recruitment: _arrival!,
+            replay: _arrivalReplay,
+            saving: _busy,
+            errorMessage: _statusMessage,
+            onContinue: () => unawaited(_finishArrival()),
+          ),
+        ),
     ];
     return Stack(
       children: [
-        Navigator(
-          pages: pages,
-          onDidRemovePage: (page) {
-            if (!pages.contains(page)) return;
-            if (_route == RenewalRoute.puzzle) {
-              unawaited(_exitPuzzle());
-            } else if (_route != RenewalRoute.worldMap)
-              setState(
-                () => _route =
-                    page.key == const ValueKey(RenewalRoute.regionGarden)
-                    ? RenewalRoute.worldMap
-                    : RenewalRoute.regionGarden,
-              );
+        // MaterialApp owns an outer home route; system back must reach this
+        // typed inner navigation rather than popping/exiting that home route.
+        PopScope<void>(
+          canPop:
+              _route == RenewalRoute.worldMap ||
+              _route == RenewalRoute.onboarding,
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop) _navigateBack();
           },
+          child: Navigator(
+            pages: pages,
+            onDidRemovePage: (page) {
+              if (pages.contains(page)) _navigateBack();
+            },
+          ),
         ),
-        if (_statusMessage != null && _route != RenewalRoute.worldMap)
+        if (_statusMessage != null &&
+            _route != RenewalRoute.worldMap &&
+            !_needsOnboarding &&
+            _route != RenewalRoute.companionArrival)
           Positioned(
             left: 12,
             right: 12,

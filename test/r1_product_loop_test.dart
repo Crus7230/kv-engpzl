@@ -18,9 +18,16 @@ import 'package:kvm/features/discovery/presentation/engine_discovery_puzzle_view
 import 'package:kvm/features/discovery/presentation/stage_session_controller.dart';
 import 'package:kvm/features/garden/presentation/garden_screens.dart';
 import 'package:kvm/features/garden/data/garden_catalog.dart';
+import 'package:kvm/features/exploration/data/r1_expedition_catalog.dart';
 import 'package:kvm/features/progress/progress.dart';
 
 StageDefinition _stage(String id) => initialCampaign.stageById(id)!;
+
+SaveEnvelopeV1 _existingPlayer(SaveEnvelopeV1 save) => save.copyWith(
+  playerCharacterId: 'CHAR_D',
+  onboardingCompleted: true,
+  unlockedCharacterIds: {...save.unlockedCharacterIds, 'CHAR_D', 'CHAR_J'},
+);
 
 void _viewport(WidgetTester tester, Size size) {
   tester.view.devicePixelRatio = 1;
@@ -89,7 +96,10 @@ Future<void> _boot(
     RepaintBoundary(
       key: boundaryKey,
       child: MathAdventureApp(
-        repository: ProgressRepository(store),
+        repository: ProgressRepository(
+          store,
+          initialFactory: () => _existingPlayer(SaveEnvelopeV1.initial()),
+        ),
         assetBundle: rootBundle,
         now: () => now,
       ),
@@ -138,7 +148,7 @@ Future<MemoryKeyValueSaveStore> _seedStore(SaveEnvelopeV1 seed) async {
   final store = MemoryKeyValueSaveStore();
   await ProgressRepository(
     store,
-    initialFactory: () => seed,
+    initialFactory: () => _existingPlayer(seed),
   ).update((save) => save.copyWith(viewedStoryIds: const ['fixture-ready']));
   return store;
 }
@@ -218,13 +228,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('결과 보기'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('열린 정원 복원하기'));
+      await tester.tap(find.text('탐험의 흔적 남기기'));
       await tester.pumpAndSettle();
       expect(find.byType(RestorationRevealScreen), findsOneWidget);
       await _capture(tester, boundary, 'restoration_800x360_text100');
-      await tester.tap(find.text('향기로운 허브'));
+      await tester.tap(find.text(expeditionDecorationLabel('herbs')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('이 모습으로 꾸미기'));
+      await tester.tap(find.text('탐험을 계속하기'));
       await tester.pumpAndSettle();
       expect(find.byType(CampaignRegionGardenScreen), findsOneWidget);
       await _capture(tester, boundary, 'garden-after_800x360_text100');
@@ -501,14 +511,7 @@ void main() {
       ),
     );
     for (final chapter in [1, 2, 3, 4, 5, 6]) {
-      await tester.tap(
-        find.text(switch (chapter) {
-          4 => '기억',
-          5 => '공방',
-          6 => '심화',
-          _ => 'C0$chapter',
-        }),
-      );
+      await tester.tap(find.byKey(ValueKey('expedition-chapter-$chapter')));
       await tester.pumpAndSettle();
       await _capture(
         tester,

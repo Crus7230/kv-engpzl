@@ -198,11 +198,55 @@ void main() {
   test('initial save unlocks prototype and first regional stage', () async {
     final initial = await ProgressRepository(MemoryKeyValueSaveStore()).load();
     expect(initial.generation, 0);
+    expect(initial.playerCharacterId, isNull);
+    expect(initial.onboardingCompleted, isFalse);
+    expect(initial.unlockedCharacterIds, isEmpty);
     expect(
       initial.unlockedStageIds,
       containsAll(['prototype-bundle-add', 'r01-c01-s01']),
     );
   });
+
+  test(
+    'current-epoch selection and completed tutorial survive persisted restart',
+    () async {
+      final selected = SaveEnvelopeV1(
+        playerCharacterId: 'CHAR_D',
+        onboardingCompleted: true,
+        completedStageIds: ['r01-c01-s10', 'preserved-old-stage'],
+        unlockedStageIds: ['r01-c02-s01'],
+        unlockedCharacterIds: [
+          'CHAR_D',
+          'CHAR_J',
+          'CHAR_L',
+          'CHAR_U',
+          'preserved-old-character',
+        ],
+        viewedStoryIds: ['r01-character-j-intro'],
+        bestStars: {'r01-c01-s10': 3},
+        activeSession: {
+          'stageId': 'r01-c02-s01',
+          'draft': ['4', '×'],
+          'moves': 7,
+        },
+      );
+      final json = selected.toJson();
+      final store = MemoryKeyValueSaveStore({
+        ProgressRepository.slotAKey: jsonEncode(json),
+        ProgressRepository.pointerKey: 'a',
+      });
+      final before = {...store.values};
+      final restored = await ProgressRepository(store).load();
+      expect(restored.playerCharacterId, 'CHAR_D');
+      expect(restored.onboardingCompleted, isTrue);
+      expect(restored.unlockedCharacterIds, selected.unlockedCharacterIds);
+      expect(restored.completedStageIds, selected.completedStageIds);
+      expect(restored.viewedStoryIds, selected.viewedStoryIds);
+      expect(restored.bestStars, selected.bestStars);
+      expect(restored.activeSession, selected.activeSession);
+      expect(store.values, before);
+    },
+  );
 
   test('parallel transforms serialize and preserve every update', () async {
     final repository = ProgressRepository(MemoryKeyValueSaveStore());

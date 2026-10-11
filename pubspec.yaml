@@ -1,7 +1,7 @@
 name: kvm
 description: "KVs Math Adventure 2026 renewal prototype."
 publish_to: 'none'
-version: 0.1.3+4
+version: 0.1.4+5
 
 environment:
   sdk: ^3.12.0
@@ -19,4 +19,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/legacy/
+    - assets/expedition/
     - assets/asset_manifest.json

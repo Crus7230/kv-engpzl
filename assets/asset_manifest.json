@@ -1,8 +1,8 @@
 {
   "manifestVersion": 1,
-  "packId": "r1-media-v2",
+  "packId": "r1-media-v3",
   "sourceRoot": "..",
-  "policy": "Legacy originals are preserved. These are selected binary copies, not optimized derivatives.",
+  "policy": "Original assets are preserved. Legacy sprites are binary copies; expedition artwork is independently generated and versioned.",
   "assets": [
     {
       "path": "assets/legacy/world-map.png",
@@ -12,7 +12,9 @@
       "height": 2413,
       "bytes": 3052685,
       "transparency": "source PNG preserved",
-      "screens": ["WorldMapScreen"],
+      "screens": [
+        "WorldMapScreen"
+      ],
       "characterId": null
     },
     {
@@ -23,7 +25,10 @@
       "height": 1536,
       "bytes": 4296107,
       "transparency": "source PNG preserved",
-      "screens": ["RegionGardenScreen", "RestorationRevealScreen"],
+      "screens": [
+        "RegionGardenScreen",
+        "RestorationRevealScreen"
+      ],
       "characterId": null
     },
     {
@@ -34,7 +39,11 @@
       "height": 1500,
       "bytes": 149443,
       "transparency": "transparent source PNG preserved",
-      "screens": ["RegionGardenScreen", "RestorationRevealScreen"],
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
       "characterId": "CHAR_D"
     },
     {
@@ -45,7 +54,11 @@
       "height": 1500,
       "bytes": 79942,
       "transparency": "transparent source PNG preserved",
-      "screens": ["RegionGardenScreen", "RestorationRevealScreen"],
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
       "characterId": "CHAR_J"
     },
     {
@@ -56,7 +69,11 @@
       "height": 1500,
       "bytes": 79988,
       "transparency": "transparent source PNG preserved",
-      "screens": ["CampaignRegionGardenScreen", "RestorationRevealScreen"],
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
       "characterId": "CHAR_L"
     },
     {
@@ -67,8 +84,399 @@
       "height": 1500,
       "bytes": 164332,
       "transparency": "transparent source PNG preserved",
-      "screens": ["CampaignRegionGardenScreen", "RestorationRevealScreen"],
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
       "characterId": "CHAR_U"
+    },
+    {
+      "path": "assets/legacy/char-a.png",
+      "sourcePath": "PNGs/character/ic_char_a.png",
+      "sha256": "83C190639825910DE8E17B0476920A027D80BAF3365927BBFE06319FCE800B47",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 97803,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_A"
+    },
+    {
+      "path": "assets/legacy/char-b.png",
+      "sourcePath": "PNGs/character/ic_char_b.png",
+      "sha256": "19C2575FB5DF91482FB5F7BC1FF766FFB699335981FE2E908A5003BB50DC3701",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 114029,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_B"
+    },
+    {
+      "path": "assets/legacy/char-c.png",
+      "sourcePath": "PNGs/character/ic_char_c.png",
+      "sha256": "3B8A008DA77E70DE446D3D7007FB87C67F9D4971894209B86E11968C31BC4BCF",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 102030,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_C"
+    },
+    {
+      "path": "assets/legacy/char-e.png",
+      "sourcePath": "PNGs/character/ic_char_e.png",
+      "sha256": "ABF6608A8559243A151089A39E4B3AB450DDD704B50835C3313DBAB84010232B",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 124844,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_E"
+    },
+    {
+      "path": "assets/legacy/char-f.png",
+      "sourcePath": "PNGs/character/ic_char_f.png",
+      "sha256": "6A2168A8EF4B0C72B05DD2AB6CE51153C7A75D88E9DF6BC7B3D3DA65FAE3D3A4",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 74761,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_F"
+    },
+    {
+      "path": "assets/legacy/char-g.png",
+      "sourcePath": "PNGs/character/ic_char_g.png",
+      "sha256": "61F5AE4183E27911E44FDD3AB68AD20A5FCC874921A238C5D4757BB687F00FF0",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 111230,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_G"
+    },
+    {
+      "path": "assets/legacy/char-h.png",
+      "sourcePath": "PNGs/character/ic_char_h.png",
+      "sha256": "E197E396F31E1D82A97F100C529B42B6960DE490C2BBB096DC55F78DB16D99D6",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 239293,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_H"
+    },
+    {
+      "path": "assets/legacy/char-i.png",
+      "sourcePath": "PNGs/character/ic_char_i.png",
+      "sha256": "CCCC211EA7FD2CCB42E9F1DCA6DAD55D705A396C128D18E447AB86A3C2FCB911",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 78515,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_I"
+    },
+    {
+      "path": "assets/legacy/char-k.png",
+      "sourcePath": "PNGs/character/ic_char_k.png",
+      "sha256": "7302334052BEE70F5EAED51FF459688DFE1978B0C0A2C0AB616C266AA8F1B208",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 103005,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_K"
+    },
+    {
+      "path": "assets/legacy/char-m.png",
+      "sourcePath": "PNGs/character/ic_char_m.png",
+      "sha256": "E2C27956BD5563DA774C6B00C349C27B45E93330D7F011FCBA38F43288A9C4CC",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 87457,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_M"
+    },
+    {
+      "path": "assets/legacy/char-n.png",
+      "sourcePath": "PNGs/character/ic_char_n.png",
+      "sha256": "A8A3697525D9A8FE35A019913BA1BB776F4F589999EE2D0B1694EDD758766B85",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 87770,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_N"
+    },
+    {
+      "path": "assets/legacy/char-o.png",
+      "sourcePath": "PNGs/character/ic_char_o.png",
+      "sha256": "2A16062881731FD23D534B618745798C1302C64B0EBE0F73A9AA856F39B0BF88",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 128212,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_O"
+    },
+    {
+      "path": "assets/legacy/char-p.png",
+      "sourcePath": "PNGs/character/ic_char_p.png",
+      "sha256": "D92E30E019D24347796BD5AE7C79EC5B954AF05A538301C1E0E7629A8FF6F95D",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 80016,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_P"
+    },
+    {
+      "path": "assets/legacy/char-q.png",
+      "sourcePath": "PNGs/character/ic_char_q.png",
+      "sha256": "B3AD6F00E0C618583BB89D9BACE04723D166144729A4FEB1D65DA078DB7D7AA0",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 119565,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_Q"
+    },
+    {
+      "path": "assets/legacy/char-r.png",
+      "sourcePath": "PNGs/character/ic_char_r.png",
+      "sha256": "37ECC1C2A7D63F401201FC61AE1366E40BFFE3CDC2209DBED8573BA89739FCE1",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 98818,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_R"
+    },
+    {
+      "path": "assets/legacy/char-s.png",
+      "sourcePath": "PNGs/character/ic_char_s.png",
+      "sha256": "4A664AA4B639E59D2879FA3F58F562C0726386BF4136BA46FF41FC1245826282",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 115159,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_S"
+    },
+    {
+      "path": "assets/legacy/char-t.png",
+      "sourcePath": "PNGs/character/ic_char_t.png",
+      "sha256": "54CEB0DF941124821E76D6CD6B2E82455989A581AB2BFC43AD98ED1F6F77309C",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 69441,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_T"
+    },
+    {
+      "path": "assets/legacy/char-v.png",
+      "sourcePath": "PNGs/character/ic_char_v.png",
+      "sha256": "7384CA6739F5CA7F7A377820310711E7DECF5BE9871D42B8F66D0662D0E71E7E",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 99069,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_V"
+    },
+    {
+      "path": "assets/legacy/char-w.png",
+      "sourcePath": "PNGs/character/ic_char_w.png",
+      "sha256": "1986855B107B84D537DC56C59DD09330B8B09F99858981082FAF2C449190297C",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 199155,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_W"
+    },
+    {
+      "path": "assets/legacy/char-x.png",
+      "sourcePath": "PNGs/character/ic_char_x.png",
+      "sha256": "7E7407700DA4329C323184411ABA440D4F7A14081A45937A9F1D06D61526F761",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 132514,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_X"
+    },
+    {
+      "path": "assets/legacy/char-y.png",
+      "sourcePath": "PNGs/character/ic_char_y.png",
+      "sha256": "41B7AA215D5A3976070C2CA89FC258A1D03BF0E359E9FD253A9B154FEFDFF560",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 93519,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_Y"
+    },
+    {
+      "path": "assets/legacy/char-z.png",
+      "sourcePath": "PNGs/character/ic_char_z.png",
+      "sha256": "CEB863FF0ED095D5381613D7B4D8A630AEE8C1E4CAB93BD6738E4BD3163B4FF8",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 97847,
+      "transparency": "source alpha preserved",
+      "screens": [
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_Z"
+    },
+    {
+      "path": "assets/expedition/delta.png",
+      "sourcePath": "generated/imagegen/delta.png",
+      "sha256": "D80D9FBB4AE2E8DFE1C4F7E0EB39D765732BC92637F8E2E6B61B29F2E91E8861",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1424029,
+      "transparency": "RGBA transparent cutout",
+      "screens": [
+        "R1ExpeditionScreen",
+        "ExpeditionMilestoneScreen",
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_D",
+      "generator": "built-in imagegen",
+      "promptSummary": "Readable legacy alphabet explorer silhouette, soft 2.5D mobile game rendering, expressive eyes and expedition gear, transparent background."
+    },
+    {
+      "path": "assets/expedition/juliett.png",
+      "sourcePath": "generated/imagegen/juliett.png",
+      "sha256": "4BD1C5176A215DEF278961F9882210F0AB01ECA92B5CEF31CD3D790914394BCB",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1020270,
+      "transparency": "RGBA transparent cutout",
+      "screens": [
+        "R1ExpeditionScreen",
+        "ExpeditionMilestoneScreen",
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": "CHAR_J",
+      "generator": "built-in imagegen",
+      "promptSummary": "Readable legacy alphabet explorer silhouette, soft 2.5D mobile game rendering, expressive eyes and expedition gear, transparent background."
+    },
+    {
+      "path": "assets/expedition/r1-trail.png",
+      "sourcePath": "generated/imagegen/r1-trail.png",
+      "sha256": "7100825C915169510A0EBFB1291CB8841EB5D368634B59E182709F0745EC6F19",
+      "width": 1870,
+      "height": 841,
+      "bytes": 2896772,
+      "transparency": "opaque RGB",
+      "screens": [
+        "R1ExpeditionScreen",
+        "ExpeditionMilestoneScreen",
+        "ExpeditionOnboardingScreen",
+        "CompanionCollectionScreen",
+        "CompanionArrivalScreen"
+      ],
+      "characterId": null,
+      "generator": "built-in imagegen",
+      "promptSummary": "Original storybook R1 expedition meadow with six landmarks and a winding trail, 20:9 landscape, no UI/text/characters."
     }
   ]
 }

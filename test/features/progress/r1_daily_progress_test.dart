@@ -358,7 +358,7 @@ void main() {
   );
 
   test(
-    'legacy v1 missing daily fields migrates without losing progress',
+    'optional daily fields inside the current epoch default safely',
     () async {
       final old =
           SaveEnvelopeV1.initial()

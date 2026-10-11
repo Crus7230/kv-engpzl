@@ -37,6 +37,14 @@ Map<String, dynamic> _release({
 AppUpdateRelease get _available =>
     AppUpdateRelease.select([_release()], installedCode: 4)!;
 
+// Update deferral must preserve an existing player's data. New-install
+// onboarding is verified separately, without changing this test's intent.
+SaveEnvelopeV1 _existingPlayer() => SaveEnvelopeV1.initial().copyWith(
+  playerCharacterId: 'CHAR_D',
+  onboardingCompleted: true,
+  unlockedCharacterIds: const ['CHAR_D', 'CHAR_J'],
+);
+
 class _FakeUpdater implements AppUpdateService {
   Completer<AppUpdateRelease?>? checkFuture;
   AppUpdateRelease? available = _available;
@@ -247,7 +255,10 @@ void main() {
     'startup update deferral preserves campaign and stored progress',
     (tester) async {
       final store = MemoryKeyValueSaveStore();
-      final repository = ProgressRepository(store);
+      final repository = ProgressRepository(
+        store,
+        initialFactory: _existingPlayer,
+      );
       final before = await repository.load();
       final updater = _FakeUpdater();
       await tester.pumpWidget(

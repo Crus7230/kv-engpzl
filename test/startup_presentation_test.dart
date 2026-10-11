@@ -30,6 +30,14 @@ class _StartupStore extends MemoryKeyValueSaveStore {
   }
 }
 
+// These tests exercise loading/recovery for an existing player, not the new
+// installation's character selection and real first-problem onboarding.
+SaveEnvelopeV1 _existingPlayer() => SaveEnvelopeV1.initial().copyWith(
+  playerCharacterId: 'CHAR_D',
+  onboardingCompleted: true,
+  unlockedCharacterIds: const ['CHAR_D', 'CHAR_J'],
+);
+
 void _viewport(WidgetTester tester) {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(680, 300);
@@ -43,7 +51,7 @@ Future<void> _boot(WidgetTester tester, _StartupStore store) async {
   _viewport(tester);
   await tester.pumpWidget(
     MathAdventureApp(
-      repository: ProgressRepository(store),
+      repository: ProgressRepository(store, initialFactory: _existingPlayer),
       assetBundle: rootBundle,
       now: () => DateTime.utc(2026, 10, 11),
     ),
@@ -129,7 +137,12 @@ void main() {
       });
       final store = _StartupStore()..gate = Completer<void>();
       await tester.pumpWidget(
-        MathAdventureApp(repository: ProgressRepository(store)),
+        MathAdventureApp(
+          repository: ProgressRepository(
+            store,
+            initialFactory: _existingPlayer,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('정원 에셋을 확인할 수 없어요'), findsOneWidget);

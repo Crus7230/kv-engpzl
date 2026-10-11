@@ -112,36 +112,52 @@ void main() {
     'character milestones are guaranteed and idempotent after reload',
     () async {
       final store = MemoryKeyValueSaveStore();
-      final repository = ProgressRepository(store);
+      final repository = ProgressRepository(
+        store,
+        initialFactory: () => SaveEnvelopeV1.initial().copyWith(
+          playerCharacterId: 'CHAR_D',
+          unlockedCharacterIds: ['CHAR_D'],
+          onboardingCompleted: true,
+        ),
+      );
       final service = StageCompletionService(
         repository,
         campaign: initialCampaign,
       );
-      expect((await repository.load()).unlockedCharacterIds, {
-        'CHAR_D',
-        'CHAR_J',
-      });
+      expect((await repository.load()).unlockedCharacterIds, {'CHAR_D'});
       CompletionReceipt? receipt;
-      for (final chapter in initialCampaign.regions.first.chapters.take(2)) {
-        for (final stage in chapter.stages) {
-          receipt = await service.complete(_success(stage));
-        }
+      for (final stage in initialCampaign.regions.first.chapters.first.stages) {
+        receipt = await service.complete(_success(stage));
+        expect(
+          receipt.unlockedCharacterIds,
+          stage.number == 10 ? ['CHAR_J'] : <String>[],
+          reason: stage.id,
+        );
       }
-      expect(receipt!.unlockedCharacterIds, ['CHAR_L']);
+      expect(receipt!.unlockedCharacterIds, ['CHAR_J']);
       final reloaded = ProgressRepository(store);
       final original = await reloaded.load();
       final duplicate = await StageCompletionService(
         reloaded,
         campaign: initialCampaign,
-      ).complete(_success(_stage('r01-c02-s10')));
-      expect(duplicate.unlockedCharacterIds, ['CHAR_L']);
+      ).complete(_success(_stage('r01-c01-s10')));
+      expect(duplicate.unlockedCharacterIds, ['CHAR_J']);
       expect((await reloaded.load()).generation, original.generation);
       expect((await reloaded.load()).viewedStoryIds, isEmpty);
-      for (final stage in initialCampaign.regions.first.chapters[2].stages) {
-        receipt = await StageCompletionService(
-          reloaded,
-          campaign: initialCampaign,
-        ).complete(_success(stage));
+      for (final chapter
+          in initialCampaign.regions.first.chapters.skip(1).take(4)) {
+        for (final stage in chapter.stages) {
+          receipt = await StageCompletionService(
+            reloaded,
+            campaign: initialCampaign,
+          ).complete(_success(stage));
+          final expected = switch (stage.id) {
+            'r01-c03-s10' => ['CHAR_L'],
+            'r01-c05-s10' => ['CHAR_U'],
+            _ => <String>[],
+          };
+          expect(receipt.unlockedCharacterIds, expected, reason: stage.id);
+        }
       }
       expect(receipt!.unlockedCharacterIds, ['CHAR_U']);
       expect((await reloaded.load()).unlockedCharacterIds, {
@@ -150,6 +166,8 @@ void main() {
         'CHAR_L',
         'CHAR_U',
       });
+      expect((await reloaded.load()).playerCharacterId, 'CHAR_D');
+      expect((await reloaded.load()).onboardingCompleted, isTrue);
     },
   );
 

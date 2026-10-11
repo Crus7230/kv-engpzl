@@ -43,9 +43,13 @@ class ProgressRepository {
   ProgressRepository(this.store, {SaveEnvelopeV1 Function()? initialFactory})
     : _initialFactory = initialFactory ?? SaveEnvelopeV1.initial;
 
-  static const slotAKey = 'kvm.renewal.save.v1.slot.a';
-  static const slotBKey = 'kvm.renewal.save.v1.slot.b';
-  static const pointerKey = 'kvm.renewal.save.v1.active';
+  // This explicitly approved reset starts the mandatory expedition onboarding.
+  // Keep this epoch stable across subsequent updates. Old keys are not read,
+  // overwritten or removed; restarting the app never resets this new save.
+  static const saveEpoch = 'expedition-1';
+  static const slotAKey = 'kvm.renewal.save.v1.$saveEpoch.slot.a';
+  static const slotBKey = 'kvm.renewal.save.v1.$saveEpoch.slot.b';
+  static const pointerKey = 'kvm.renewal.save.v1.$saveEpoch.active';
   final KeyValueSaveStore store;
   final SaveEnvelopeV1 Function() _initialFactory;
   Future<void> _tail = Future<void>.value();

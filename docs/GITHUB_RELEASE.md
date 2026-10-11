@@ -1,5 +1,20 @@
 # GitHub 공개 APK 배포 기록
 
+## v0.1.4 탐험 시작 기준
+
+캐릭터 선택과 필수 첫 문제, R1 탐험 지도·동료 탭·합류를 묶어 `0.1.4+5` 전체 APK를 빌드했다. 배포 대상은 `Crus7230/kv-engpzl`, 태그는 `v0.1.4-r1-alpha`, 파일은 `KVM-R1-0.1.4-alpha.apk` 하나다. 이전 릴리스와 Git 이력은 보존한다.
+
+- 크기: 65,322,678 bytes. SHA256: `A9AF75100369DE24DB594B900022E0C8DBECE672F424EB30B54D6A56350A6B0F`.
+- 패키지: `com.crus7230.kvm.renewal`, versionName `0.1.4`, versionCode `5`, minSdk `24`, targetSdk `36`.
+- `flutter build apk --release --no-pub` 성공. release 서명은 기존 개발용 키이며 APK v2 서명이 유효하고 v0.1.3 인증서 SHA256과 일치한다.
+- 포함된 `r1-media-v3` 이미지 31개, 15,617,620 bytes의 크기·SHA256이 원본 manifest와 모두 일치한다. 신규 설치와 이전 v1/v2 팩 업데이트에는 이 전체 APK가 필요하다.
+- 버전 변경과 공개 릴리스 판독 검사 추가 후 `flutter analyze --no-pub` 오류 0건, 전체 Flutter 테스트 360개 통과·조건부 공개 검사 1개 skip을 확인했다. 공개 후에는 실제 JSON으로 조건부 검사를 별도 실행한다. 배포 복사본의 Dart validator 15개도 모두 통과했다.
+- 실제 Android 설치·업데이트·성능과 전체 APK→로직 전용 APK 전환은 미검증이다. 웹 프리뷰와 자동 테스트를 실기기 검증으로 해석하지 않는다.
+
+사용자가 승인한 새 시작 정책에 따라 저장 epoch는 `expedition-1`이다. 이전 진행은 이어 읽지 않고 선택·튜토리얼부터 시작하지만 이전 저장 원본과 미디어를 물리적으로 삭제하지 않는다. 이후 일반 업데이트에는 이 epoch를 유지한다. 기존 앱을 삭제하거나 데이터를 지울 필요는 없다.
+
+배포 본문은 [v0.1.4 안내](RELEASE_NOTES_0_1_4.md)를 사용한다. 초안 APK 개수·digest 검증, 공개 API 및 인증 없는 다운로드의 SHA256 비교와 production 업데이트 selector 검증 후 공개 완료로 판정한다.
+
 ## v0.1.3 모션·시작 업데이트 빌드
 
 사용자가 승인한 아이콘·인트로·보석 교환→제거→동시 낙하·보충→연쇄 개선과 시작 GitHub 업데이트 확인을 묶어 `0.1.3+4` 전체 APK를 빌드했다. 배포 대상은 `Crus7230/kv-engpzl`, 태그는 `v0.1.3-r1-alpha`, 첨부 파일은 `KVM-R1-0.1.3-alpha.apk` 한 개다. 새 런타임 의존성을 추가하지 않았다.
@@ -19,6 +34,15 @@
 ```
 
 공개 완료는 초안의 첨부 개수·크기·digest 검증, 공개 API 확인과 인증 없는 APK 다운로드의 SHA256 비교 후에 판정한다. 이전 릴리스와 Git 이력은 보존한다.
+
+### v0.1.3 공개 결과
+
+배포 전용 checkout의 커밋 `d6427d9cd4a32a21642b2e9b777033209c962a5a` (`Release KVM R1 alpha 0.1.3 with fluid motion and startup updates`)를 main에 push했다. `v0.1.3-r1-alpha` 태그가 같은 커밋을 가리킨다. 릴리스 ID `409693117`의 APK 한 개와 기계 판독 표식·크기·digest를 초안에서 확인한 뒤 `draft=false`, `prerelease=true`로 공개했다.
+
+- Release: https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.3-r1-alpha
+- APK: https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.3-r1-alpha/KVM-R1-0.1.3-alpha.apk
+
+인증 없는 공개 릴리스 목록과 APK 다운로드가 모두 HTTP 200이었다. 다운로드의 최종 호스트는 허용된 `release-assets.githubusercontent.com`이며 크기와 SHA256이 위 빌드 원본과 일치했다. 실제 공개 JSON을 production `AppUpdateRelease.select`에 넣은 추가 검증도 통과했다. installedCode 3에서는 0.1.3을 선택하고 4에서는 같은 버전을 제외한다. 태그 README의 APK 링크·해시와 원격 main도 확인했다. 이 공개 결과 문단은 게시 후 로컬 유지보수 기록이며 배포 태그에 포함된 코드나 APK를 바꾸지 않는다.
 
 ## v0.1.2 재빌드
 

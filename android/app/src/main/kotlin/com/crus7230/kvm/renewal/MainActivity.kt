@@ -9,7 +9,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private val mediaWorker = Executors.newSingleThreadExecutor()
-    private val expectedPackId = "r1-media-v2"
+    private val expectedPackId = "r1-media-v3"
     private var installedPaths = emptySet<String>()
     private var updates: AppUpdateBridge? = null
 
@@ -52,7 +52,7 @@ class MainActivity : FlutterActivity() {
     private fun packDirectory() = File(filesDir, "kvm_asset_packs/$expectedPackId")
 
     private fun safeFile(directory: File, path: String): File {
-        check(Regex("assets/legacy/[a-z0-9-]+\\.png").matches(path)) { "Invalid media path" }
+        check(Regex("assets/(legacy|expedition)/[a-z0-9-]+\\.png").matches(path)) { "Invalid media path" }
         val target = File(directory, path).canonicalFile
         check(target.path.startsWith(directory.canonicalPath + File.separator))
         return target
@@ -74,7 +74,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun ensureInstalled(entries: List<Map<String, Any>>) {
-        check(entries.size == 6 && entries.map { it["path"] }.toSet().size == 6)
+        check(entries.size == 31 && entries.map { it["path"] }.toSet().size == 31)
         val target = packDirectory()
         if (entries.all { matches(safeFile(target, it["path"] as String), it) }) {
             installedPaths = entries.map { it["path"] as String }.toSet()

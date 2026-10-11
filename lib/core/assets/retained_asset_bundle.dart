@@ -9,7 +9,7 @@ class RetainedAssetBundle extends CachingAssetBundle {
   RetainedAssetBundle({required this.fallback, required this.manifest});
 
   static const channel = MethodChannel('kvm/retained_assets');
-  static const packId = 'r1-media-v2';
+  static const packId = 'r1-media-v3';
   final AssetBundle fallback;
   final Map<String, dynamic> manifest;
 
@@ -25,7 +25,10 @@ class RetainedAssetBundle extends CachingAssetBundle {
     final decoded = jsonDecode(
       await source.loadString('assets/asset_manifest.json'),
     );
-    if (decoded is! Map<String, dynamic> || decoded['manifestVersion'] != 1) {
+    if (decoded is! Map<String, dynamic> ||
+        decoded['manifestVersion'] != 1 ||
+        decoded['packId'] != packId ||
+        decoded['assets'] is! List) {
       throw const FormatException('Unsupported media manifest.');
     }
     await channel.invokeMethod<void>('ensureInstalled', {

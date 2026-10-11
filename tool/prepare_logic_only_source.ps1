@@ -42,7 +42,7 @@ New-Item -ItemType Directory -Path (Join-Path $outputRoot 'assets') | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'assets\asset_manifest.json') -Destination (Join-Path $outputRoot 'assets\asset_manifest.json')
 # Generated build-profile rewrite; the checked-in pubspec and media are untouched.
 $pubspec = Get-Content -LiteralPath (Join-Path $projectRoot 'pubspec.yaml') -Raw -Encoding UTF8
-$logicPubspec = [regex]::Replace($pubspec, '(?m)^    - assets/legacy/\r?\n', '')
+$logicPubspec = [regex]::Replace($pubspec, '(?m)^    - assets/(legacy|expedition)/\r?\n', '')
 if ($logicPubspec -eq $pubspec) { throw 'Expected legacy asset declaration was not found.' }
 [IO.File]::WriteAllText((Join-Path $outputRoot 'pubspec.yaml'), $logicPubspec, [Text.UTF8Encoding]::new($false))
 Write-Output ('Logic-only source: ' + $outputRoot)

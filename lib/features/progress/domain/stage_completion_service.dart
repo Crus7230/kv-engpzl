@@ -1,7 +1,7 @@
 import '../../campaign/domain/campaign_models.dart';
 import '../../campaign/domain/learning_models.dart';
 import '../../campaign/domain/learning_progression_engine.dart';
-import '../../garden/data/garden_catalog.dart';
+import '../../companions/domain/companion_progress_service.dart';
 import '../data/progress_repository.dart';
 import 'campaign_access_policy.dart';
 import 'progress_models.dart';
@@ -151,15 +151,10 @@ class StageCompletionService {
           : const CampaignAccessPolicy()
                 .nextUncompletedStage(campaign!, unlockedIds, completedIds)
                 ?.id;
-      final characters = {...current.unlockedCharacterIds};
-      if (stage.id == 'prototype-bundle-add')
-        characters.addAll(const ['CHAR_D', 'CHAR_J']);
-      for (final story in r1CharacterStories) {
-        if (story.requiredStageId == null ||
-            completedIds.contains(story.requiredStageId)) {
-          characters.add(story.characterId);
-        }
-      }
+      final characters = companionOwnershipAfterProgress(
+        current.unlockedCharacterIds,
+        completedIds,
+      );
       receipt = CompletionReceipt(
         attemptId: result.attemptId,
         stageId: stage.id,

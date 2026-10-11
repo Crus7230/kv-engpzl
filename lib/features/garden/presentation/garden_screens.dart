@@ -6,6 +6,8 @@ import '../../campaign/data/legacy_region_catalog.dart';
 import '../../campaign/domain/campaign_models.dart';
 import '../../campaign/domain/board_mechanic_models.dart';
 import '../../puzzle/domain/puzzle.dart';
+import '../../exploration/presentation/r1_expedition_screen.dart';
+import '../../exploration/presentation/expedition_milestone_screen.dart';
 import '../data/garden_catalog.dart';
 import '../domain/garden_models.dart';
 import 'garden_scene.dart';
@@ -27,6 +29,7 @@ class WorldMapScreen extends StatelessWidget {
     this.statusMessage,
     this.reviewDetail,
     this.explorationDetail,
+    this.onCompanions,
     super.key,
   });
 
@@ -43,10 +46,11 @@ class WorldMapScreen extends StatelessWidget {
   final String? statusMessage;
   final String? reviewDetail;
   final String? explorationDetail;
+  final VoidCallback? onCompanions;
 
   @override
   Widget build(BuildContext context) => _GardenFrame(
-    title: '일곱 수식 정원',
+    title: '일곱 수식 대륙 · 모험 지도',
     trailing: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -56,6 +60,13 @@ class WorldMapScreen extends StatelessWidget {
           semanticsLabel: '모은 성취 별 $totalStars개',
         ),
         const SizedBox(width: 6),
+        if (onCompanions != null)
+          TextButton.icon(
+            key: const ValueKey('world-companions'),
+            onPressed: onCompanions,
+            icon: const Icon(Icons.groups_2_outlined, size: 20),
+            label: const Text('동료', style: TextStyle(fontSize: 12)),
+          ),
         IconButton(
           onPressed: onSettings,
           tooltip: '접근성 및 저장 설정',
@@ -124,9 +135,11 @@ class WorldMapScreen extends StatelessWidget {
                     Expanded(
                       child: _DailyCard(
                         icon: Icons.local_florist_outlined,
-                        title: '정원 돌보기',
+                        title: onCompanions == null ? '정원 돌보기' : '탐험의 흔적',
                         detail: onRestore != null
-                            ? '화단에 새 모습을 골라요'
+                            ? onCompanions == null
+                                  ? '화단에 새 모습을 골라요'
+                                  : '이정표와 쉼터에 흔적 남기기'
                             : '이번 주 ${math.min(weeklyActions, 5)}/5번의 발걸음',
                         onTap: onRestore,
                       ),
@@ -303,7 +316,7 @@ class RegionGardenScreen extends StatelessWidget {
 }
 
 /// Lists only authored content; future 420-slot planning is not exposed here.
-class CampaignRegionGardenScreen extends StatefulWidget {
+class CampaignRegionGardenScreen extends StatelessWidget {
   const CampaignRegionGardenScreen({
     required this.stages,
     required this.completedStageIds,
@@ -319,6 +332,8 @@ class CampaignRegionGardenScreen extends StatefulWidget {
     this.nextStageId,
     this.canEnterStage,
     this.onStories,
+    this.onCompanions,
+    this.playerCharacterId,
     this.unlockedCharacterIds = const {'CHAR_D', 'CHAR_J'},
     super.key,
   });
@@ -334,226 +349,29 @@ class CampaignRegionGardenScreen extends StatefulWidget {
   final String? nextStageId;
   final bool Function(StageDefinition)? canEnterStage;
   final VoidCallback? onStories;
+  final VoidCallback? onCompanions;
+  final String? playerCharacterId;
   final Set<String> unlockedCharacterIds;
   @override
-  State<CampaignRegionGardenScreen> createState() =>
-      _CampaignRegionGardenScreenState();
-}
-
-class _CampaignRegionGardenScreenState
-    extends State<CampaignRegionGardenScreen> {
-  int _chapter = 1;
-  @override
-  void initState() {
-    super.initState();
-    _selectNextChapter();
-  }
-
-  @override
-  void didUpdateWidget(covariant CampaignRegionGardenScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.nextStageId != widget.nextStageId) _selectNextChapter();
-  }
-
-  void _selectNextChapter() {
-    for (final stage in widget.stages) {
-      if (stage.id == widget.nextStageId) {
-        _chapter = int.tryParse(stage.chapterId.split('-c').last) ?? 1;
-        break;
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final completed = widget.stages
-        .where((stage) => widget.completedStageIds.contains(stage.id))
-        .length;
-    final nodes = widget.restoredNodeIds
-        .where((id) => gardenDefinitions.first.nodeById(id) != null)
-        .toSet();
-    final entries = widget.stages
-        .where(
-          (stage) =>
-              stage.chapterId == 'r01-c${_chapter.toString().padLeft(2, '0')}',
-        )
-        .toList();
-    final project = gardenDefinitions.first.sceneByChapterId(
-      'r01-c${_chapter.toString().padLeft(2, '0')}',
-    );
-    final chapterNodes = nodes
-        .where(
-          (id) => id.startsWith('r01-c${_chapter.toString().padLeft(2, '0')}-'),
-        )
-        .toSet();
-    return _GardenFrame(
-      title: '계산의 평원 · 수식 정원',
-      onBack: widget.onBack,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              flex: 5,
-              child: GardenScene(
-                restored: chapterNodes.isNotEmpty,
-                restoredNodeIds: nodes,
-                completedStageCount: completed,
-                project: project,
-                decorationChoices: widget.decorationChoices,
-                unlockedCharacterIds: widget.unlockedCharacterIds,
-                decorationId:
-                    widget.decorationChoices.values.lastOrNull ?? 'wildflowers',
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 5,
-              child: _PaperPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        for (final chapter in [1, 2, 3, 4, 5, 6])
-                          Expanded(
-                            child: TextButton(
-                              onPressed: () =>
-                                  setState(() => _chapter = chapter),
-                              style: TextButton.styleFrom(
-                                backgroundColor: _chapter == chapter
-                                    ? GardenColors.border
-                                    : null,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 2,
-                                ),
-                              ),
-                              child: Text(switch (chapter) {
-                                4 => '기억',
-                                5 => '공방',
-                                6 => '심화',
-                                _ => 'C0$chapter',
-                              }, style: const TextStyle(fontSize: 12)),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (widget.stages.length == 60 && completed == 60)
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          '계산의 평원 완료 · 다음 지역 업데이트 예정',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: GardenColors.green,
-                          ),
-                        ),
-                      ),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: entries.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 2),
-                        itemBuilder: (context, index) {
-                          final stage = entries[index];
-                          final unlocked =
-                              widget.unlockedStageIds.contains(stage.id) &&
-                              (widget.canEnterStage?.call(stage) ?? true);
-                          final done = widget.completedStageIds.contains(
-                            stage.id,
-                          );
-                          return Material(
-                            color: Colors.transparent,
-                            child: ListTile(
-                              dense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              leading: Icon(
-                                done
-                                    ? Icons.check_circle_outline
-                                    : unlocked
-                                    ? Icons.extension_outlined
-                                    : Icons.lock_outline,
-                                size: 21,
-                                color: GardenColors.green,
-                              ),
-                              title: Text(
-                                'S${stage.number.toString().padLeft(2, '0')} · ${stage.title}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              subtitle: Text(
-                                unlocked
-                                    ? stage.conceptLabel
-                                    : _chapter == 4
-                                    ? '원본 문제를 완료하면 열려요'
-                                    : _chapter >= 5
-                                    ? '앞 정원의 모든 문제를 완료하면 열려요'
-                                    : '앞 문제를 완료하면 열려요',
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                              onTap: unlocked
-                                  ? () => widget.onSelectStage(stage.id)
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    if (widget.onStories != null)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: widget.onStories,
-                          icon: const Icon(Icons.chat_bubble_outline, size: 15),
-                          label: const Text(
-                            '친구들의 이야기',
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            minimumSize: const Size(0, 28),
-                          ),
-                        ),
-                      ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: widget.onPlay,
-                            child: Text(
-                              widget.hasActiveSession
-                                  ? '이어서 탐험하기'
-                                  : widget.onPlay == null
-                                  ? '탐험 묶음 완료'
-                                  : '다음 탐험',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: widget.canRestore
-                                ? widget.onRestore
-                                : null,
-                            child: const Text('정원 돌보기'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => R1ExpeditionScreen(
+    stages: stages,
+    completedStageIds: completedStageIds,
+    unlockedStageIds: unlockedStageIds,
+    restoredNodeIds: restoredNodeIds,
+    decorationChoices: decorationChoices,
+    nextStageId: nextStageId,
+    unlockedCharacterIds: unlockedCharacterIds,
+    playerCharacterId: playerCharacterId,
+    canEnterStage: canEnterStage,
+    onStories: onStories,
+    onCompanions: onCompanions,
+    onBack: onBack,
+    onPlay: onPlay,
+    onSelectStage: onSelectStage,
+    onRestore: onRestore,
+    canRestore: canRestore,
+    hasActiveSession: hasActiveSession,
+  );
 }
 
 class StageBriefingScreen extends StatelessWidget {
@@ -563,6 +381,7 @@ class StageBriefingScreen extends StatelessWidget {
     required this.resume,
     this.stage,
     this.isReview = false,
+    this.playerCharacterId,
     super.key,
   });
 
@@ -571,18 +390,24 @@ class StageBriefingScreen extends StatelessWidget {
   final bool resume;
   final StageDefinition? stage;
   final bool isReview;
+  final String? playerCharacterId;
 
   @override
   Widget build(BuildContext context) => _GardenFrame(
     title: stage?.title ?? '묶음과 낱개',
     onBack: onBack,
     child: _TwoPane(
-      leading: GardenScene(
-        restored: false,
-        project: gardenDefinitions.first.sceneByChapterId(
-          stage?.chapterId ?? '',
-        ),
-      ),
+      leading: stage != null && stage!.chapterId.startsWith('r01-')
+          ? ExpeditionTravelerScene(
+              chapter: int.tryParse(stage!.chapterId.split('-c').last) ?? 1,
+              playerCharacterId: playerCharacterId,
+            )
+          : GardenScene(
+              restored: false,
+              project: gardenDefinitions.first.sceneByChapterId(
+                stage?.chapterId ?? '',
+              ),
+            ),
       content: _PaperPanel(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -597,7 +422,7 @@ class StageBriefingScreen extends StatelessWidget {
                           ? '개발용 체험'
                           : isReview
                           ? '기억의 씨앗 · 복습'
-                          : '계산의 평원 · 실제 캠페인',
+                          : '계산의 평원 · 탐험 준비',
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -870,84 +695,99 @@ class RestorationRevealScreen extends StatelessWidget {
   final Set<String> unlockedCharacterIds;
 
   @override
-  Widget build(BuildContext context) => _GardenFrame(
-    title: alreadyRestored
-        ? '정원에 새 모습을 골라요'
-        : nodeTitle == null
-        ? '첫 번째 화단을 복원해요'
-        : '정원의 한 곳을 복원해요',
-    child: _TwoPane(
-      leading: GardenScene(
-        restored: true,
-        decorationId: decorationId,
-        restoredNodeIds: restoredNodeIds,
-        completedStageCount: completedStageCount,
-        project: gardenDefinitions.first.sceneByChapterId(
-          node?.chapterId ?? '',
-        ),
-        unlockedCharacterIds: unlockedCharacterIds,
-      ),
-      content: _PaperPanel(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _Eyebrow(nodeTitle ?? '첫 번째 들꽃 화단'),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '어떤 정원이 좋을까요?',
-                      style: TextStyle(
-                        color: GardenColors.ink,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) => node != null
+      ? ExpeditionMilestoneScreen(
+          alreadyRestored: alreadyRestored,
+          decorationId: decorationId,
+          onChooseDecoration: onChooseDecoration,
+          onFinish: onFinish,
+          nodeTitle: nodeTitle,
+          restoredNodeIds: restoredNodeIds,
+          completedStageCount: completedStageCount,
+          node: node,
+          unlockedCharacterIds: unlockedCharacterIds,
+        )
+      : _GardenFrame(
+          title: alreadyRestored
+              ? '정원에 새 모습을 골라요'
+              : nodeTitle == null
+              ? '첫 번째 화단을 복원해요'
+              : '정원의 한 곳을 복원해요',
+          child: _TwoPane(
+            leading: GardenScene(
+              restored: true,
+              decorationId: decorationId,
+              restoredNodeIds: restoredNodeIds,
+              completedStageCount: completedStageCount,
+              project: gardenDefinitions.first.sceneByChapterId(
+                node?.chapterId ?? '',
+              ),
+              unlockedCharacterIds: unlockedCharacterIds,
+            ),
+            content: _PaperPanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Eyebrow(nodeTitle ?? '첫 번째 들꽃 화단'),
+                          const SizedBox(height: 8),
+                          const Text(
+                            '어떤 정원이 좋을까요?',
+                            style: TextStyle(
+                              color: GardenColors.ink,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            '장식은 언제든 무료로 바꿀 수 있어요.',
+                            style: TextStyle(
+                              color: GardenColors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          for (final id in gardenDecorationIds)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 5),
+                              child: _DecorationOption(
+                                id: id,
+                                selected: decorationId == id,
+                                onTap: () => onChooseDecoration(id),
+                              ),
+                            ),
+                          const SizedBox(height: 7),
+                          Text(
+                            node?.storyText ??
+                                (nodeTitle == null
+                                    ? 'Delta: “묶음과 낱개를 찾으니 꽃이 돌아왔네!”\nJuliett: “다음에는 어떤 관계가 숨겨져 있을까?”'
+                                    : 'Delta: “관계를 하나씩 찾으니 정원이 살아나네.”\nJuliett: “내일 다시 떠올리면 더 단단해질 거야.”'),
+                            style: const TextStyle(
+                              color: GardenColors.muted,
+                              fontSize: 12,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      '장식은 언제든 무료로 바꿀 수 있어요.',
-                      style: TextStyle(color: GardenColors.muted, fontSize: 12),
-                    ),
-                    const SizedBox(height: 10),
-                    for (final id in gardenDecorationIds)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
-                        child: _DecorationOption(
-                          id: id,
-                          selected: decorationId == id,
-                          onTap: () => onChooseDecoration(id),
-                        ),
-                      ),
-                    const SizedBox(height: 7),
-                    Text(
-                      node?.storyText ??
-                          (nodeTitle == null
-                              ? 'Delta: “묶음과 낱개를 찾으니 꽃이 돌아왔네!”\nJuliett: “다음에는 어떤 관계가 숨겨져 있을까?”'
-                              : 'Delta: “관계를 하나씩 찾으니 정원이 살아나네.”\nJuliett: “내일 다시 떠올리면 더 단단해질 거야.”'),
-                      style: const TextStyle(
-                        color: GardenColors.muted,
-                        fontSize: 12,
-                        height: 1.45,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 7),
+                  FilledButton.icon(
+                    onPressed: onFinish,
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: Text(alreadyRestored ? '이 모습으로 꾸미기' : '이 모습으로 복원하기'),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 7),
-            FilledButton.icon(
-              onPressed: onFinish,
-              icon: const Icon(Icons.check_rounded, size: 18),
-              label: Text(alreadyRestored ? '이 모습으로 꾸미기' : '이 모습으로 복원하기'),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
+          ),
+        );
 }
 
 class _GardenFrame extends StatelessWidget {
@@ -1177,7 +1017,7 @@ class _WorldMap extends StatelessWidget {
                   child: const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                     child: Text(
-                      '지역을 눌러 정원을 둘러보세요',
+                      '지역을 눌러 탐험을 시작하세요',
                       style: TextStyle(fontSize: 10, color: GardenColors.ink),
                     ),
                   ),

@@ -151,6 +151,8 @@ class SaveEnvelopeV1 {
     Iterable<String> restoredNodeIds = const [],
     Iterable<String> unlockedCharacterIds = const [],
     Iterable<String> viewedStoryIds = const [],
+    this.playerCharacterId,
+    this.onboardingCompleted = false,
     Map<String, int> bestStars = const {},
     Map<String, int> dailyActions = const {},
     Map<String, int> dailyReviewActions = const {},
@@ -188,6 +190,10 @@ class SaveEnvelopeV1 {
   final Set<String> restoredNodeIds;
   final Set<String> unlockedCharacterIds;
   final Set<String> viewedStoryIds;
+
+  /// Chosen player avatar is separate from companions rescued on expeditions.
+  final String? playerCharacterId;
+  final bool onboardingCompleted;
   final Map<String, int> bestStars;
   final Map<String, int> dailyActions;
   final Map<String, int> dailyReviewActions;
@@ -200,7 +206,6 @@ class SaveEnvelopeV1 {
   final AccessibilitySettings accessibility;
   factory SaveEnvelopeV1.initial() => SaveEnvelopeV1(
     unlockedStageIds: const ['prototype-bundle-add', 'r01-c01-s01'],
-    unlockedCharacterIds: const ['CHAR_D', 'CHAR_J'],
   );
   SaveEnvelopeV1 copyWith({
     int? generation,
@@ -210,6 +215,8 @@ class SaveEnvelopeV1 {
     Iterable<String>? restoredNodeIds,
     Iterable<String>? unlockedCharacterIds,
     Iterable<String>? viewedStoryIds,
+    String? playerCharacterId,
+    bool? onboardingCompleted,
     Map<String, int>? bestStars,
     Map<String, int>? dailyActions,
     Map<String, int>? dailyReviewActions,
@@ -229,6 +236,8 @@ class SaveEnvelopeV1 {
     restoredNodeIds: restoredNodeIds ?? this.restoredNodeIds,
     unlockedCharacterIds: unlockedCharacterIds ?? this.unlockedCharacterIds,
     viewedStoryIds: viewedStoryIds ?? this.viewedStoryIds,
+    playerCharacterId: playerCharacterId ?? this.playerCharacterId,
+    onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
     bestStars: bestStars ?? this.bestStars,
     dailyActions: dailyActions ?? this.dailyActions,
     dailyReviewActions: dailyReviewActions ?? this.dailyReviewActions,
@@ -243,6 +252,8 @@ class SaveEnvelopeV1 {
     accessibility: accessibility ?? this.accessibility,
   );
   void validate() {
+    if (playerCharacterId != null)
+      _nonEmpty(playerCharacterId!, 'playerCharacterId');
     if (generation < 0 || contentVersion < 1)
       throw const FormatException('Invalid save version or generation.');
     if (contentVersion > supportedContentVersion)
@@ -302,6 +313,8 @@ class SaveEnvelopeV1 {
     'restoredNodeIds': restoredNodeIds.toList(),
     'unlockedCharacterIds': unlockedCharacterIds.toList(),
     'viewedStoryIds': viewedStoryIds.toList(),
+    'playerCharacterId': playerCharacterId,
+    'onboardingCompleted': onboardingCompleted,
     'bestStars': bestStars,
     'dailyActions': dailyActions,
     'dailyReviewActions': dailyReviewActions,
@@ -325,6 +338,10 @@ class SaveEnvelopeV1 {
       throw FutureSaveVersionException(version);
     if (version != currentSchemaVersion)
       throw FormatException('Unsupported save schema: $version');
+    final ownedIds = _strings(
+      json['unlockedCharacterIds'],
+      'unlockedCharacterIds',
+    );
     return SaveEnvelopeV1(
       generation: _integer(json, 'generation'),
       contentVersion: _integer(json, 'contentVersion'),
@@ -334,11 +351,16 @@ class SaveEnvelopeV1 {
       ),
       unlockedStageIds: _strings(json['unlockedStageIds'], 'unlockedStageIds'),
       restoredNodeIds: _strings(json['restoredNodeIds'], 'restoredNodeIds'),
-      unlockedCharacterIds: _strings(
-        json['unlockedCharacterIds'],
-        'unlockedCharacterIds',
-      ),
+      unlockedCharacterIds: ownedIds,
       viewedStoryIds: _strings(json['viewedStoryIds'], 'viewedStoryIds'),
+      // Expedition onboarding is never inferred from previously owned IDs.
+      // The repository isolates this run from the untouched previous epoch.
+      playerCharacterId: json.containsKey('playerCharacterId')
+          ? _optionalString(json, 'playerCharacterId')
+          : null,
+      onboardingCompleted: json.containsKey('onboardingCompleted')
+          ? _boolean(json, 'onboardingCompleted')
+          : false,
       bestStars: _map(
         json['bestStars'],
       ).map((k, v) => MapEntry(k, _intValue(v, k))),
