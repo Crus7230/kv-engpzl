@@ -1,8 +1,0 @@
-Generated word pools
-- answer_top_n: 25000
-- allowed_top_n: 100000
-- answers_4: 2151
-- answers_5: 3106
-- allowed_4: 8008
-- allowed_5: 11172
-- crash_3_7: 53027

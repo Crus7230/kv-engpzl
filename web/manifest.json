@@ -1,12 +1,12 @@
 {
-    "name": "Kavon Eng Puzzle",
-    "short_name": "Kavon Eng Puzzle",
+    "name": "KV 수학탐험대",
+    "short_name": "KV 수학",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#EAF7FF",
+    "theme_color": "#6547D9",
+    "description": "문장을 수식으로 바꾸는 수학 퍼즐",
+    "orientation": "landscape",
     "prefer_related_applications": false,
     "icons": [
         {

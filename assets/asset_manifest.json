@@ -1,0 +1,74 @@
+{
+  "manifestVersion": 1,
+  "packId": "r1-media-v2",
+  "sourceRoot": "..",
+  "policy": "Legacy originals are preserved. These are selected binary copies, not optimized derivatives.",
+  "assets": [
+    {
+      "path": "assets/legacy/world-map.png",
+      "sourcePath": "res/world_map_background - 복사본 (2).png",
+      "sha256": "864E5E75ABB14A15C5BAB80E6B381DC99B77B6D0E5BF9CB00EF1F9AB92435C7F",
+      "width": 6000,
+      "height": 2413,
+      "bytes": 3052685,
+      "transparency": "source PNG preserved",
+      "screens": ["WorldMapScreen"],
+      "characterId": null
+    },
+    {
+      "path": "assets/legacy/plains.png",
+      "sourcePath": "res/icons/bg/background_plains.png",
+      "sha256": "59F3A54CB1A4D3BB00691E88F1196F7FD4AED66C7C60CD7DB5A532A0DBE9137D",
+      "width": 2816,
+      "height": 1536,
+      "bytes": 4296107,
+      "transparency": "source PNG preserved",
+      "screens": ["RegionGardenScreen", "RestorationRevealScreen"],
+      "characterId": null
+    },
+    {
+      "path": "assets/legacy/char-d.png",
+      "sourcePath": "PNGs/character/ic_char_d.png",
+      "sha256": "F854CEB0F0B7528919406E0BC048EFF503A40D816C980481910EF58F33B05849",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 149443,
+      "transparency": "transparent source PNG preserved",
+      "screens": ["RegionGardenScreen", "RestorationRevealScreen"],
+      "characterId": "CHAR_D"
+    },
+    {
+      "path": "assets/legacy/char-j.png",
+      "sourcePath": "PNGs/character/ic_char_j.png",
+      "sha256": "C1CFFAB8B565D94D6AC837892AF35E57C4E8DAD0F036855798578DEA4A3A72D5",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 79942,
+      "transparency": "transparent source PNG preserved",
+      "screens": ["RegionGardenScreen", "RestorationRevealScreen"],
+      "characterId": "CHAR_J"
+    },
+    {
+      "path": "assets/legacy/char-l.png",
+      "sourcePath": "PNGs/character/ic_char_l.png",
+      "sha256": "7867C498CC261820E14A58EBE2EE1DDBA4D655F51F24534DF28A176151DD5E33",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 79988,
+      "transparency": "transparent source PNG preserved",
+      "screens": ["CampaignRegionGardenScreen", "RestorationRevealScreen"],
+      "characterId": "CHAR_L"
+    },
+    {
+      "path": "assets/legacy/char-u.png",
+      "sourcePath": "PNGs/character/ic_char_u.png",
+      "sha256": "772253AC7678256CA59449BFE377B2DBB4F2B8A17AD4DCB0A78E0454D405ECB4",
+      "width": 1500,
+      "height": 1500,
+      "bytes": 164332,
+      "transparency": "transparent source PNG preserved",
+      "screens": ["CampaignRegionGardenScreen", "RestorationRevealScreen"],
+      "characterId": "CHAR_U"
+    }
+  ]
+}

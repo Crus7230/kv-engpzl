@@ -43,3 +43,19 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local configuration, signing material and packaged artifacts
+.env
+.env.*
+!*.example
+**/local.properties
+**/key.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+*.apk
+*.aab
+*.bundle
+**/.gradle/
+**/.cxx/
