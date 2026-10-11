@@ -4,9 +4,9 @@
 
 ## 다운로드와 설치
 
-[Android APK 다운로드 — v0.1.2 독립 설치용 R1 알파](https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.2-r1-alpha/KVM-R1-0.1.2-alpha.apk)
+[Android APK 다운로드 — v0.1.3 모션·자동 업데이트 R1 알파](https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.3-r1-alpha/KVM-R1-0.1.3-alpha.apk)
 
-[릴리스 안내와 파일 정보](https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.2-r1-alpha)
+[릴리스 안내와 파일 정보](https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.3-r1-alpha)
 
 1. Android 휴대폰에서 위 APK를 다운로드합니다. GitHub의 `Code → Download ZIP`은 소스이며 설치 파일이 아닙니다.
 2. 다운로드한 APK를 열고, 필요한 경우 다운로드에 사용한 브라우저 또는 파일 앱에만 출처가 다른 앱 설치를 허용합니다.
@@ -17,20 +17,33 @@
 | --- | --- |
 | 지원 OS | Android 7.0 이상 (`minSdk 24`) |
 | 화면 | 스마트폰 가로 모드, FHD/20:9 저높이 화면 대응 |
-| 버전 | `0.1.2`, versionCode `3` |
+| 버전 | `0.1.3`, versionCode `4` |
 | 패키지 | `com.crus7230.kvm.renewal` |
-| 설치 파일 | 전체 미디어 포함 APK, 56,749,105 bytes (약 54.1 MiB) |
+| 설치 파일 | 전체 미디어 포함 APK, 57,110,480 bytes (약 54.5 MiB) |
 | 서명 | 개발용 Android Debug 키, release 모드 빌드 |
 
-v0.1.1부터 Renewal은 기존 KVM과 v0.1.0의 `com.user.kvm`을 업데이트하지 않고 **별도 앱으로 설치**됩니다. 기존 앱은 삭제할 필요가 없으며 그 데이터도 유지됩니다. 새 앱의 진행은 처음부터 시작하고 기존 진행·미디어 팩은 자동 이관하지 않습니다. 같은 서명의 v0.1.1 Renewal이 설치되어 있다면 v0.1.2는 정상 업데이트로 진행을 유지하도록 구성했습니다. 실제 휴대폰 업데이트 검증은 남아 있습니다.
+v0.1.1부터 Renewal은 기존 KVM과 v0.1.0의 `com.user.kvm`을 업데이트하지 않고 **별도 앱으로 설치**됩니다. 기존 앱은 삭제할 필요가 없으며 그 데이터도 유지됩니다. 새 앱의 진행은 처음부터 시작하고 기존 진행·미디어 팩은 자동 이관하지 않습니다. v0.1.3은 v0.1.1·v0.1.2 Renewal과 패키지와 인증서가 같고 versionCode가 증가했습니다. 기존 Renewal을 삭제하거나 데이터를 초기화하지 말고 APK를 열어 업데이트하세요. 실제 휴대폰 업데이트 검증은 남아 있습니다.
+
+v0.1.2에는 앱 내 업데이트 기능이 없으므로 **이번 v0.1.3은 위 링크로 한 번 직접 설치**해야 합니다. 이후에는 시작 로딩 중 새 APK를 확인하고 다운로드·설치를 안내합니다.
 
 이 배포는 실기기 테스트를 위한 공개 **알파 사전 릴리스**입니다. 개발용 서명으로 직접 설치할 수 있지만 정식 배포용 키나 Google Play 배포본이 아닙니다. 이후 같은 `com.crus7230.kvm.renewal` 앱을 업데이트할 때에는 같은 서명과 증가한 versionCode가 필요합니다. 설치 오류가 나면 보안 검사 전체를 끄거나 앱 데이터를 삭제하지 말고 오류 문구를 [Issues](https://github.com/Crus7230/kv-engpzl/issues)에 알려주세요.
 
 APK SHA256:
 
 ```text
-F99E806E767B4E6CF0DB0BC2AF0B4B5A415CE5BD0153018DB85461DFC604B3C4
+76134090C297F238E4CBC0F1DCE34C8E5D1087BE11BDA846AA416E7CEC70D65F
 ```
+
+## v0.1.3 변경 사항
+
+- 정원 테마 앱 아이콘, Android 시작 화면과 준비 상태별 로딩 화면을 연결했습니다.
+- 보석 교환·무효 교환 복귀·제거·낙하와 보충·연쇄를 연속 동작으로 다듬었습니다. 착지 반동, 색상 파편, 직선 파워와 발굴 조각 이동을 보강했습니다.
+- 탭과 인접 보석 스와이프를 지원하며 모션 감소 설정을 유지합니다.
+- 앱 시작 시 GitHub의 공개 릴리스 목록을 최대 5초 확인합니다. 오프라인·시간 초과·조회 실패 시 기존 게임을 계속 사용할 수 있습니다.
+- 새 APK가 있으면 다운로드 또는 나중에 계속하기를 선택합니다. 크기·SHA256·패키지·버전·현재 설치 앱과 같은 인증서를 확인한 뒤 Android 설치 화면을 엽니다. 진행·정원·보존 미디어는 변경하지 않습니다.
+- Android가 설치 허용을 요구하면 앱의 `설치 허용 설정`을 열고, 허용 후 돌아와 `설치 다시 열기`를 누릅니다. 무인 설치나 강제 업데이트가 아니며 취소할 수 있습니다.
+
+자동 업데이트는 이 공개 APK 배포용입니다. 향후 Google Play 배포는 해당 정책과 업데이트 방식에 맞게 별도 검토해야 합니다.
 
 ## 플레이 흐름
 
@@ -48,9 +61,9 @@ F99E806E767B4E6CF0DB0BC2AF0B4B5A415CE5BD0153018DB85461DFC604B3C4
 
 ## 검증 범위와 알려진 제한
 
-2026-10-11 기준 `flutter analyze --no-pub` 오류 0건, Flutter 테스트 265개와 순수 Dart 검증 스크립트 15개를 통과했습니다. R1 60개 연속 완료, 보드 120개 참조 경로, 저장 복원·중복 보상 방지, 다음 날 복습과 저높이 화면을 자동 검증했습니다. Android 전체 APK의 빌드, 서명과 포함 미디어 해시를 확인했습니다.
+2026-10-11 v0.1.3 기준 `flutter analyze --no-pub` 오류 0건, Flutter 전체 테스트 305개를 통과했습니다. 시작 조회·오프라인·다운로드 실패·설치 허용·설치 재시도, 모션과 스와이프, R1 60개 연속 완료·저장 복원·중복 보상 방지·다음 날 복습·저높이 화면을 자동 검증했습니다. Android 전체 APK 빌드, 이전 버전과 같은 서명, 버전·설치 권한과 포함 미디어 6개 해시를 확인했습니다. 이전 R1 검증에서는 순수 Dart 스크립트 15개도 통과했습니다.
 
-실제 Android 휴대폰의 설치·강제 종료 복원·성능과 전체 APK에서 로직 전용 APK로의 업데이트는 아직 검증하지 않았습니다. 웹·Flutter viewport 캡처는 실제 기기 검증이 아닙니다. 정원은 기존 배경과 벡터 레이어를 합성한 장면이며, 아트·스토리와 사람 플레이에 따른 난도 보정은 계속 개발합니다. 학습 성취 향상은 실제 사용자 연구로 확인한 결과가 아닙니다.
+실제 Android 휴대폰의 설치·앱 내 APK 다운로드·설치 확인·강제 종료 복원·성능과 전체 APK에서 로직 전용 APK로의 업데이트는 아직 검증하지 않았습니다. 웹·Flutter viewport 캡처는 실제 기기 검증이 아닙니다. 정원은 기존 배경과 벡터 레이어를 합성한 장면이며, 아트·스토리와 사람 플레이에 따른 난도 보정은 계속 개발합니다. 학습 성취 향상은 실제 사용자 연구로 확인한 결과가 아닙니다.
 
 오류를 제보할 때는 기종, Android 버전, 앱 버전, 스테이지 ID, 재현 순서와 화면을 알려주세요. 개인정보나 기기 식별자를 포함할 필요는 없습니다.
 
@@ -61,6 +74,8 @@ F99E806E767B4E6CF0DB0BC2AF0B4B5A415CE5BD0153018DB85461DFC604B3C4
 ```text
 lib/app/                       앱 셸과 화면 흐름
 lib/core/assets/               보존 미디어 팩
+lib/core/branding/             정원 브랜드·로딩 화면
+lib/core/updates/              시작 버전 확인·업데이트 안내
 lib/features/campaign/         R1 실제 콘텐츠와 캠페인 모델
 lib/features/discovery/         매치·발굴·보드 효과·세션
 lib/features/puzzle/            수식 AST와 정답 검증
@@ -94,3 +109,13 @@ flutter build apk --release
 로직 전용 배포에는 같은 application ID·서명, 증가한 versionCode가 필요합니다. 앱 삭제·데이터 초기화·새 기기와 새 미디어 팩에는 전체 APK가 필요합니다. 실제 업데이트 전환을 검증하기 전에는 로직 전용 APK를 신규 사용자에게 제공하지 않습니다. 정식 키로 전환할 때의 설치·진행 이전 정책은 별도로 확정해야 합니다.
 
 [R1 구현과 검증 상세](docs/R1_COMPLETE_ALPHA_IMPLEMENTATION.md), [에셋 분리와 업데이트](docs/ASSET_PACK_UPDATES.md), [학습·복습 설계](docs/LEARNING_PROGRESSION_DESIGN.md), [7리전 커리큘럼](docs/REGIONAL_STAGE_CURRICULUM.md)을 참고하세요. 이전 단계의 문서는 당시 구현과 검증 기록이며 이번 APK 배포 상태는 이 README와 해당 Release 안내를 기준으로 합니다.
+
+### 이후 APK 게시 계약
+
+업데이트 조회는 알파도 포함하는 공개 `/releases?per_page=20` 목록을 사용합니다. 초안과 잘못된 메타데이터는 무시합니다. 현재 R1 채널은 `vX.Y.Z-r1-alpha` 또는 `vX.Y.Z` 태그와 `KVM-R1-X.Y.Z-alpha.apk` 전체 APK를 사용합니다. 릴리스 본문에 다음 형식의 한 줄을 넣고 실제 APK와 versionCode를 일치시켜야 합니다.
+
+```html
+<!-- kvm-update: {"schema":1,"versionName":"0.1.3","versionCode":4} -->
+```
+
+다음 버전에서는 값과 파일명을 함께 변경하고 versionCode를 반드시 증가시킵니다. APK 하나를 첨부하고 GitHub asset의 크기·SHA256 digest, 공개 다운로드와 설치 서명을 검증한 뒤 공개합니다. 현재 앱 버전과 같거나 오래된 버전은 안내하지 않습니다.

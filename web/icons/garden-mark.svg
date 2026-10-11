@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108" role="img" aria-label="KV 수학탐험대: 수식 타일에서 자라는 새싹">
+  <rect x="6" y="6" width="96" height="96" rx="27" fill="#6547D9"/>
+  <path d="M6 75Q43 105 102 55V75Q102 102 75 102H33Q6 102 6 75Z" fill="#4931A9" opacity=".32"/>
+  <rect x="27" y="43" width="54" height="39" rx="11" fill="#4931A9"/>
+  <rect x="27" y="40" width="54" height="39" rx="11" fill="#FFFCF2"/>
+  <path d="M38 55C38 48 51 48 51 55C51 59 45 62 39 67H51M60 55H70M60 64H70" fill="none" stroke="#6547D9" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M53 45C53 36 56 31 59 28" fill="none" stroke="#21845E" stroke-width="4" stroke-linecap="round"/>
+  <path d="M54 37C42 37 36 31 37 23C49 23 55 28 54 37Z" fill="#7BCD96"/>
+  <path d="M56 32C54 22 61 17 69 19C69 28 63 33 56 32Z" fill="#21845E"/>
+  <path d="M77 27V35M73 31H81" fill="none" stroke="#FFB54A" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="33" cy="84" r="2.5" fill="#FFB54A"/>
+</svg>

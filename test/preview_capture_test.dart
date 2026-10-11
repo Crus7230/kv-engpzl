@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kvm/core/branding/garden_branding.dart';
 import 'package:kvm/core/theme/app_theme.dart';
 import 'package:kvm/features/discovery/data/tutorial_discovery_fixture.dart';
 import 'package:kvm/features/discovery/domain/discovery_models.dart';
+import 'package:kvm/features/discovery/presentation/discovery_board_motion.dart';
 import 'package:kvm/features/discovery/presentation/discovery_puzzle_screen.dart';
 import 'package:kvm/features/discovery/presentation/engine_discovery_puzzle_view_model.dart';
 import 'package:kvm/features/garden/presentation/garden_screens.dart';
@@ -57,7 +59,12 @@ void main() {
         addTearDown(model.dispose);
 
         for (final scale in [1.0, 1.3]) {
-          Future<void> capture(String state, Widget screen) async {
+          Future<void> capture(
+            String state,
+            Widget screen, {
+            VoidCallback? play,
+            Duration Function()? frameDelay,
+          }) async {
             final boundaryKey = GlobalKey();
             final theme = AppTheme.light();
             await tester.pumpWidget(
@@ -87,6 +94,11 @@ void main() {
               }
             });
             await tester.pumpAndSettle();
+            if (play != null) {
+              play();
+              await tester.pump();
+              await tester.pump(frameDelay?.call() ?? Duration.zero);
+            }
             expect(
               tester.takeException(),
               isNull,
@@ -109,6 +121,10 @@ void main() {
             });
           }
 
+          await capture(
+            'garden-loading',
+            const GardenLoadingScreen(status: '지난 탐험 기록을 불러오고 있어요'),
+          );
           await capture(
             'world-map',
             WorldMapScreen(
@@ -145,6 +161,57 @@ void main() {
             DiscoveryPuzzleScreen(viewModel: model),
           );
           final first = DiscoveryTutorialFixture.steps.first;
+          for (final frame in [
+            'swap',
+            'seal-hit',
+            'fall',
+            'refill',
+            'discovery',
+          ]) {
+            await capture(
+              'puzzle-motion-$frame',
+              DiscoveryPuzzleScreen(viewModel: model),
+              play: () {
+                model.resetRound();
+                model.selectGem(
+                  first.from.row * model.boardColumns + first.from.column,
+                );
+                model.selectGem(
+                  first.to.row * model.boardColumns + first.to.column,
+                );
+              },
+              frameDelay: () {
+                final timeline = discoveryMotionTimeline(
+                  model.boardTurnMotion!,
+                  columns: model.boardColumns,
+                );
+                if (frame == 'discovery') {
+                  final window = timeline.discoveries.first;
+                  return window.start + window.duration ~/ 2;
+                }
+                final kind = switch (frame) {
+                  'swap' => DiscoveryMotionPhaseKind.swap,
+                  'seal-hit' => DiscoveryMotionPhaseKind.clear,
+                  _ => DiscoveryMotionPhaseKind.settle,
+                };
+                var elapsed = Duration.zero;
+                for (final phase in timeline.phases) {
+                  if (phase.kind == kind) {
+                    final fraction = frame == 'refill' ? .7 : .35;
+                    return elapsed +
+                        Duration(
+                          milliseconds:
+                              (phase.duration.inMilliseconds * fraction)
+                                  .round(),
+                        );
+                  }
+                  elapsed += phase.duration;
+                }
+                throw StateError('Missing $kind preview phase.');
+              },
+            );
+          }
+          model.resetRound();
           model.selectGem(
             first.from.row * model.boardColumns + first.from.column,
           );

@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/branding/garden_branding.dart';
 import '../core/theme/app_theme.dart';
 import '../core/assets/retained_asset_bundle.dart';
+import '../core/updates/app_update_service.dart';
+import '../core/updates/startup_update_gate.dart';
 import '../features/campaign/data/initial_campaign.dart';
 import '../features/campaign/domain/campaign_models.dart';
 import '../features/campaign/data/legacy_region_catalog.dart';
@@ -31,14 +34,71 @@ class MathAdventureApp extends StatefulWidget {
     this.campaign,
     this.assetBundle,
     this.now,
+    this.updateService,
     super.key,
   });
   final ProgressRepository? repository;
   final CampaignDefinition? campaign;
   final AssetBundle? assetBundle;
   final DateTime Function()? now;
+  final AppUpdateService? updateService;
   @override
   State<MathAdventureApp> createState() => _MathAdventureAppState();
+}
+
+class _StartupIssueScreen extends StatelessWidget {
+  const _StartupIssueScreen({
+    required this.title,
+    required this.detail,
+    required this.retryLabel,
+    required this.onRetry,
+  });
+
+  final String title;
+  final String detail;
+  final String retryLabel;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: AppColors.canvasBottom,
+    body: SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const GardenBrandMark(size: 64),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(detail),
+                      const SizedBox(height: 16),
+                      FilledButton(onPressed: onRetry, child: Text(retryLabel)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 enum RenewalRoute {
@@ -64,6 +124,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   Timer? _restTimer;
   AssetBundle? _assetBundle;
   Object? _assetError;
+  bool _preparingAssets = false;
+  bool _loadingProgress = false;
   StageDefinition? _selectedStage;
   String? _reviewTicketId;
   bool _isDailyReview = false;
@@ -106,6 +168,11 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   }
 
   Future<void> _prepareAssets() async {
+    if (_preparingAssets) return;
+    _preparingAssets = true;
+    if (mounted && _assetError != null) {
+      setState(() => _assetError = null);
+    }
     try {
       final bundle = widget.assetBundle ?? await RetainedAssetBundle.prepare();
       if (mounted)
@@ -115,10 +182,17 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         });
     } catch (error) {
       if (mounted) setState(() => _assetError = error);
+    } finally {
+      _preparingAssets = false;
     }
   }
 
   Future<void> _load() async {
+    if (_loadingProgress) return;
+    _loadingProgress = true;
+    if (mounted && _loadError != null) {
+      setState(() => _loadError = null);
+    }
     try {
       final save = await _repository.load();
       if (mounted)
@@ -128,6 +202,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         });
     } catch (error) {
       if (mounted) setState(() => _loadError = error);
+    } finally {
+      _loadingProgress = false;
     }
   }
 
@@ -649,58 +725,44 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         ),
       );
     },
-    home: Builder(builder: _buildShell),
+    home: StartupUpdateGate(
+      service: widget.updateService ?? const AndroidAppUpdateService(),
+      child: Builder(builder: _buildShell),
+    ),
   );
 
   Widget _buildShell(BuildContext context) {
-    if (_assetError != null)
-      return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('정원 에셋을 확인할 수 없어요', style: TextStyle(fontSize: 21)),
-                const SizedBox(height: 12),
-                const Text(
-                  '로직 전용 업데이트는 이전에 설치한 에셋 묶음이 필요합니다. 에셋 포함 전체 APK로 업데이트해 주세요. 진행 기록은 초기화하지 않았습니다.',
-                ),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: _prepareAssets,
-                  child: const Text('다시 확인'),
-                ),
-              ],
-            ),
-          ),
-        ),
+    if (_assetError != null) {
+      return _StartupIssueScreen(
+        title: '정원 에셋을 확인할 수 없어요',
+        detail:
+            '로직 전용 업데이트는 이전에 설치한 에셋 묶음이 필요합니다. '
+            '에셋 포함 전체 APK로 업데이트해 주세요. 진행 기록은 초기화하지 않았습니다.',
+        retryLabel: '다시 확인',
+        onRetry: _prepareAssets,
       );
-    if (_loadError != null)
-      return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('저장된 정원을 열 수 없어요', style: TextStyle(fontSize: 22)),
-                const SizedBox(height: 12),
-                Text(
-                  _loadError is FutureSaveVersionException
-                      ? '더 새로운 앱에서 만든 기록입니다. 기록을 보존했어요. 앱 버전을 확인해 주세요.'
-                      : '기록을 보존했어요. 저장소를 확인한 뒤 다시 열어 주세요.',
-                ),
-                const SizedBox(height: 16),
-                FilledButton(onPressed: _load, child: const Text('다시 열기')),
-              ],
-            ),
-          ),
-        ),
+    }
+    if (_loadError != null) {
+      return _StartupIssueScreen(
+        title: '저장된 정원을 열 수 없어요',
+        detail: _loadError is FutureSaveVersionException
+            ? '더 새로운 앱에서 만든 기록입니다. 기록을 보존했어요. 앱 버전을 확인해 주세요.'
+            : '기록을 보존했어요. 저장소를 확인한 뒤 다시 열어 주세요.',
+        retryLabel: '다시 열기',
+        onRetry: _load,
       );
+    }
     final save = _save;
-    if (save == null || _assetBundle == null)
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (save == null || _assetBundle == null) {
+      return GardenLoadingScreen(
+        status: _assetBundle == null
+            ? save == null
+                  ? '정원 기록과 배경을 준비하고 있어요'
+                  : '배경과 캐릭터를 확인하고 있어요'
+            : '지난 탐험 기록을 불러오고 있어요',
+        reduceMotion: MediaQuery.disableAnimationsOf(context),
+      );
+    }
     final daily = const DailyRouteService().build(save, _campaign, now: _now);
     final campaignStages = _campaign.stages
         .where((stage) => stage.isPlayable && stage.id.startsWith('r01-'))

@@ -11,9 +11,11 @@ class MainActivity : FlutterActivity() {
     private val mediaWorker = Executors.newSingleThreadExecutor()
     private val expectedPackId = "r1-media-v2"
     private var installedPaths = emptySet<String>()
+    private var updates: AppUpdateBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        updates = AppUpdateBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kvm/retained_assets")
             .setMethodCallHandler { call, result ->
                 if (call.method != "ensureInstalled" && call.method != "readAsset") {
@@ -128,6 +130,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        updates?.dispose()
         mediaWorker.shutdown()
         super.onDestroy()
     }

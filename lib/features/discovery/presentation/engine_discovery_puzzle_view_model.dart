@@ -15,6 +15,7 @@ import '../data/discovery_runtime_catalog.dart';
 import '../domain/discovery_engine.dart';
 import '../domain/discovery_models.dart';
 import '../domain/discovery_piece_source.dart';
+import 'discovery_board_motion.dart';
 import 'discovery_puzzle_view_model.dart';
 
 StageDefinition _prototypePlayableStage() {
@@ -30,7 +31,7 @@ StageDefinition _prototypePlayableStage() {
 }
 
 class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
-    implements DiscoveryPuzzleViewModel {
+    implements DiscoveryPuzzleViewModel, DiscoveryBoardMotionSource {
   EngineDiscoveryPuzzleViewModel({
     required DiscoveryBoardConfig boardConfig,
     StageDefinition? stage,
@@ -75,6 +76,14 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   int _submissionCount = 0;
   bool _firstSubmissionCorrect = false;
   bool _usedDirectPathHint = false;
+  int _boardMotionRevision = 0;
+  DiscoveryBoardTurnMotion? _boardTurnMotion;
+
+  @override
+  int get boardMotionRevision => _boardMotionRevision;
+
+  @override
+  DiscoveryBoardTurnMotion? get boardTurnMotion => _boardTurnMotion;
 
   StageDefinition get stage => _stage;
   Set<String> get misconceptionIds => Set.unmodifiable(_misconceptionIds);
@@ -255,6 +264,8 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
     _feedbackTone = DiscoveryFeedbackTone.values.byName(
       saved['feedbackTone'] as String,
     );
+    // Replaying a checkpoint restores state, not a pending visual turn.
+    _clearBoardMotion();
     notifyListeners();
   }
 
@@ -377,7 +388,12 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       return;
     }
 
+    final boardBeforeSwap = _engine.state.board;
     final result = _engine.swap(from, to);
+    if (result.isAccepted || result.status == DiscoverySwapStatus.noMatch) {
+      _boardTurnMotion = _turnMotion(boardBeforeSwap, result);
+      _boardMotionRevision += 1;
+    }
     _selectedCellIndex = null;
     switch (result.status) {
       case DiscoverySwapStatus.accepted:
@@ -710,6 +726,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   }
 
   void _resetSession() {
+    _clearBoardMotion();
     _engine = DiscoveryEngine(
       initialBoard: _buildInitialBoard(),
       requiredTargetIds: _stage.buriedTokenIds,
@@ -750,6 +767,95 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   DiscoveryBoard _buildInitialBoard() {
     return _runtime.buildBoard(_boardVariant);
   }
+
+  void _clearBoardMotion() {
+    _boardTurnMotion = null;
+    _boardMotionRevision += 1;
+  }
+
+  DiscoveryBoardTurnMotion _turnMotion(
+    DiscoveryBoard before,
+    DiscoveryTurnResult result,
+  ) {
+    final beforeCells = _motionCells(before);
+    final fromIndex = result.from.row * boardColumns + result.from.column;
+    final toIndex = result.to.row * boardColumns + result.to.column;
+    final swappedCells = List<DiscoveryMotionCell>.of(beforeCells);
+    // Seals belong to board coordinates; only the visible gems exchange places.
+    swappedCells[fromIndex] = DiscoveryMotionCell(
+      gem: beforeCells[toIndex].gem,
+      sealKind: beforeCells[fromIndex].sealKind,
+      sealLayers: beforeCells[fromIndex].sealLayers,
+    );
+    swappedCells[toIndex] = DiscoveryMotionCell(
+      gem: beforeCells[fromIndex].gem,
+      sealKind: beforeCells[toIndex].sealKind,
+      sealLayers: beforeCells[toIndex].sealLayers,
+    );
+    int indexFor(DiscoveryPosition position) =>
+        position.row * boardColumns + position.column;
+    DiscoveryMotionPower powerFor(DiscoveryPowerEvent event) =>
+        DiscoveryMotionPower(
+          index: indexFor(event.position),
+          direction: event.direction == DiscoveryLinePower.row
+              ? DiscoveryLinePowerKind.row
+              : DiscoveryLinePowerKind.column,
+        );
+    return DiscoveryBoardTurnMotion(
+      fromIndex: fromIndex,
+      toIndex: toIndex,
+      accepted: result.isAccepted,
+      beforeSwap: beforeCells,
+      afterSwap: swappedCells,
+      cascades: [
+        for (final step in result.cascades)
+          DiscoveryCascadeMotion(
+            index: step.index,
+            clearedIndices: step.clearedPieces.map(
+              (piece) => indexFor(piece.position),
+            ),
+            afterClear: _motionCells(step.boardAfterClear),
+            afterFall: _motionCells(step.boardAfterFall),
+            afterRefill: _motionCells(step.boardAfterRefill),
+            sealHits: [
+              for (final hit in step.sealHits)
+                DiscoveryMotionSealHit(
+                  index: indexFor(hit.position),
+                  layersBefore: hit.layersBefore,
+                  layersAfter: hit.layersAfter,
+                ),
+            ],
+            createdPowers: step.createdPowers.map(powerFor),
+            activatedPowers: step.activatedPowers.map(powerFor),
+            discoveries: [
+              for (final target in step.discoveredTargets)
+                DiscoveryMotionDiscovery(
+                  index: indexFor(target.position),
+                  block: _blockForTokenId(target.piece.id),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  List<DiscoveryMotionCell> _motionCells(DiscoveryBoard board) => [
+    for (final position in board.positions)
+      DiscoveryMotionCell(
+        gem: board.pieceAt(position) == null
+            ? null
+            : _cellForPosition(board, position),
+        sealKind: _sealKind(board.cellAt(position).buriedTarget?.kind),
+        sealLayers: board.cellAt(position).sealLayers,
+      ),
+  ];
+
+  DiscoverySealKind? _sealKind(DiscoveryPieceKind? kind) => switch (kind) {
+    DiscoveryPieceKind.number => DiscoverySealKind.number,
+    DiscoveryPieceKind.mathOperator => DiscoverySealKind.operatorSymbol,
+    DiscoveryPieceKind.parenthesis => DiscoverySealKind.parenthesis,
+    DiscoveryPieceKind.gem || null => null,
+  };
 
   EquationToken _tokenForId(String id) => _puzzle.tokens.firstWhere(
     (token) => token.id == id,

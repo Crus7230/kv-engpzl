@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../campaign/domain/campaign_models.dart';
 import '../domain/discovery_models.dart';
+import 'discovery_board_animation.dart';
 import 'discovery_puzzle_view_model.dart';
 import 'engine_discovery_puzzle_view_model.dart';
 
@@ -28,6 +29,7 @@ class _DiscoveryPuzzleScreenState extends State<DiscoveryPuzzleScreen> {
   DiscoveryPuzzleViewModel? _viewModel;
   bool _ownsViewModel = false;
   StageDefinition? _ownedStage;
+  final _motionLock = DiscoveryBoardInteractionLock();
 
   @override
   void initState() {
@@ -91,91 +93,95 @@ class _DiscoveryPuzzleScreenState extends State<DiscoveryPuzzleScreen> {
   @override
   void dispose() {
     _disposeOwnedViewModel();
+    _motionLock.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final viewModel = _viewModel!;
-    return AnimatedBuilder(
-      animation: viewModel,
-      builder: (context, _) {
-        return Scaffold(
-          body: DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFF5F1FF), Color(0xFFE8F7FF)],
+    return DiscoveryMotionScope(
+      lock: _motionLock,
+      child: AnimatedBuilder(
+        animation: viewModel,
+        builder: (context, _) {
+          return Scaffold(
+            body: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFF5F1FF), Color(0xFFE8F7FF)],
+                ),
               ),
-            ),
-            child: SafeArea(
-              minimum: const EdgeInsets.all(2),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final scaledBodySize = MediaQuery.textScalerOf(
-                    context,
-                  ).scale(15);
-                  final dense =
-                      constraints.maxWidth < 900 ||
-                      constraints.maxHeight < 430 ||
-                      scaledBodySize > 17;
-                  final shortHeight = constraints.maxHeight < 390;
-                  final compactBoard =
-                      shortHeight ||
-                      viewModel.boardRows <= 5 ||
-                      constraints.maxWidth < 680;
-                  return Column(
-                    children: [
-                      SizedBox(
-                        height: shortHeight
-                            ? 44
-                            : dense
-                            ? 48
-                            : 60,
-                        child: _GameHeader(
-                          viewModel: viewModel,
-                          dense: dense,
-                          shortHeight: shortHeight,
-                          onExit:
-                              widget.onExit ??
-                              () {
-                                Navigator.maybePop(context);
-                              },
-                        ),
-                      ),
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            dense ? 4 : 12,
-                            shortHeight
-                                ? 1
-                                : dense
-                                ? 2
-                                : 6,
-                            dense ? 4 : 12,
-                            shortHeight
-                                ? 2
-                                : dense
-                                ? 4
-                                : 10,
-                          ),
-                          child: _ThreePaneGameLayout(
+              child: SafeArea(
+                minimum: const EdgeInsets.all(2),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final scaledBodySize = MediaQuery.textScalerOf(
+                      context,
+                    ).scale(15);
+                    final dense =
+                        constraints.maxWidth < 900 ||
+                        constraints.maxHeight < 430 ||
+                        scaledBodySize > 17;
+                    final shortHeight = constraints.maxHeight < 390;
+                    final compactBoard =
+                        shortHeight ||
+                        viewModel.boardRows <= 5 ||
+                        constraints.maxWidth < 680;
+                    return Column(
+                      children: [
+                        SizedBox(
+                          height: shortHeight
+                              ? 44
+                              : dense
+                              ? 48
+                              : 60,
+                          child: _GameHeader(
                             viewModel: viewModel,
                             dense: dense,
-                            compactBoard: compactBoard,
                             shortHeight: shortHeight,
+                            onExit:
+                                widget.onExit ??
+                                () {
+                                  Navigator.maybePop(context);
+                                },
                           ),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              dense ? 4 : 12,
+                              shortHeight
+                                  ? 1
+                                  : dense
+                                  ? 2
+                                  : 6,
+                              dense ? 4 : 12,
+                              shortHeight
+                                  ? 2
+                                  : dense
+                                  ? 4
+                                  : 10,
+                            ),
+                            child: _ThreePaneGameLayout(
+                              viewModel: viewModel,
+                              dense: dense,
+                              compactBoard: compactBoard,
+                              shortHeight: shortHeight,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -195,6 +201,10 @@ class _GameHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final motionLock = DiscoveryMotionScope.of(context);
+    final visibleBlockCount = viewModel.discoveredBlocks
+        .where((block) => !motionLock.isPending(block.id))
+        .length;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: dense ? 2 : 10),
       child: Row(
@@ -257,8 +267,7 @@ class _GameHeader extends StatelessWidget {
           ],
           _HeaderMetric(
             icon: Icons.inventory_2_rounded,
-            label:
-                '${viewModel.discoveredBlocks.length}/${viewModel.requiredBlockCount}',
+            label: '$visibleBlockCount/${viewModel.requiredBlockCount}',
             color: AppColors.primary,
             compactHeight: shortHeight,
           ),
@@ -753,7 +762,10 @@ class _CollectionProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final discovered = viewModel.discoveredBlocks.length;
+    final motionLock = DiscoveryMotionScope.of(context);
+    final discovered = viewModel.discoveredBlocks
+        .where((block) => !motionLock.isPending(block.id))
+        .length;
     final total = viewModel.requiredBlockCount;
     return Semantics(
       label: '필요한 수식 블록 $total개 중 $discovered개 발굴',
@@ -928,31 +940,105 @@ class _GemGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final motionLock = DiscoveryMotionScope.of(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: GridView.builder(
-        primary: false,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: visibleIndices.length,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          mainAxisSpacing: spacing,
-          crossAxisSpacing: spacing,
+      child: DiscoveryAnimatedGemBoard(
+        viewModel: viewModel,
+        lock: motionLock,
+        columns: crossAxisCount,
+        spacing: spacing,
+        gemBuilder: (cell) => _GemButton(
+          cell: cell,
+          row: 0,
+          column: 0,
+          selected: false,
+          onPressed: () {},
         ),
-        itemBuilder: (context, itemIndex) {
-          final boardIndex = visibleIndices[itemIndex];
-          final cell = boardCells[boardIndex];
-          return _GemButton(
-            cell: cell,
-            row: boardIndex ~/ viewModel.boardColumns + 1,
-            column: boardIndex % viewModel.boardColumns + 1,
-            selected: viewModel.selectedCellIndex == boardIndex,
-            onPressed: () => viewModel.selectGem(boardIndex),
-          );
-        },
+        child: GridView.builder(
+          primary: false,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: visibleIndices.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: spacing,
+            crossAxisSpacing: spacing,
+          ),
+          itemBuilder: (context, itemIndex) {
+            final boardIndex = visibleIndices[itemIndex];
+            final cell = boardCells[boardIndex];
+            return _GemSwipeTarget(
+              onSwipe: (delta) {
+                if (motionLock.busy) return;
+                final row = boardIndex ~/ viewModel.boardColumns;
+                final column = boardIndex % viewModel.boardColumns;
+                final horizontal = delta.dx.abs() >= delta.dy.abs();
+                final nextRow = row + (horizontal ? 0 : delta.dy.sign.toInt());
+                final nextColumn =
+                    column + (horizontal ? delta.dx.sign.toInt() : 0);
+                if (nextRow < 0 ||
+                    nextRow >= viewModel.boardRows ||
+                    nextColumn < 0 ||
+                    nextColumn >= viewModel.boardColumns) {
+                  return;
+                }
+                final selection = viewModel.selectedCellIndex;
+                if (selection != null) viewModel.selectGem(selection);
+                viewModel.selectGem(boardIndex);
+                viewModel.selectGem(
+                  nextRow * viewModel.boardColumns + nextColumn,
+                );
+              },
+              child: _GemButton(
+                cell: cell,
+                row: boardIndex ~/ viewModel.boardColumns + 1,
+                column: boardIndex % viewModel.boardColumns + 1,
+                selected: viewModel.selectedCellIndex == boardIndex,
+                onPressed: () {
+                  if (!motionLock.busy) viewModel.selectGem(boardIndex);
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
   }
+}
+
+class _GemSwipeTarget extends StatefulWidget {
+  const _GemSwipeTarget({required this.onSwipe, required this.child});
+
+  final ValueChanged<Offset> onSwipe;
+  final Widget child;
+
+  @override
+  State<_GemSwipeTarget> createState() => _GemSwipeTargetState();
+}
+
+class _GemSwipeTargetState extends State<_GemSwipeTarget> {
+  Offset _dragOrigin = Offset.zero;
+  Offset _drag = Offset.zero;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanDown: (details) => _dragOrigin = details.localPosition,
+      onPanStart: (details) => _drag = details.localPosition - _dragOrigin,
+      onPanUpdate: (details) => _drag += details.delta,
+      onPanCancel: () => _drag = Offset.zero,
+      onPanEnd: (_) {
+        final delta = _drag;
+        _drag = Offset.zero;
+        final threshold = (constraints.maxWidth * .22).clamp(10.0, 18.0);
+        if (math.max(delta.dx.abs(), delta.dy.abs()) >= threshold) {
+          widget.onSwipe(delta);
+        }
+      },
+      child: widget.child,
+    ),
+  );
 }
 
 class _GemButton extends StatelessWidget {
@@ -1201,6 +1287,12 @@ class _EquationWorkspace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final motionLock = DiscoveryMotionScope.of(context);
+    final visibleBlockCount = viewModel.discoveredBlocks
+        .where((block) => !motionLock.isPending(block.id))
+        .length;
+    final awaitingTokens =
+        visibleBlockCount < viewModel.discoveredBlocks.length;
     return Card(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1260,7 +1352,7 @@ class _EquationWorkspace extends StatelessWidget {
                 _WorkspaceSectionLabel(
                   label: '획득 보관함',
                   trailing:
-                      '${viewModel.discoveredBlocks.length}/${viewModel.requiredBlockCount}',
+                      '$visibleBlockCount/${viewModel.requiredBlockCount}',
                   compact: veryTight,
                 ),
                 SizedBox(
@@ -1281,8 +1373,12 @@ class _EquationWorkspace extends StatelessWidget {
                 ),
                 Expanded(
                   child: _FeedbackStrip(
-                    message: viewModel.feedbackMessage,
-                    tone: viewModel.feedbackTone,
+                    message: awaitingTokens
+                        ? '봉인이 열리고 있어요. 조각이 도착하면 식을 만들어요.'
+                        : viewModel.feedbackMessage,
+                    tone: awaitingTokens
+                        ? DiscoveryFeedbackTone.reward
+                        : viewModel.feedbackTone,
                     dense: tight,
                     maxLines: 3,
                   ),
@@ -1355,7 +1451,10 @@ class _DiscoveredBlockRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final discoveredBlocks = viewModel.discoveredBlocks;
+    final motionLock = DiscoveryMotionScope.of(context);
+    final discoveredBlocks = viewModel.discoveredBlocks
+        .where((block) => !motionLock.isPending(block.id))
+        .toList(growable: false);
     final answerBlockIds = viewModel.answerBlocks
         .map((block) => block.id)
         .toSet();
@@ -1380,7 +1479,9 @@ class _DiscoveredBlockRow extends StatelessWidget {
               block: block,
               size: slotSize,
               semanticAction: '식에 추가',
-              onPressed: () => viewModel.addBlockToAnswer(block.id),
+              onPressed: () {
+                if (!motionLock.busy) viewModel.addBlockToAnswer(block.id);
+              },
             );
           }),
         );
@@ -1397,6 +1498,7 @@ class _AnswerBlockRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final answerBlocks = viewModel.answerBlocks;
+    final motionLock = DiscoveryMotionScope.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final slotSize = _tokenSlotSize(
@@ -1424,7 +1526,10 @@ class _AnswerBlockRow extends StatelessWidget {
                 size: slotSize,
                 semanticAction: '보관함으로 돌려보내기',
                 selected: true,
-                onPressed: () => viewModel.removeBlockFromAnswer(block.id),
+                onPressed: () {
+                  if (!motionLock.busy)
+                    viewModel.removeBlockFromAnswer(block.id);
+                },
               );
             }),
           ),
@@ -1714,6 +1819,7 @@ class _WorkspaceActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final motionLock = DiscoveryMotionScope.of(context);
     return SizedBox(
       height: compactHeight ? 44 : 48,
       child: Row(
@@ -1738,7 +1844,9 @@ class _WorkspaceActions extends StatelessWidget {
             dimension: compactHeight ? 44 : 48,
             child: IconButton.filledTonal(
               tooltip: '힌트 보기',
-              onPressed: viewModel.canRevealHint ? viewModel.revealHint : null,
+              onPressed: viewModel.canRevealHint && !motionLock.busy
+                  ? viewModel.revealHint
+                  : null,
               style: compactHeight
                   ? IconButton.styleFrom(
                       minimumSize: const Size.square(44),
@@ -1752,7 +1860,9 @@ class _WorkspaceActions extends StatelessWidget {
           const SizedBox(width: 6),
           Expanded(
             child: FilledButton.icon(
-              onPressed: viewModel.isAnswerCorrect
+              onPressed: motionLock.busy
+                  ? null
+                  : viewModel.isAnswerCorrect
                   ? viewModel is DiscoveryCompletionHandler
                         ? (viewModel as DiscoveryCompletionHandler)
                               .continueToResult
