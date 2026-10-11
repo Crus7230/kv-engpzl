@@ -4,9 +4,9 @@
 
 ## 다운로드와 설치
 
-[Android APK 다운로드 — v0.1.1 독립 설치용 R1 알파](https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.1-r1-alpha/KVM-R1-0.1.1-alpha.apk)
+[Android APK 다운로드 — v0.1.2 독립 설치용 R1 알파](https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.2-r1-alpha/KVM-R1-0.1.2-alpha.apk)
 
-[릴리스 안내와 파일 정보](https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.1-r1-alpha)
+[릴리스 안내와 파일 정보](https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.2-r1-alpha)
 
 1. Android 휴대폰에서 위 APK를 다운로드합니다. GitHub의 `Code → Download ZIP`은 소스이며 설치 파일이 아닙니다.
 2. 다운로드한 APK를 열고, 필요한 경우 다운로드에 사용한 브라우저 또는 파일 앱에만 출처가 다른 앱 설치를 허용합니다.
@@ -17,19 +17,19 @@
 | --- | --- |
 | 지원 OS | Android 7.0 이상 (`minSdk 24`) |
 | 화면 | 스마트폰 가로 모드, FHD/20:9 저높이 화면 대응 |
-| 버전 | `0.1.1`, versionCode `2` |
+| 버전 | `0.1.2`, versionCode `3` |
 | 패키지 | `com.crus7230.kvm.renewal` |
 | 설치 파일 | 전체 미디어 포함 APK, 56,749,105 bytes (약 54.1 MiB) |
 | 서명 | 개발용 Android Debug 키, release 모드 빌드 |
 
-v0.1.1은 기존 KVM과 v0.1.0의 `com.user.kvm`을 업데이트하지 않고 **별도 앱으로 설치**됩니다. 기존 앱은 삭제할 필요가 없으며 그 데이터도 유지됩니다. 새 앱의 진행은 처음부터 시작하고 기존 진행·미디어 팩은 자동 이관하지 않습니다.
+v0.1.1부터 Renewal은 기존 KVM과 v0.1.0의 `com.user.kvm`을 업데이트하지 않고 **별도 앱으로 설치**됩니다. 기존 앱은 삭제할 필요가 없으며 그 데이터도 유지됩니다. 새 앱의 진행은 처음부터 시작하고 기존 진행·미디어 팩은 자동 이관하지 않습니다. 같은 서명의 v0.1.1 Renewal이 설치되어 있다면 v0.1.2는 정상 업데이트로 진행을 유지하도록 구성했습니다. 실제 휴대폰 업데이트 검증은 남아 있습니다.
 
 이 배포는 실기기 테스트를 위한 공개 **알파 사전 릴리스**입니다. 개발용 서명으로 직접 설치할 수 있지만 정식 배포용 키나 Google Play 배포본이 아닙니다. 이후 같은 `com.crus7230.kvm.renewal` 앱을 업데이트할 때에는 같은 서명과 증가한 versionCode가 필요합니다. 설치 오류가 나면 보안 검사 전체를 끄거나 앱 데이터를 삭제하지 말고 오류 문구를 [Issues](https://github.com/Crus7230/kv-engpzl/issues)에 알려주세요.
 
 APK SHA256:
 
 ```text
-01EA0B0C4AA06782C391764029FD4A2BBF5BB45FE947498E4FC56DFB8BA4609A
+F99E806E767B4E6CF0DB0BC2AF0B4B5A415CE5BD0153018DB85461DFC604B3C4
 ```
 
 ## 플레이 흐름
