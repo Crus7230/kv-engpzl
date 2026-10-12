@@ -1,5 +1,25 @@
 # GitHub 공개 APK 배포 기록
 
+## v0.1.6 오디오·햅틱·모험 캐릭터
+
+2026-10-12 이미지 팩 `media-r1-v3`와 음원 팩 `media-audio-v1`을 먼저 공개한 뒤, 22:55:15 KST에 `v0.1.6-r1-alpha`를 공개했다. 기존 여섯 APK 릴리즈와 Git 이력은 보존했다. [변경·설치·검증 안내](RELEASE_NOTES_0_1_6.md)를 참고한다.
+
+- Release: https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.6-r1-alpha
+- APK: https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.6-r1-alpha/KVM-R1-0.1.6-alpha.apk
+- 릴리즈 ID `410659569`, `draft=false`, `prerelease=true`, 단일 APK 50,832,467 bytes.
+- SHA256 `50212f121f4938e394537c995360414af5d8f4a901679ab56dceeb9c7c7af9ca`.
+- 버전 `0.1.6+7`, 패키지 `com.crus7230.kvm.renewal`, 기존 v0.1.5 개발용 인증서 일치, APK v2 서명.
+- 저장 epoch `expedition-1` 유지. 진행 중 v1/v3 보드는 기존 규칙으로 복원하고 새 시도는 v4.
+- 다운로드형 입력 `build/logic-only-source/20261012-224443-889`에서 정상 `lib/main.dart` release 빌드. APK의 보존 이미지·음원은 0개이고 manifest 2개는 검증한 소스와 일치한다.
+
+`flutter analyze --no-pub` 이슈 0개, 전체 `flutter test --no-pub --reporter expanded` 582개 통과·조건부 공개 JSON 검사 1개 제외, v4 보드 298개 경로와 Web 가짜 Audio 계약을 확인했다. 튜토리얼/R1 통합 테스트의 이전 규칙 경로는 현재 세션의 경로로 수정했다. 이후 실제 공개 JSON으로 `public_release_verification_test.dart`도 1개 통과했다. 증거 JSON은 `build/deployment/public-verification/releases-v0.1.6.json`, 전체 로그는 `build/verification/release-0.1.6-full.log`, 공개 인식 로그는 `build/verification/public-release-0.1.6-tests.log`다.
+
+전용 checkout의 커밋 `fba019a33d6e557944371f91eca047897268dd7b` (`Release KVM 0.1.6 with retained audio, haptics and adventure avatars`)와 릴리즈 태그를 atomic push했다. 현재 GitHub CLI 경로를 해당 push의 credential helper에만 적용했으며 전역 인증과 상위 저장소는 변경하지 않았다. 서명 파일·로컬 SDK 설정·인증 정보·빌드 캐시는 게시하지 않았다.
+
+초안 ID로 단일 APK·크기·digest·업데이트 표식을 검증한 뒤 공개했다. 두 ZIP과 APK 모두 로그인 없는 다운로드의 크기·SHA256이 원본 및 앱 manifest와 일치한다. API 목록의 에셋 릴리즈를 업데이트 후보에서 제외하고 installedCode 6에서는 0.1.6/code 7을 선택하며 code 7에서는 중복 안내하지 않는다.
+
+실제 기기 설치·최초 팩 다운로드·BGM/SFX 청취·진동·백그라운드 전환·캐릭터 변경은 미검증이며 사용자 설치 테스트가 필요하다. APK·체크섬·build-info는 `build/deployment/artifacts`에 보관했다. 이전 산출물이나 사용자 BGM 원본은 삭제하지 않았다. 이 게시 후 검증 기록은 릴리즈 태그·APK를 변경하지 않는다.
+
 ## v0.1.5 R2 탐험과 확대된 지도
 
 2026-10-12 `Crus7230/kv-engpzl`에 `v0.1.5-r1-alpha`를 공개했다. R1·R2 120개와 단계별 특수 블록/방해 요소, 확대된 월드맵 및 플로팅 추천 버튼을 포함한 전체 APK 한 개를 제공한다. [변경 안내](RELEASE_NOTES_0_1_5.md)와 [빌드 단계 기록](LOCAL_BUILD_0_1_5.md)을 참고한다.

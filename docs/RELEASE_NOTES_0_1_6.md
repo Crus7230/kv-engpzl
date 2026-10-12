@@ -27,7 +27,7 @@ v0.1.5와 동일한 개발용 인증서로 서명한 release APK입니다. 기�
 ## 검증 결과
 
 - `flutter analyze --no-pub`: 오류·경고 0건.
-- `flutter test --no-pub --reporter expanded`: 582개 통과. 공개 릴리즈 JSON이 필요한 조건부 검사 1개는 게시 후 별도로 실행합니다.
+- `flutter test --no-pub --reporter expanded`: 582개 통과, 공개 JSON이 필요한 조건부 검사 1개 제외. 게시 후 실제 공개 JSON으로 해당 검사도 별도 실행해 1개 통과했습니다. 이전 버전은 0.1.6을 선택하고 설치된 code 7에서는 다시 안내하지 않으며 에셋 릴리즈를 제외합니다.
 - `dart tool/verify_excavation.dart`: 298개 v4 fixture 경로, 복합 목표·얼음·지연 낙하·보드 결정론적 재생 통과.
 - `node tool/verify_web_audio.cjs`: 루프·재사용·가시성·정지·독립 효과음 계약 통과. 가짜 Audio 검사이며 실제 청취 검증은 아닙니다.
 - `tool/verify_asset_packs.ps1`: 이미지 31개와 음원 8개의 원본·ZIP 파일 크기·해시 일치.
@@ -35,6 +35,7 @@ v0.1.5와 동일한 개발용 인증서로 서명한 release APK입니다. 기�
 - `flutter pub get --offline` 후 다운로드형 입력에서 `flutter build apk --release --no-pub -t lib/main.dart` 성공. 신규 런타임 의존성은 없습니다.
 - APK Signature Scheme v2 검증, v0.1.5 인증서 일치, 실제 패키지·버전·minSdk 24·targetSdk 36·가로 화면과 3개 ABI 확인.
 - APK 내부 이미지·음원 파일 0개, 검증된 소스와 일치하는 다운로드 manifest 2개 확인.
+- 공개 APK의 단일 첨부·크기·digest와 로그인 없는 실제 다운로드 SHA256이 원본과 일치했습니다. 이미지·음원 팩 두 개를 먼저 공개한 뒤 APK를 게시했으며 기존 여섯 APK 릴리즈와 Git 이력을 보존했습니다.
 
 실제 휴대폰의 최초 팩 다운로드·업데이트 설치·청취·진동·다른 앱 전환·캐릭터 변경은 사용자 설치 테스트가 필요합니다. 다운로드 중단·손상·저장 공간 부족과 실제 프레임 성능도 실기기 검증 범위입니다. 자동 검증은 사람 플레이나 학습 성취 향상 보장이 아닙니다.
 
