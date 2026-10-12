@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -15,6 +16,7 @@ import '../../puzzle/domain/puzzle_learning_support.dart';
 import '../../puzzle/domain/sentence_math_problem.dart';
 import '../data/discovery_runtime_catalog.dart';
 import '../data/discovery_excavation_profile.dart';
+import '../data/discovery_challenge_profile.dart';
 import '../domain/discovery_engine.dart';
 import '../domain/discovery_models.dart';
 import '../domain/discovery_piece_source.dart';
@@ -37,17 +39,25 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
     implements
         DiscoveryPuzzleViewModel,
         DiscoveryBoardMotionSource,
+        DiscoveryHintVisibility,
         DiscoveryObjectiveSource {
   EngineDiscoveryPuzzleViewModel({
     required DiscoveryBoardConfig boardConfig,
     StageDefinition? stage,
     DiscoveryRuntimeCatalog? runtimeCatalog,
     this.rulesVersion = 3,
+    int? boardSeed,
   }) : _boardConfig = boardConfig,
+       _challengeSeed = boardSeed,
        _stage = rulesVersion == 1 && stage != null
            ? r1LegacyStagesById[stage.id] ?? stage
+           : rulesVersion == 5 && stage != null
+           ? DiscoveryChallengeProfile.stageFor(stage)
            : stage ?? _prototypePlayableStage() {
-    if (rulesVersion != 1 && rulesVersion != 3 && rulesVersion != 4) {
+    if (rulesVersion != 1 &&
+        rulesVersion != 3 &&
+        rulesVersion != 4 &&
+        rulesVersion != 5) {
       throw const FormatException('Unknown puzzle rules version.');
     }
     _runtime =
@@ -56,6 +66,8 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
                     ? legacyDiscoveryRuntimeCatalog
                     : rulesVersion == 4
                     ? excavationDiscoveryRuntimeCatalog
+                    : rulesVersion == 5
+                    ? challengeDiscoveryRuntimeCatalog
                     : discoveryRuntimeCatalog))
             .resolve(_stage);
     _validateSupportedStage();
@@ -71,9 +83,10 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
 
   final DiscoveryBoardConfig _boardConfig;
   final int rulesVersion;
+  int? _challengeSeed;
   final StageDefinition _stage;
   late final DiscoveryStageRuntime _runtime;
-  late final BoardLayoutVariant _boardVariant;
+  late BoardLayoutVariant _boardVariant;
   late final Puzzle _puzzle;
   late final List<String> _tutorialTargetIds;
   final PuzzleValidator _validator = const PuzzleValidator();
@@ -91,6 +104,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   String _feedbackMessage = '튜토리얼: 첫째 줄 두 번째 보석을 바로 아래 보석과 바꿔 보세요.';
   DiscoveryFeedbackTone _feedbackTone = DiscoveryFeedbackTone.neutral;
   bool _isAnswerCorrect = false;
+  bool _isHintVisible = false;
   final List<List<int>> _acceptedSwaps = [];
   final Set<String> _misconceptionIds = {};
   int _submissionCount = 0;
@@ -112,6 +126,14 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       _runtime.referencePathFor?.call(_boardVariant) ?? _runtime.tutorialSteps;
   @override
   List<DiscoveryObjectiveStatus> get discoveryObjectives => [
+    if (rulesVersion == 5 && !DiscoveryChallengeProfile.isTutorial(_stage))
+      DiscoveryObjectiveStatus(
+        label: '풀이 블록',
+        current: _engine.state.collectedTargetIds
+            .intersection(_stage.buriedTokenIds)
+            .length,
+        goal: _stage.buriedTokenIds.length,
+      ),
     for (final goal in _engine.state.objectives)
       DiscoveryObjectiveStatus(
         label: goal.label,
@@ -121,7 +143,8 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
         ),
         goal: goal.goal,
       ),
-    if (_runtime.targetDropsFor?.call(_boardVariant).isNotEmpty == true)
+    if (rulesVersion != 5 &&
+        _runtime.targetDropsFor?.call(_boardVariant).isNotEmpty == true)
       DiscoveryObjectiveStatus(
         label: '낙하 조각 획득',
         current: _runtime.targetDropsFor!(_boardVariant)
@@ -176,7 +199,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
 
   Map<String, dynamic> _boardSnapshot() => {
     'movesRemaining': movesLeft,
-    if (rulesVersion == 4) ...{
+    if (rulesVersion == 4 || rulesVersion == 5) ...{
       'acceptedMoves': _engine.state.acceptedMoves,
       'clearedByColor': _engine.state.clearedByColor,
       'objectiveProgress': _engine.state.objectiveProgress,
@@ -335,6 +358,11 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
     _feedbackTone = DiscoveryFeedbackTone.values.byName(
       saved['feedbackTone'] as String,
     );
+    // Existing saves already persist the hint message and its learning tier.
+    // Derive visibility without changing their schema or replay semantics.
+    _isHintVisible =
+        _feedbackMessage.startsWith('발굴 힌트:') ||
+        _feedbackMessage.startsWith('힌트 ');
     // Replaying a checkpoint restores state, not a pending visual turn.
     _clearBoardMotion();
     notifyListeners();
@@ -347,7 +375,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   String get difficultyLabel =>
       '수학 ${_stage.mathDifficulty.tier.index} · '
       '퍼즐 ${_stage.matchDifficulty.tier.index}'
-      '${rulesVersion == 4 && DiscoveryExcavationProfile.forStage(_stage).isActive ? ' · 복합 목표' : ''}';
+      '${rulesVersion == 5 && !DiscoveryChallengeProfile.isTutorial(_stage) || rulesVersion == 4 && DiscoveryExcavationProfile.forStage(_stage).isActive ? ' · 복합 목표' : ''}';
 
   @override
   String get concept => _stage.conceptLabel;
@@ -413,10 +441,24 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       _engine.state.isCompleted;
 
   @override
-  bool get canRevealHint =>
-      !_isAnswerCorrect &&
-      (!_engine.state.isCompleted ||
-          _hintLevel < _learningSupport.hintSteps.length);
+  bool get canRevealHint => !_isAnswerCorrect;
+
+  @override
+  bool get isHintVisible => _isHintVisible;
+
+  @override
+  void hideHint() {
+    if (!_isHintVisible) return;
+    _setFeedback(
+      _engine.state.isCompleted
+          ? _answerBlocks.length == requiredBlockCount
+                ? '풀이 블록과 퍼즐 목표를 모두 달성했어요. 식을 확인하세요.'
+                : '필요한 블록을 모두 찾았어요. 오른쪽에서 식을 완성하세요.'
+          : _nextDiscoveryInstruction(_engine.state.collectedTargetIds),
+      DiscoveryFeedbackTone.neutral,
+    );
+    notifyListeners();
+  }
 
   @override
   bool get isAnswerCorrect => _isAnswerCorrect;
@@ -596,7 +638,14 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       return;
     }
     _answerBlocks.add(block);
-    _setFeedback('발굴한 블록을 문장의 관계에 맞게 놓으세요.', DiscoveryFeedbackTone.neutral);
+    _setFeedback(
+      rulesVersion == 5 && _answerBlocks.length == requiredBlockCount
+          ? _engine.state.isCompleted
+                ? '풀이 블록과 퍼즐 목표를 모두 달성했어요. 식을 확인하세요.'
+                : '식 조각을 모두 놓았어요. ${_nextDiscoveryInstruction(_engine.state.collectedTargetIds)}'
+          : '발굴한 블록을 문장의 관계에 맞게 놓으세요.',
+      DiscoveryFeedbackTone.neutral,
+    );
     notifyListeners();
   }
 
@@ -637,7 +686,9 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
           ? _nextDiscoveryInstruction(state.collectedTargetIds)
           : '${suggestion.from.row + 1}행 ${suggestion.from.column + 1}열과 '
                 '${suggestion.to.row + 1}행 ${suggestion.to.column + 1}열을 바꾸세요. '
-                '${suggestion.targetId == null
+                '${rulesVersion == 5 && suggestion.objectiveLabel != null
+                    ? '${suggestion.objectiveLabel} 목표를 진행하는 경로예요. 이동 뒤 목표 수를 확인하세요.'
+                    : suggestion.targetId == null
                     ? suggestion.activatesLinePower
                           ? '특수 블록을 활성하는 경로예요. 타격 범위를 확인하세요.'
                           : suggestion.createsLinePower
@@ -646,7 +697,11 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
                     : suggestion.movesToTarget == 1
                     ? '${_tokenForId(suggestion.targetId!).label} 조각을 발굴할 수 있어요.'
                     : '봉인까지 ${suggestion.movesToTarget}회 경로의 첫 교환이에요. 이동 뒤 힌트를 다시 확인하세요.'}';
-      _setFeedback('발굴 힌트: $instruction', DiscoveryFeedbackTone.neutral);
+      _setFeedback(
+        '발굴 힌트: $instruction',
+        DiscoveryFeedbackTone.neutral,
+        isHint: true,
+      );
       notifyListeners();
       return;
     }
@@ -659,12 +714,30 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       '힌트 $_hintLevel/${support.hintSteps.length} · '
       '${_hintKindLabel(hint.kind)}: ${hint.message}',
       DiscoveryFeedbackTone.neutral,
+      isHint: true,
     );
     notifyListeners();
   }
 
   @override
   void resetRound() {
+    if (rulesVersion == 5 && !DiscoveryChallengeProfile.isTutorial(_stage)) {
+      // Retry is a new random attempt. Restore never calls this method.
+      final previousSeed = _boardVariant.seed;
+      int nextSeed;
+      do {
+        nextSeed = Random.secure().nextInt(0x100000000);
+      } while (nextSeed == previousSeed);
+      final nextVariant = DiscoveryChallengeProfile.variantFor(
+        _stage,
+        _boardConfig,
+        seed: nextSeed,
+      );
+      // Validate first: a failed generation must not corrupt the live attempt.
+      _runtime.buildBoard(nextVariant);
+      _challengeSeed = nextSeed;
+      _boardVariant = nextVariant;
+    }
     _resetSession();
     notifyListeners();
   }
@@ -748,6 +821,13 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   }
 
   BoardLayoutVariant _resolveBoardVariant() {
+    if (rulesVersion == 5 && _stage.id != verticalSliceStage.id) {
+      return DiscoveryChallengeProfile.variantFor(
+        _stage,
+        _boardConfig,
+        seed: _challengeSeed,
+      );
+    }
     if (rulesVersion == 4 && _stage.id != verticalSliceStage.id) {
       return DiscoveryExcavationProfile.variantFor(_stage, _boardConfig);
     }
@@ -1124,12 +1204,21 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
             '${step.to.row + 1}행 ${step.to.column + 1}열 보석과 바꾸세요.';
       }
     }
-    if (_engine.state.isCompleted) return '필요한 블록을 모두 찾았어요. 오른쪽에서 식을 완성하세요.';
+    if (_engine.state.isCompleted)
+      return '풀이 블록과 탐험 목표를 모두 달성했어요. 오른쪽에서 식을 완성하세요.';
     final state = _engine.state;
     final unmetObjective = state.objectives
         .where((o) => (state.objectiveProgress[o.id] ?? 0) < o.goal)
         .firstOrNull;
     if (unmetObjective != null) {
+      if (rulesVersion == 5 &&
+          unmetObjective.kind == DiscoveryObjectiveKind.color) {
+        final prefix =
+            state.collectedTargetIds.containsAll(_stage.buriedTokenIds)
+            ? '풀이 블록은 모두 모았어요. '
+            : '풀이 블록 발굴과 함께 ';
+        return '$prefix${unmetObjective.label} ${unmetObjective.goal}개 제거 목표도 채우세요. 연쇄와 특수 블록도 포함돼요.';
+      }
       return unmetObjective.kind == DiscoveryObjectiveKind.ice
           ? '얼음 옆에서 매치해 숨은 풀이 조각을 꺼내세요.'
           : '${unmetObjective.label} ${unmetObjective.goal}개 목표를 채워 풀이 조각을 얻으세요.';
@@ -1197,8 +1286,13 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
     return true;
   }
 
-  void _setFeedback(String message, DiscoveryFeedbackTone tone) {
+  void _setFeedback(
+    String message,
+    DiscoveryFeedbackTone tone, {
+    bool isHint = false,
+  }) {
     _feedbackMessage = message;
     _feedbackTone = tone;
+    _isHintVisible = isHint;
   }
 }

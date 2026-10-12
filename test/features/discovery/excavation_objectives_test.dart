@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kvm/features/campaign/data/initial_campaign.dart';
 import 'package:kvm/features/discovery/data/discovery_excavation_profile.dart';
 import 'package:kvm/features/discovery/domain/discovery_engine.dart';
+import 'package:kvm/features/discovery/domain/discovery_hint_solver.dart';
 import 'package:kvm/features/discovery/domain/discovery_models.dart';
 import 'package:kvm/features/discovery/domain/discovery_piece_source.dart';
 import 'package:kvm/features/discovery/presentation/discovery_puzzle_screen.dart';
@@ -41,6 +42,44 @@ DiscoveryBoard _board({int ice = 0}) {
 }
 
 void main() {
+  test(
+    'a goal-progress hint identifies the goal without changing live state',
+    () {
+      DiscoveryEngine replay(List<DiscoverySwapPair> swaps) {
+        final engine = DiscoveryEngine(
+          initialBoard: _board(),
+          requiredTargetIds: const {},
+          moves: 12,
+          refillSource: SeededGemPieceSource(seed: 7),
+          objectives: const [
+            DiscoveryObjective(
+              id: 'blue',
+              label: '파란 보석',
+              kind: DiscoveryObjectiveKind.color,
+              matchKey: 'B',
+              goal: 3,
+            ),
+          ],
+        );
+        for (final move in swaps) {
+          engine.swap(move.from, move.to);
+        }
+        return engine;
+      }
+
+      final live = replay(const []);
+      final hint = const DiscoveryBoardHintSolver().suggest(replay: replay)!;
+      expect(hint.objectiveLabel, '파란 보석');
+      expect(hint.targetId, isNull);
+      expect(live.state.acceptedMoves, 0);
+      expect(live.state.objectiveProgress['blue'] ?? 0, 0);
+      expect(
+        replay(hint.route).state.objectiveProgress['blue'],
+        greaterThanOrEqualTo(3),
+      );
+    },
+  );
+
   test('compound goals are ANDed and color reward is awarded once', () {
     final engine = DiscoveryEngine(
       initialBoard: _board(),

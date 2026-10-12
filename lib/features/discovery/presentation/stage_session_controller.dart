@@ -24,6 +24,7 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
          rulesVersion: savedSession == null
              ? newSessionRulesVersion
              : _savedRulesVersion(savedSession),
+         boardSeed: _boardSeedFor(savedSession, newSessionRulesVersion),
        ) {
     final savedTicket = savedSession?['reviewTicketId'];
     final savedReview = savedSession?['isDailyReview'];
@@ -61,10 +62,22 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
 
   static int _savedRulesVersion(Map<String, dynamic> session) {
     final version = session['rulesVersion'] ?? 1;
-    if (version is! int || (version != 1 && version != 3 && version != 4)) {
+    if (version is! int ||
+        (version != 1 && version != 3 && version != 4 && version != 5)) {
       throw const FormatException('Unknown puzzle rules version.');
     }
     return version;
+  }
+
+  static int? _boardSeedFor(Map<String, dynamic>? saved, int newVersion) {
+    if (saved == null)
+      return newVersion == 5 ? Random.secure().nextInt(0x100000000) : null;
+    if (_savedRulesVersion(saved) != 5) return null;
+    final seed = saved['boardSeed'];
+    if (seed is! int || seed < 0 || seed > 0xffffffff) {
+      throw const FormatException('Invalid random board seed.');
+    }
+    return seed;
   }
 
   static String _newAttemptId() =>
@@ -113,8 +126,14 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
 
   @override
   void resetRound() {
+    final previousId = attemptId;
     attemptId = _newAttemptId();
-    super.resetRound();
+    try {
+      super.resetRound();
+    } catch (error) {
+      attemptId = previousId;
+      onSaveError(error);
+    }
   }
 
   StageAttemptResult result({DateTime? completedAt}) => StageAttemptResult(

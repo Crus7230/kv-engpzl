@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../campaign/data/legacy_region_catalog.dart';
 import '../../campaign/domain/campaign_models.dart';
 import '../../campaign/domain/board_mechanic_models.dart';
+import '../../discovery/data/discovery_challenge_profile.dart';
 import '../../puzzle/domain/puzzle.dart';
 import '../../exploration/presentation/r1_expedition_screen.dart';
 import '../../exploration/presentation/expedition_milestone_screen.dart';
@@ -72,7 +73,7 @@ class WorldMapScreen extends StatelessWidget {
           ),
         IconButton(
           onPressed: onSettings,
-                    tooltip: '음악·효과음 및 접근성 설정',
+          tooltip: '음악·효과음 및 접근성 설정',
           icon: const Icon(Icons.tune_rounded, size: 22),
         ),
       ],
@@ -417,6 +418,7 @@ class StageBriefingScreen extends StatelessWidget {
     this.stage,
     this.isReview = false,
     this.playerCharacterId,
+    this.randomChallenge = false,
     super.key,
   });
 
@@ -426,6 +428,7 @@ class StageBriefingScreen extends StatelessWidget {
   final StageDefinition? stage;
   final bool isReview;
   final String? playerCharacterId;
+  final bool randomChallenge;
 
   @override
   Widget build(BuildContext context) => _GardenFrame(
@@ -483,6 +486,16 @@ class StageBriefingScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 10),
+                    if (randomChallenge &&
+                        stage != null &&
+                        !DiscoveryChallengeProfile.isTutorial(stage!))
+                      _Note(
+                        icon: Icons.flag_outlined,
+                        text:
+                            '이동 ${stage!.moveLimit}회 · 풀이 블록 획득과 '
+                            '${DiscoveryChallengeProfile.forStage(stage!).colorGoals.entries.map((e) => '${e.key == 'B' ? '파란' : '초록'} 보석 ${e.value}개 제거').join(' · ')}를 모두 달성한 뒤 식을 확인하세요. '
+                            '재도전은 새 랜덤 보드이며 연쇄와 특수 블록도 목표에 포함됩니다.',
+                      ),
                     if (stage != null)
                       Text(
                         stage!.learningPlan.objective,

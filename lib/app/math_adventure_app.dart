@@ -17,7 +17,8 @@ import '../features/campaign/domain/campaign_models.dart';
 import '../features/campaign/data/legacy_region_catalog.dart';
 import '../features/discovery/domain/discovery_models.dart';
 import '../features/discovery/data/discovery_runtime_catalog.dart';
-import '../features/discovery/data/discovery_excavation_profile.dart';
+import '../features/discovery/data/discovery_challenge_profile.dart';
+import '../features/discovery/data/random_discovery_fixture.dart';
 import '../features/garden/data/garden_catalog.dart';
 import '../features/garden/domain/garden_models.dart';
 import '../features/discovery/presentation/discovery_puzzle_screen.dart';
@@ -320,7 +321,11 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       return true;
     }());
     if (mounted)
-      setState(() => _statusMessage = '저장을 완료하지 못했어요. 저장소를 확인하고 다시 시도해 주세요.');
+      setState(
+        () => _statusMessage = error is DiscoveryBoardGenerationException
+            ? '랜덤 보드를 확인하지 못했어요. 기록은 유지됩니다. 다시 시작해 주세요.'
+            : '저장을 완료하지 못했어요. 저장소를 확인하고 다시 시도해 주세요.',
+      );
   }
 
   Future<void> _update(SaveEnvelopeV1 Function(SaveEnvelopeV1) change) async {
@@ -579,7 +584,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       final rows = saved?['rows'];
       final columns = saved?['columns'];
       final config = saved == null
-          ? DiscoveryExcavationProfile.boardFor(
+          ? DiscoveryChallengeProfile.boardFor(
               stage,
               media.size.width - media.padding.horizontal,
               media.size.height - media.padding.vertical,
@@ -588,7 +593,10 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 columns is int &&
                 ((rows == 5 && columns == 5) ||
                     (rows == 6 && columns == 6) ||
-                    saved['rulesVersion'] == 4 && rows == 7 && columns == 7)
+                    (saved['rulesVersion'] == 4 ||
+                            saved['rulesVersion'] == 5) &&
+                        rows == 7 &&
+                        columns == 7)
           ? DiscoveryBoardConfig(rows: rows, columns: columns)
           : throw const FormatException('Invalid saved board dimensions.');
       final session = StageSessionController(
@@ -598,7 +606,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         isDailyReview: _isDailyReview,
         boardConfig: config,
         savedSession: saved,
-        newSessionRulesVersion: 4,
+        newSessionRulesVersion: 5,
         onContinue: () => unawaited(_complete()),
         onSaveError: _onSaveError,
       );
@@ -1329,9 +1337,15 @@ class _MathAdventureAppState extends State<MathAdventureApp>
           key: const ValueKey(RenewalRoute.briefing),
           child: StageBriefingScreen(
             playerCharacterId: save.playerCharacterId,
+            randomChallenge:
+                save.activeSession == null ||
+                save.activeSession!['rulesVersion'] == 5,
             stage: _usesPrototype || _stage.id == verticalSliceStage.id
                 ? null
-                : _stage,
+                : save.activeSession != null &&
+                      save.activeSession!['rulesVersion'] != 5
+                ? _stage
+                : DiscoveryChallengeProfile.stageFor(_stage),
             isReview: _isDailyReview || _stage.chapterId.endsWith('-c04'),
             onBack: _returnToExpedition,
             onStart: () => unawaited(_start(context)),

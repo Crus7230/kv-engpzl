@@ -46,6 +46,12 @@ abstract interface class DiscoveryCompletionHandler {
   void continueToResult();
 }
 
+/// Hiding presentation must never undo recorded learning assistance.
+abstract interface class DiscoveryHintVisibility {
+  bool get isHintVisible;
+  void hideHint();
+}
+
 abstract interface class DiscoveryObjectiveSource {
   List<DiscoveryObjectiveStatus> get discoveryObjectives;
 }
@@ -109,7 +115,7 @@ enum DiscoveryFeedbackTone { neutral, reward, warning, success }
 /// Local interaction model used only until the match-3 domain adapter is
 /// connected. An adjacent swap intentionally simulates one successful match.
 class DemoDiscoveryPuzzleViewModel extends ChangeNotifier
-    implements DiscoveryPuzzleViewModel {
+    implements DiscoveryPuzzleViewModel, DiscoveryHintVisibility {
   DemoDiscoveryPuzzleViewModel() {
     _boardCellsView = UnmodifiableListView(_boardCells);
     _discoveredBlocksView = UnmodifiableListView(_discoveredBlocks);
@@ -238,7 +244,18 @@ class DemoDiscoveryPuzzleViewModel extends ChangeNotifier
   bool get canCheckAnswer => _answerBlocks.isNotEmpty && !_isAnswerCorrect;
 
   @override
-  bool get canRevealHint => !_isAnswerCorrect && _hintLevel < 2;
+  bool get canRevealHint => !_isAnswerCorrect;
+
+  @override
+  bool get isHintVisible => _feedbackMessage.startsWith('힌트:');
+
+  @override
+  void hideHint() {
+    if (!isHintVisible) return;
+    _feedbackMessage = '인접한 보석을 바꿔 수식 블록을 발굴하세요.';
+    _feedbackTone = DiscoveryFeedbackTone.neutral;
+    notifyListeners();
+  }
 
   @override
   bool get isAnswerCorrect => _isAnswerCorrect;
@@ -319,7 +336,7 @@ class DemoDiscoveryPuzzleViewModel extends ChangeNotifier
     if (!canRevealHint) {
       return;
     }
-    _hintLevel += 1;
+    if (_hintLevel < 2) _hintLevel += 1;
     _feedbackMessage = _hintLevel == 1
         ? '힌트: `3개씩 4봉지`는 같은 수를 반복해 더하는 뜻이에요.'
         : '힌트: 먼저 4 × 3을 만들고, 낱개 2를 더해 보세요.';

@@ -12,6 +12,7 @@ class DiscoveryHintSuggestion {
     this.route = const [],
     this.activatesLinePower = false,
     this.createsLinePower = false,
+    this.objectiveLabel,
   });
 
   final DiscoveryPosition from;
@@ -23,6 +24,9 @@ class DiscoveryHintSuggestion {
   final List<DiscoverySwapPair> route;
   final bool activatesLinePower;
   final bool createsLinePower;
+
+  /// A proven route which increases an unmet goal, not necessarily a seal hit.
+  final String? objectiveLabel;
 }
 
 /// Bounded search over the current board and its exact seeded refill stream.
@@ -73,16 +77,20 @@ class DiscoveryBoardHintSolver {
           final targets = turn.newlyDiscoveredTargets.where(
             (target) => turn.state.requiredTargetIds.contains(target.id),
           );
-          if (state.objectives.any(
-            (goal) =>
-                (state.objectiveProgress[goal.id] ?? 0) < goal.goal &&
-                (turn.state.objectiveProgress[goal.id] ?? 0) >
-                    (state.objectiveProgress[goal.id] ?? 0),
-          )) {
+          final progressedGoal = state.objectives
+              .where(
+                (goal) =>
+                    (state.objectiveProgress[goal.id] ?? 0) < goal.goal &&
+                    (turn.state.objectiveProgress[goal.id] ?? 0) >
+                        (state.objectiveProgress[goal.id] ?? 0),
+              )
+              .firstOrNull;
+          if (progressedGoal != null) {
             return DiscoveryHintSuggestion(
               from: path.first.from,
               to: path.first.to,
               route: List.unmodifiable(path),
+              objectiveLabel: progressedGoal.label,
             );
           }
           final needsPower =

@@ -12,6 +12,7 @@ import '../domain/discovery_models.dart';
 import '../domain/discovery_piece_source.dart';
 import 'authored_discovery_fixture.dart';
 import 'tutorial_discovery_fixture.dart';
+import 'discovery_challenge_profile.dart';
 
 typedef DiscoveryTutorialStep = DiscoverySwapInstruction;
 
@@ -125,6 +126,17 @@ final excavationDiscoveryRuntimeCatalog = DiscoveryRuntimeCatalog({
       stage.id: _authoredRuntime(stage, authoredPuzzlesByStageId[stage.id]!),
 });
 
+/// Independent random generation for new attempts. Saved V4 uses its old catalog.
+final challengeDiscoveryRuntimeCatalog = DiscoveryRuntimeCatalog({
+  verticalSliceStage.id: discoveryRuntimeCatalog.resolve(verticalSliceStage),
+  for (final stage in initialCampaign.stages)
+    if (authoredPuzzlesByStageId.containsKey(stage.id))
+      stage.id: _authoredRuntime(
+        DiscoveryChallengeProfile.stageFor(stage),
+        authoredPuzzlesByStageId[stage.id]!,
+      ),
+});
+
 /// Checkpoints without a rules version replay the original authored fixtures.
 final legacyDiscoveryRuntimeCatalog = DiscoveryRuntimeCatalog({
   verticalSliceStage.id: discoveryRuntimeCatalog.resolve(verticalSliceStage),
@@ -148,15 +160,22 @@ DiscoveryStageRuntime _authoredRuntime(StageDefinition stage, Puzzle puzzle) {
     _ => null,
   };
   final fixtures = <String, AuthoredDiscoveryFixture>{};
-  AuthoredDiscoveryFixture fixture(BoardLayoutVariant variant) =>
-      fixtures.putIfAbsent(
-        variant.fixtureId,
-        () => AuthoredDiscoveryFixture.create(
-          stage: stage,
-          puzzle: puzzle,
-          variant: variant,
-        ),
-      );
+  AuthoredDiscoveryFixture fixture(BoardLayoutVariant variant) {
+    if (variant.fixtureId.endsWith('-random5') &&
+        !fixtures.containsKey(variant.fixtureId) &&
+        fixtures.length >= 4) {
+      fixtures.remove(fixtures.keys.first);
+    }
+    return fixtures.putIfAbsent(
+      variant.fixtureId,
+      () => AuthoredDiscoveryFixture.create(
+        stage: stage,
+        puzzle: puzzle,
+        variant: variant,
+      ),
+    );
+  }
+
   return DiscoveryStageRuntime(
     puzzle: puzzle,
     gemKeys: AuthoredDiscoveryFixture.gemKeys,

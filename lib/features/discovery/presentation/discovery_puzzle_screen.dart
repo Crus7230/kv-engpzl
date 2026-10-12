@@ -252,11 +252,15 @@ class _GameHeader extends StatelessWidget {
               ],
             ),
           ),
-          _HeaderMetric(
-            icon: Icons.tune_rounded,
-            label: viewModel.difficultyLabel,
-            color: AppColors.primaryDark,
-            compactHeight: shortHeight,
+          Tooltip(
+            message: viewModel.difficultyLabel,
+            child: _HeaderMetric(
+              icon: Icons.tune_rounded,
+              label: viewModel.difficultyLabel,
+              color: AppColors.primaryDark,
+              compactHeight: shortHeight,
+              maxWidth: math.max(56, MediaQuery.sizeOf(context).width * 0.3),
+            ),
           ),
           SizedBox(width: dense ? 4 : 8),
           if (!dense) ...[
@@ -292,18 +296,31 @@ class _HeaderMetric extends StatelessWidget {
     required this.label,
     required this.color,
     this.compactHeight = false,
+    this.maxWidth,
   });
 
   final IconData icon;
   final String label;
   final Color color;
   final bool compactHeight;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
+    final labelWidget = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(
+        context,
+      ).textTheme.labelLarge?.copyWith(fontSize: compactHeight ? 12 : 14),
+    );
     return Container(
       height: compactHeight ? 34 : 38,
-      constraints: BoxConstraints(minWidth: compactHeight ? 52 : 56),
+      constraints: BoxConstraints(
+        minWidth: compactHeight ? 52 : 56,
+        maxWidth: maxWidth ?? double.infinity,
+      ),
       padding: EdgeInsets.symmetric(horizontal: compactHeight ? 6 : 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.88),
@@ -315,13 +332,7 @@ class _HeaderMetric extends StatelessWidget {
         children: [
           Icon(icon, size: compactHeight ? 17 : 19, color: color),
           const SizedBox(width: 4),
-          Text(
-            label,
-            maxLines: 1,
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontSize: compactHeight ? 12 : 14),
-          ),
+          if (maxWidth == null) labelWidget else Flexible(child: labelWidget),
         ],
       ),
     );
@@ -381,7 +392,7 @@ class _ThreePaneGameLayout extends StatelessWidget {
         );
 
         // Give reading space priority over decorative board area. Keep the
-        // actual 5x5/6x6 board intact; only its on-screen size changes.
+        // actual 5x5/6x6/7x7 board intact; only its on-screen size changes.
         final maximumQuestionWidth =
             availableWidth - minimumBoardWidth - minimumWorkspaceWidth;
         final readingHeight = math.max(
@@ -925,7 +936,7 @@ class _DiscoveryBoardPanel extends StatelessWidget {
                   SizedBox(width: shortHeight ? 3 : 5),
                   Expanded(
                     child: Text(
-                      '발굴 보드',
+                      '발굴 ${visibleRows}×$visibleColumns',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -982,7 +993,7 @@ class _DiscoveryBoardPanel extends StatelessWidget {
                         boardCells: boardCells,
                         visibleIndices: visibleIndices,
                         crossAxisCount: visibleColumns,
-                        spacing: shortHeight ? 1 : 2,
+                        spacing: visibleColumns >= 6 || shortHeight ? 1 : 2,
                       ),
                     ),
                   );
@@ -1084,6 +1095,7 @@ class _GemGrid extends StatelessWidget {
           onPressed: () {},
         ),
         child: GridView.builder(
+          key: const ValueKey('discovery-gem-grid'),
           primary: false,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: visibleIndices.length,
@@ -2101,6 +2113,10 @@ class _WorkspaceActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final motionLock = DiscoveryMotionScope.of(context);
+    final hintVisibility = viewModel is DiscoveryHintVisibility
+        ? viewModel as DiscoveryHintVisibility
+        : null;
+    final hintVisible = hintVisibility?.isHintVisible ?? false;
     return SizedBox(
       height: compactHeight ? 44 : 48,
       child: Row(
@@ -2124,8 +2140,10 @@ class _WorkspaceActions extends StatelessWidget {
           SizedBox.square(
             dimension: compactHeight ? 44 : 48,
             child: IconButton.filledTonal(
-              tooltip: '힌트 보기',
-              onPressed: viewModel.canRevealHint && !motionLock.busy
+              tooltip: hintVisible ? '힌트 닫기' : '힌트 보기',
+              onPressed: hintVisible
+                  ? hintVisibility!.hideHint
+                  : viewModel.canRevealHint && !motionLock.busy
                   ? viewModel.revealHint
                   : null,
               style: compactHeight
@@ -2135,7 +2153,11 @@ class _WorkspaceActions extends StatelessWidget {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     )
                   : null,
-              icon: const Icon(Icons.lightbulb_outline_rounded),
+              icon: Icon(
+                hintVisible
+                    ? Icons.lightbulb_rounded
+                    : Icons.lightbulb_outline_rounded,
+              ),
             ),
           ),
           const SizedBox(width: 6),
