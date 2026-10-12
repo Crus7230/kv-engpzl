@@ -221,7 +221,7 @@ void main() {
     'planned territories cannot grant rescues from persisted future IDs',
     () {
       final future = companionRecruitmentPlan.where(
-        (entry) => entry.regionNumber > 1,
+        (entry) => entry.regionNumber > 2,
       );
       final completed = {for (final entry in future) entry.requiredStageId!};
       expect(companionOwnershipAfterProgress({'CHAR_D'}, completed), {

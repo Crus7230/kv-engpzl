@@ -64,6 +64,9 @@ class CompanionRecruitment {
   String get requirementLabel {
     if (!available) return 'R$regionNumber 탐험 · 업데이트 예정';
     if (requiredStageId == null) return '계산의 평원에서 처음 만나요';
-    return 'R$regionNumber 전체 탐험 완료 후 구조';
+    final chapter = int.tryParse(
+      requiredStageId!.split('-c').last.split('-').first,
+    );
+    return 'R$regionNumber C${chapter?.toString().padLeft(2, '0') ?? '?'} 완료 후 구조';
   }
 }

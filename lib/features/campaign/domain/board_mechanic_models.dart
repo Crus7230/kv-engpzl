@@ -127,13 +127,34 @@ final class AdjacentHitBlockerRule extends BoardMechanicRule {
   String get logicalSignature => '${mechanicId.name}:$blockerCount:$durability';
 }
 
-/// A line-clearing power piece created by a long straight match.
+enum BoardPowerLesson { line, burst, color, combination }
+
+/// Stable power-family ID retained from the original line-power checkpoints.
+/// Extra shapes and combinations have explicit rule flags, not cosmetic skins.
 final class LinePowerRule extends BoardMechanicRule {
   LinePowerRule({
     required this.requiredActivations,
     this.creationMatchLength = 4,
+    this.enableBurst = false,
+    this.enableColor = false,
+    this.enableCombinations = false,
+    this.lesson,
   }) {
-    _requirePositive(requiredActivations, 'requiredActivations');
+    if (requiredActivations < 0)
+      throw ArgumentError('Negative power objective.');
+    if (enableCombinations && (!enableBurst || !enableColor)) {
+      throw ArgumentError(
+        'Combination lessons require the three power families.',
+      );
+    }
+    if (lesson != null && requiredActivations == 0 ||
+        lesson == BoardPowerLesson.burst && !enableBurst ||
+        lesson == BoardPowerLesson.color && !enableColor ||
+        lesson == BoardPowerLesson.combination && !enableCombinations) {
+      throw ArgumentError(
+        'A power lesson needs its enabled activation objective.',
+      );
+    }
     if (creationMatchLength < 4) {
       throw ArgumentError.value(
         creationMatchLength,
@@ -145,6 +166,10 @@ final class LinePowerRule extends BoardMechanicRule {
 
   final int requiredActivations;
   final int creationMatchLength;
+  final bool enableBurst;
+  final bool enableColor;
+  final bool enableCombinations;
+  final BoardPowerLesson? lesson;
 
   @override
   BoardMechanicId get mechanicId => BoardMechanicId.linePower;
@@ -157,7 +182,8 @@ final class LinePowerRule extends BoardMechanicRule {
 
   @override
   String get logicalSignature =>
-      '${mechanicId.name}:$requiredActivations:$creationMatchLength';
+      '${mechanicId.name}:$requiredActivations:$creationMatchLength'
+      '${enableBurst || enableColor || enableCombinations || lesson != null ? ':${enableBurst ? 1 : 0}:${enableColor ? 1 : 0}:${enableCombinations ? 1 : 0}:${lesson?.name ?? "practice"}' : ""}';
 }
 
 /// Reserved authoring model for pieces that cannot swap until unlocked.
@@ -295,9 +321,17 @@ final class BoardMechanicPlan {
     required this.id,
     required this.role,
     required Iterable<BoardMechanicBinding> bindings,
-  }) : bindings = List.unmodifiable(bindings) {
+    this.challengeLevel = 0,
+    this.learningSourceStageId,
+    Iterable<String> prerequisiteStageIds = const [],
+  }) : bindings = List.unmodifiable(bindings),
+       prerequisiteStageIds = Set.unmodifiable(prerequisiteStageIds) {
     if (id.trim().isEmpty) {
       throw ArgumentError.value(id, 'id', 'Plan ID must not be empty.');
+    }
+    if (challengeLevel < 0 ||
+        this.prerequisiteStageIds.any((id) => id.trim().isEmpty)) {
+      throw ArgumentError('Invalid physical difficulty or prerequisite stage.');
     }
     if (this.bindings.isEmpty) {
       throw ArgumentError('A board mechanic plan needs at least one binding.');
@@ -343,6 +377,11 @@ final class BoardMechanicPlan {
   final BoardMechanicRole role;
   final List<BoardMechanicBinding> bindings;
 
+  /// Physical complexity independent of math difficulty and the coarse B tier.
+  final int challengeLevel;
+  final String? learningSourceStageId;
+  final Set<String> prerequisiteStageIds;
+
   late final Set<BoardMechanicId> mechanicIds = Set.unmodifiable(
     bindings.map((binding) => binding.rule.mechanicId),
   );
@@ -366,6 +405,7 @@ enum BoardMechanicSequenceIssueCode {
   mechanicUsedBeforeIntroduction,
   mechanicReintroduced,
   mixedBeforeSoloIntroduction,
+  powerUsedBeforeLesson,
 }
 
 final class BoardMechanicSequenceIssue {
@@ -387,10 +427,36 @@ final class BoardMechanicSequenceValidator {
   List<BoardMechanicSequenceIssue> validate(Iterable<BoardMechanicPlan> plans) {
     final issues = <BoardMechanicSequenceIssue>[];
     final introduced = <BoardMechanicId>{};
+    final powerLessons = <BoardPowerLesson>{};
 
     for (final plan in plans) {
       final advanced = plan.advancedMechanicIds;
       final unseen = advanced.difference(introduced);
+      final power = plan.bindings
+          .map((binding) => binding.rule)
+          .whereType<LinePowerRule>()
+          .firstOrNull;
+      if (power != null) {
+        final allowed = {...powerLessons};
+        if (power.lesson != null) allowed.add(power.lesson!);
+        if (plan.role == BoardMechanicRole.introduce)
+          allowed.add(BoardPowerLesson.line);
+        if (power.enableBurst && !allowed.contains(BoardPowerLesson.burst) ||
+            power.enableColor && !allowed.contains(BoardPowerLesson.color) ||
+            power.enableCombinations &&
+                (!allowed.contains(BoardPowerLesson.combination) ||
+                    !powerLessons.contains(BoardPowerLesson.burst) ||
+                    !powerLessons.contains(BoardPowerLesson.color))) {
+          issues.add(
+            BoardMechanicSequenceIssue(
+              code: BoardMechanicSequenceIssueCode.powerUsedBeforeLesson,
+              planId: plan.id,
+              mechanicIds: const {BoardMechanicId.linePower},
+            ),
+          );
+        }
+        powerLessons.addAll(allowed);
+      }
 
       switch (plan.role) {
         case BoardMechanicRole.baseline:
@@ -506,7 +572,11 @@ final class BoardMechanicCapabilityRegistry {
         (binding) => switch (binding.rule) {
           LayeredSealRule rule => rule.layers == 2,
           LinePowerRule rule =>
-            rule.creationMatchLength == 4 && rule.requiredActivations == 1,
+            rule.creationMatchLength == 4 &&
+                rule.requiredActivations >= 0 &&
+                rule.requiredActivations <= 1,
+          AdjacentHitBlockerRule rule =>
+            rule.blockerCount <= 3 && rule.durability <= 2,
           _ => true,
         },
       );
@@ -521,11 +591,11 @@ final class BoardMechanicCapabilityRegistry {
 
 /// Current runtime truth, not the regional campaign's design target.
 ///
-/// The executable adapter supports stationary two-layer seals and four-match
-/// line powers with paired 5x5/6x6 fixture paths. Other mechanics remain gated.
+/// The executable adapter includes stationary seals/covers and the three power
+/// families. Self-checking fixtures do not replace the pending regression run.
 final BoardMechanicCapabilityRegistry
 currentDiscoveryBoardMechanics = BoardMechanicCapabilityRegistry(
-  runtimeId: 'discovery-seals-lines-v2',
+  runtimeId: 'discovery-powers-covers-v3',
   capabilities: [
     BoardMechanicCapability(
       mechanicId: BoardMechanicId.singleLayerSeal,
@@ -535,19 +605,20 @@ currentDiscoveryBoardMechanics = BoardMechanicCapabilityRegistry(
     BoardMechanicCapability(
       mechanicId: BoardMechanicId.layeredSeal,
       supportState: BoardMechanicSupportState.supported,
-      note:
-          'Two stationary layers, hit once per cascade; verified paired fixtures.',
+      note: 'Two stationary layers, one hit per cascade; v1 fixtures retained.',
     ),
     BoardMechanicCapability(
       mechanicId: BoardMechanicId.adjacentHitBlocker,
-      supportState: BoardMechanicSupportState.modelOnly,
-      note: 'Typed authoring rule exists; blocker topology is absent.',
+      supportState: BoardMechanicSupportState.supported,
+      note:
+          'Stationary covers: adjacent/direct hits; swap/gravity restriction.',
     ),
     BoardMechanicCapability(
       mechanicId: BoardMechanicId.linePower,
       supportState: BoardMechanicSupportState.supported,
       note:
-          'Four-match creation, adjacent-swap/chain activation, full-line hits.',
+          'Four/5/L/T creation, color/area/line combinations and chain activation. '
+          'The renewed regression suite still requires execution before release.',
     ),
     BoardMechanicCapability(
       mechanicId: BoardMechanicId.swapLock,

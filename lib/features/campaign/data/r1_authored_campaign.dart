@@ -2,11 +2,16 @@ import '../../puzzle/domain/equation_engine.dart';
 import '../../puzzle/domain/equation_token.dart';
 import '../../puzzle/domain/puzzle.dart';
 import '../../puzzle/domain/puzzle_learning_support.dart';
+import '../../puzzle/domain/sentence_math_problem.dart';
 import '../domain/board_mechanic_models.dart';
 import '../domain/campaign_models.dart';
 import '../domain/learning_models.dart';
 import '../domain/stage_recurrence_models.dart';
 import 'regional_campaign.dart';
+import 'r1_board_progression.dart';
+import 'r2_board_progression.dart';
+
+part 'r2_authored_content.dart';
 
 /// Internal-alpha content. Fixtures have deterministic reference paths, not
 /// family-calibrated difficulty estimates or release validation.
@@ -31,13 +36,47 @@ final Map<String, List<String>> r1AnswerTokenIdsByStageId =
         ),
     });
 
-CampaignDefinition buildR1Campaign(CampaignDefinition blueprint) {
+final Map<String, Puzzle> r2PuzzlesByStageId = Map.unmodifiable({
+  for (final entry in _r2Authored.entries)
+    entry.key: _buildPuzzle(
+      regionalCampaign.stageById(entry.key)!,
+      entry.value,
+    ),
+});
+
+final Map<String, Puzzle> authoredPuzzlesByStageId = Map.unmodifiable({
+  ...r1PuzzlesByStageId,
+  ...r2PuzzlesByStageId,
+});
+
+CampaignDefinition buildRenewalCampaign(CampaignDefinition blueprint) =>
+    buildR1Campaign(blueprint, includeR2: true);
+
+/// Kept solely to replay checkpoints created before the renewed physics.
+final Map<String, StageDefinition> r1LegacyStagesById = Map.unmodifiable({
+  for (final stage in buildR1Campaign(
+    regionalCampaign,
+    renewedMechanics: false,
+  ).stages)
+    if (r1PuzzlesByStageId.containsKey(stage.id)) stage.id: stage,
+});
+
+CampaignDefinition buildR1Campaign(
+  CampaignDefinition blueprint, {
+  bool renewedMechanics = true,
+  bool includeR2 = false,
+}) {
+  final authored = <String, _Problem>{
+    ..._authored,
+    if (includeR2) ..._r2Authored,
+  };
   final profiles = <String, LearningVariantProfile>{
     for (final stage in blueprint.stages)
-      stage.id: _authored.containsKey(stage.id)
-          ? _buildProfile(stage, _authored[stage.id]!)
+      stage.id: authored.containsKey(stage.id)
+          ? _buildProfile(stage, authored[stage.id]!)
           : stage.variantProfile,
   };
+  final introduced = <BoardMechanicId>{};
   return CampaignDefinition.regional(
     id: blueprint.id,
     version: blueprint.version,
@@ -53,7 +92,13 @@ CampaignDefinition buildR1Campaign(CampaignDefinition blueprint) {
               prerequisiteChapterId: chapter.prerequisiteChapterId,
               stages: [
                 for (final stage in chapter.stages)
-                  _composeStage(stage, profiles),
+                  _composeStage(
+                    stage,
+                    profiles,
+                    renewedMechanics,
+                    introduced,
+                    authored,
+                  ),
               ],
             ),
         ]),
@@ -64,8 +109,11 @@ CampaignDefinition buildR1Campaign(CampaignDefinition blueprint) {
 StageDefinition _composeStage(
   StageDefinition source,
   Map<String, LearningVariantProfile> profiles,
+  bool renewedMechanics,
+  Set<BoardMechanicId> introduced,
+  Map<String, _Problem> authored,
 ) {
-  final data = _authored[source.id];
+  final data = authored[source.id];
   final recurrence = source.recurrencePlan;
   if (data?.sourceStageId != null &&
       data!.sourceStageId != recurrence?.sourceStageId) {
@@ -84,19 +132,71 @@ StageDefinition _composeStage(
         );
   // Planned recurrences must reference the real source fingerprint after a
   // source is authored. Rebinding does not promote the planned revisit.
-  if (data == null && recurrence == null) return source;
-  final puzzle = data == null ? null : r1PuzzlesByStageId[source.id]!;
+  if (!renewedMechanics && data == null && recurrence == null) return source;
+  final puzzle = data == null ? null : authoredPuzzlesByStageId[source.id]!;
   final buried = puzzle == null ? source.buriedTokenIds : _buriedIds(puzzle);
   final starting = puzzle == null
       ? source.startingTokenIds
       : puzzle.requiredTokenIds.difference(buried);
   final profile = profiles[source.id]!;
+  final renewed = data != null && renewedMechanics
+      ? source.id.startsWith('r02-')
+            ? R2BoardProgression.forStage(source)
+            : R1BoardProgression.forStage(source)
+      : null;
+  var boardPlan =
+      renewed?.plan(source, buried.length) ??
+      (data == null
+          ? source.boardMechanicPlan
+          : _boardMechanicPlan(source, buried.length));
+  if (renewedMechanics && data == null) {
+    boardPlan = BoardMechanicPlan(
+      id: boardPlan.id,
+      role: boardPlan.role,
+      challengeLevel: boardPlan.challengeLevel,
+      learningSourceStageId: boardPlan.learningSourceStageId,
+      prerequisiteStageIds: boardPlan.prerequisiteStageIds,
+      bindings: [
+        for (final binding in boardPlan.bindings)
+          if (binding.rule is LinePowerRule)
+            BoardMechanicBinding(
+              skin: binding.skin,
+              rule: LinePowerRule(
+                requiredActivations:
+                    (binding.rule as LinePowerRule).requiredActivations,
+                creationMatchLength:
+                    (binding.rule as LinePowerRule).creationMatchLength,
+                enableBurst: true,
+                enableColor: true,
+                enableCombinations: true,
+              ),
+            )
+          else
+            binding,
+      ],
+    );
+  }
+  // R1 now teaches covers earlier than the original R2 authoring blueprint.
+  // Later appearances are refresher encounters, not a second first unlock.
+  if (renewedMechanics &&
+      boardPlan.role == BoardMechanicRole.introduce &&
+      boardPlan.advancedMechanicIds.every(introduced.contains)) {
+    boardPlan = BoardMechanicPlan(
+      id: boardPlan.id,
+      role: BoardMechanicRole.review,
+      bindings: boardPlan.bindings,
+      challengeLevel: boardPlan.challengeLevel,
+      learningSourceStageId: boardPlan.learningSourceStageId,
+      prerequisiteStageIds: boardPlan.prerequisiteStageIds,
+    );
+  }
+  introduced.addAll(boardPlan.advancedMechanicIds);
   return StageDefinition(
     id: source.id,
     chapterId: source.chapterId,
     skillId: source.skillId,
     number: source.number,
-    title: source.title,
+    title: data?.concept ?? source.title,
     conceptLabel: data?.concept ?? source.conceptLabel,
     answerExpression: data?.expression ?? source.answerExpression,
     puzzleId: source.puzzleId,
@@ -108,10 +208,9 @@ StageDefinition _composeStage(
         : _mathDifficulty(source.mathDifficulty, puzzle!),
     matchDifficulty: data == null
         ? source.matchDifficulty
-        : _matchDifficulty(source, buried.length),
-    boardMechanicPlan: data == null
-        ? source.boardMechanicPlan
-        : _boardMechanicPlan(source, buried.length),
+        : renewed?.match(buried.length) ??
+              _matchDifficulty(source, buried.length),
+    boardMechanicPlan: boardPlan,
     boardVariants: data == null
         ? source.boardVariants
         : BoardLayoutVariants(
@@ -119,7 +218,9 @@ StageDefinition _composeStage(
               for (final variant in source.boardVariants.variants)
                 BoardLayoutVariant(
                   config: variant.config,
-                  fixtureId: variant.fixtureId,
+                  fixtureId: renewed != null && renewed.level > 0
+                      ? '${variant.fixtureId}-physics3'
+                      : variant.fixtureId,
                   seed: variant.seed,
                   isVerified: true,
                 ),
@@ -127,6 +228,12 @@ StageDefinition _composeStage(
           ),
     moveBudget: data == null
         ? source.moveBudget
+        : renewed != null && renewed.level > 0
+        ? StageMoveBudget(
+            referenceMoves: renewed.level <= 2 ? 8 : 12,
+            parMoves: renewed.level <= 2 ? 10 : 14,
+            moveLimit: renewed.level <= 2 ? 16 : 20,
+          )
         : source.chapterId == 'r01-c05' || source.chapterId == 'r01-c06'
         ? const StageMoveBudget(referenceMoves: 8, parMoves: 10, moveLimit: 16)
         : StageMoveBudget(
@@ -151,26 +258,37 @@ StageDefinition _composeStage(
           : LearningPlanStatus.authored,
       primarySkillId: source.learningPlan.primarySkillId,
       prerequisiteSkillIds: source.learningPlan.prerequisiteSkillIds,
-      reinforcedSkillIds: source.learningPlan.reinforcedSkillIds,
+      reinforcedSkillIds: {
+        ...source.learningPlan.reinforcedSkillIds,
+        if (data != null && source.chapterId == 'r02-c06')
+          profiles[switch (source.number) {
+                2 || 4 => 'r01-c01-s02',
+                6 => 'r01-c02-s01',
+                9 || 10 => 'r01-c02-s05',
+                _ => 'r01-c01-s01',
+              }]!
+              .primarySkillId,
+      },
       variantId: source.id,
       variantProfile: profile,
       role: data == null
           ? source.learningPlan.role
-          : source.chapterId == 'r01-c04'
+          : source.chapterId.endsWith('-c04')
           ? StageLearningRole.nearTransfer
           : source.learningPlan.role,
       objective: data?.objective ?? source.learningPlan.objective,
       nextStageId: source.learningPlan.nextStageId,
       additionalUnlockStageIds: {
         ...source.learningPlan.additionalUnlockStageIds,
-        for (final entry in _authored.entries)
-          if (entry.key.startsWith('r01-c04-') &&
+        for (final entry in authored.entries)
+          if (entry.key.contains('-c04-') &&
               entry.value.sourceStageId == source.id)
             entry.key,
       },
     ),
     variantProfile: profile,
     recurrencePlan: reboundRecurrence,
+    sentenceMathPlan: source.sentenceMathPlan,
     seed: source.seed,
     startingTokenIds: starting,
     buriedTokenIds: buried,
@@ -357,7 +475,7 @@ Puzzle _buildPuzzle(StageDefinition stage, _Problem data) {
   return Puzzle(
     id: stage.puzzleId,
     stageLabel:
-        '계산의 평원 · C${stage.chapterId.substring(5)} S${stage.number.toString().padLeft(2, '0')}',
+        '${stage.id.startsWith('r02-') ? '규칙과 패턴의 숲' : '계산의 평원'} · C${stage.chapterId.substring(5)} S${stage.number.toString().padLeft(2, '0')}',
     concept: data.concept,
     question: data.question,
     visualDescription: data.visualDescription,
@@ -368,6 +486,23 @@ Puzzle _buildPuzzle(StageDefinition stage, _Problem data) {
     hints: List.unmodifiable(support.hintSteps.map((hint) => hint.message)),
     explanation: data.explanation,
     learningSupport: support,
+    sentenceMath: SentenceMathProblem.fromLegacyQuestion(
+      question: data.question,
+      relationshipExplanation: data.relationship,
+      intendedExpression: data.expression,
+      relationSchemaId: data.relationSchema,
+      unknownPositionId: data.unknownPosition,
+      contextFamilyId: data.contextFamily,
+      representationId: data.representation,
+      // R1 records are text equivalents, not implemented visual tables.
+      presentationKind:
+          stage.id.startsWith('r02-') ||
+              stage.chapterId == 'r01-c04' ||
+              stage.chapterId == 'r01-c05' ||
+              stage.chapterId == 'r01-c06'
+          ? ProblemPresentationKind.textRecord
+          : ProblemPresentationKind.prose,
+    ),
   );
 }
 
@@ -474,118 +609,122 @@ const Map<String, _Problem> _authored = {
   ),
   'r01-c01-s03': _Problem(
     expression: '4+5',
-    concept: '두 수량 합치기',
-    question: '첫 수레에 호박 4개, 둘째 수레에 5개가 있습니다. 두 수레의 호박은 모두 몇 개일까요?',
-    objective: '두 운반 묶음의 수량을 합쳐 전체를 구한다.',
-    observation: '수레가 두 대이고, 각 수레의 호박 수는 4개와 5개예요.',
-    relationship: '두 수레의 호박을 모두 세므로 4개와 5개를 더해요.',
-    partialExpression: '첫 수레의 4를 놓고 +로 둘째 수레의 수와 연결하세요.',
-    firstWorkedExpression: '4 = 4',
-    firstWorkedExplanation: '첫 수레의 호박 4개를 먼저 수로 옮겨요.',
-    explanation: '4와 5를 합치면 호박은 모두 9개입니다.',
-    transferQuestion: '상자 두 개에 공이 6개와 2개씩 있을 때 전체를 나타내는 식은?',
+    concept: '사용하기 전 수 찾기',
+    question: '동굴에서 횃불 5개를 쓰고 4개가 남았습니다. 동굴에 들어가기 전에는 몇 개를 갖고 있었을까요?',
+    objective: '남은 수에 사용한 수를 다시 합쳐 변화 전의 수량을 구한다.',
+    observation: '4개는 지금 남은 수이고, 5개는 이미 사용한 수예요. 사용하기 전을 물어요.',
+    relationship: '쓴 횃불도 처음에는 가지고 있었어요. 남은 수와 사용한 수를 합쳐 처음 수를 찾아요.',
+    partialExpression: '남은 4에 사용한 5를 다시 합치는 부분식을 만들어 보세요.',
+    firstWorkedExpression: '9-5 = 4',
+    firstWorkedExplanation: '처음에 9개였다면 5개를 쓰고 4개가 남아 문장의 조건과 맞아요.',
+    explanation: '남은 4개와 쓴 5개를 합치면 처음 횃불은 9개입니다. 썼다는 말만 보고 빼면 안 돼요.',
+    transferQuestion: '식량 2개를 쓰고 6개가 남았습니다. 출발할 때 가진 수를 나타내는 식은?',
     transferExpression: '6+2',
-    relationSchema: 'combine-two-disjoint-sets',
+    relationSchema: 'recover-initial-from-remainder-and-outflow',
     astShape: 'add',
-    contextFamily: 'transport-loads',
-    visualDescription: '왼쪽 수레 4개, 오른쪽 수레 5개라는 두 수량입니다. 좌우 위치는 정답 순서의 단서가 아닙니다.',
+    contextFamily: 'expedition-supply-reconstruction',
+    unknownPosition: 'initial-quantity',
+    visualDescription: '사용한 횃불 5개와 남은 횃불 4개입니다. 알 수 없는 수는 동굴에 들어가기 전의 전체 수입니다.',
   ),
   'r01-c01-s04': _Problem(
     expression: '9-4',
-    concept: '꺼낸 뒤 남은 수',
-    question: '창고에 도구가 9개 있습니다. 밭으로 4개를 가져가면 창고에는 몇 개가 남을까요?',
-    objective: '물건을 다른 장소로 옮길 때 출발 장소의 남은 수를 구한다.',
-    observation: '창고의 9개 중 4개만 밭으로 옮겨요.',
-    relationship: '창고의 수량은 늘지 않고 줄어드므로 9에서 4를 빼요.',
-    partialExpression: '9 다음에 -를 놓고, 밭으로 옮긴 4를 이어 보세요.',
-    firstWorkedExpression: '9 = 9',
-    firstWorkedExplanation: '옮기기 전 창고에는 도구 9개가 있어요.',
-    explanation: '9에서 4를 빼면 창고에 남은 도구는 5개입니다.',
-    transferQuestion: '책 10권 중 6권을 교실로 옮기면 서가에 남은 수를 나타내는 식은?',
+    concept: '옮긴 뒤 내 몫 찾기',
+    question: '내 가방에 열쇠 9개가 있습니다. 동료의 가방으로 4개를 옮기면 내 가방에는 몇 개가 남을까요?',
+    objective: '물건의 위치가 바뀔 때 처음 장소에 남은 수량을 구한다.',
+    observation: '두 가방을 합친 수가 아니라 내 가방에 남은 수만 물어요.',
+    relationship: '옮긴 열쇠도 탐험대에는 남아 있지만 내 가방에서는 빠져요. 내 수량에서 옮긴 수를 빼요.',
+    partialExpression: '내 가방의 9에서 동료에게 옮긴 4를 빼는 부분식을 만드세요.',
+    firstWorkedExpression: '5+4 = 9',
+    firstWorkedExplanation: '내 가방에 남은 5개와 옮긴 4개를 합치면 처음 9개와 같아요.',
+    explanation: '내 가방의 9에서 옮긴 4를 빼면 5개가 남습니다. 탐험대 전체 수와 내 가방의 수는 달라요.',
+    transferQuestion: '보급소의 밧줄 10개 중 6개를 동료에게 옮겼습니다. 보급소에 남은 수를 나타내는 식은?',
     transferExpression: '10-6',
     relationSchema: 'take-away-from-initial-set',
     astShape: 'subtract',
     contextFamily: 'inventory-relocation',
-    visualDescription: '창고 9개에서 밭으로 4개가 이동합니다. 창고에 남은 수를 묻습니다.',
+    visualDescription:
+        '내 가방의 열쇠 9개 중 4개가 동료 가방으로 이동합니다. 다른 가방을 더하지 않고 내 가방에 남은 수를 묻습니다.',
   ),
   'r01-c01-s05': _Problem(
     expression: '6+3',
     concept: '더 많은 수 구하기',
-    question: '작은 화단에는 꽃이 6송이입니다. 큰 화단은 그보다 3송이 더 많습니다. 큰 화단에는 몇 송이일까요?',
-    objective: '기준 수보다 얼마 더 많은 수를 덧셈으로 구한다.',
-    observation: '6송이는 작은 화단의 수이고, 3송이는 두 화단의 차이예요.',
-    relationship: '큰 화단은 기준 6송이에 차이 3송이를 더한 수예요.',
-    partialExpression: '기준 수 6 뒤에 +를 놓고 더 많은 차이를 이어 보세요.',
-    firstWorkedExpression: '6 = 6',
-    firstWorkedExplanation: '비교의 기준인 작은 화단의 6송이에서 시작해요.',
-    explanation: '기준 6에 더 많은 3을 더하면 큰 화단에는 9송이입니다.',
-    transferQuestion: '민지는 5점을 얻고 지수는 2점 더 얻었습니다. 지수의 점수를 나타내는 식은?',
+    question: '북쪽 길은 6칸입니다. 남쪽 길보다 3칸 짧다면 남쪽 길은 몇 칸일까요?',
+    objective: '짧은 쪽의 수와 차이를 이용해 더 긴 쪽의 수량을 구한다.',
+    observation: '6칸은 북쪽 길의 길이이고, 3칸은 두 길의 차이예요. 남쪽 길을 물어요.',
+    relationship: '남쪽은 북쪽보다 길어요. 짧은 길에 차이를 보태야 긴 길의 길이가 돼요.',
+    partialExpression: '짧은 길 6에 차이 3을 보태는 부분식을 만들어 보세요.',
+    firstWorkedExpression: '9-3 = 6',
+    firstWorkedExplanation: '남쪽이 9칸이면 3칸 짧은 북쪽이 6칸이 되어 조건과 맞아요.',
+    explanation: '짧은 북쪽 6칸에 차이 3칸을 더하면 남쪽은 9칸입니다. 짧다는 말만 보고 빼지 않아요.',
+    transferQuestion: '파란 줄은 5칸이고 빨간 줄보다 2칸 짧습니다. 빨간 줄을 나타내는 식은?',
     transferExpression: '5+2',
     relationSchema: 'compare-more-than-reference',
     astShape: 'add',
-    contextFamily: 'comparison-of-collection-sizes',
+    contextFamily: 'route-length-comparison',
     unknownPosition: 'larger-compared-quantity',
-    visualDescription: '작은 화단 6송이, 큰 화단은 3송이 더 많다는 비교입니다. 3은 큰 화단의 전체 수가 아닙니다.',
+    visualDescription: '북쪽 길 6칸은 남쪽보다 3칸 짧습니다. 남쪽 길 전체의 길이는 알려져 있지 않습니다.',
   ),
   'r01-c01-s06': _Problem(
     expression: '10-6',
-    concept: '두 수의 차이',
-    question: '빨간 꽃이 10송이, 노란 꽃이 6송이입니다. 빨간 꽃은 몇 송이 더 많을까요?',
-    objective: '비교하는 두 수량의 차이를 큰 수에서 작은 수를 빼서 구한다.',
-    observation: '전체 꽃 수가 아니라 빨간 꽃과 노란 꽃의 차이를 물어요.',
-    relationship: '두 모둠에서 같은 6송이씩을 짝지으면 빨간 꽃의 남은 부분이 차이예요.',
-    partialExpression: '더 큰 10에서 더 작은 6을 빼는 부분식을 만드세요.',
+    concept: '목표까지 부족한 양',
+    question: '다리를 열려면 빛돌 10개가 필요합니다. 지금 6개가 있다면 빛돌을 몇 개 더 찾아야 할까요?',
+    objective: '필요한 전체와 현재 수량의 차이로 추가로 필요한 양을 구한다.',
+    observation: '10개는 다리를 여는 목표이고, 6개는 이미 가진 수예요. 찾을 수만 물어요.',
+    relationship: '이미 가진 빛돌은 다시 찾지 않아요. 목표에서 가진 수를 빼면 부족한 양이 돼요.',
+    partialExpression: '목표 10에서 이미 가진 6을 빼는 부분식을 만들어 보세요.',
     firstWorkedExpression: '6+4 = 10',
-    firstWorkedExplanation: '노란 꽃 6송이에 4송이를 보태면 빨간 꽃 10송이와 같아져요.',
-    explanation: '10에서 6을 빼면 빨간 꽃이 4송이 더 많습니다.',
-    transferQuestion: '줄자 A는 14cm, B는 9cm입니다. 길이의 차이를 나타내는 식은?',
+    firstWorkedExplanation: '현재 6개에 4개를 보태면 필요한 빛돌 10개를 채워요.',
+    explanation: '목표 10에서 가진 6을 빼면 4개가 부족합니다. 더 찾는 양을 묻더라도 식은 뺄셈이에요.',
+    transferQuestion: '문을 열려면 열쇠 14개가 필요하고 9개를 모았습니다. 부족한 양을 나타내는 식은?',
     transferExpression: '14-9',
-    relationSchema: 'compare-two-sets-find-difference',
+    relationSchema: 'target-minus-current-for-missing-amount',
     astShape: 'subtract',
     operandBand: 'ten-and-single-digit',
-    contextFamily: 'comparison-of-collection-sizes',
-    unknownPosition: 'difference',
-    visualDescription:
-        '빨간 꽃 10송이와 노란 꽃 6송이를 비교합니다. 색 이름 대신 두 수량 10과 6으로도 풀이할 수 있습니다.',
+    contextFamily: 'expedition-resource-threshold',
+    unknownPosition: 'missing-increase',
+    visualDescription: '다리의 목표 빛돌은 10개이고 보유한 빛돌은 6개입니다. 추가로 찾아야 할 수를 묻습니다.',
   ),
   'r01-c01-s07': _Problem(
     expression: '8+7',
     concept: '열을 넘는 합',
-    question: '화단에 장미 8송이와 튤립 7송이를 심었습니다. 꽃은 모두 몇 송이일까요?',
-    objective: '합이 10을 넘는 두 수를 모으는 덧셈을 구한다.',
-    observation: '두 꽃 모둠의 전체 수를 묻고 있어요.',
-    relationship: '8송이에 7송이를 더해요. 7에서 2를 가져와 먼저 10을 만들 수도 있어요.',
-    partialExpression: '8 + 7로 두 모둠을 연결하세요. 합이 10을 넘어도 덧셈 관계는 같아요.',
+    question: '돌다리를 건너며 식량 7개를 쓰고 8개가 남았습니다. 출발할 때 가지고 있던 식량은 몇 개일까요?',
+    objective: '남은 수와 사용한 수를 합쳐 10을 넘는 처음 수량을 구한다.',
+    observation: '7개는 이미 쓴 식량이고, 8개는 남은 식량이에요. 출발할 때를 물어요.',
+    relationship: '출발할 때의 식량에는 지금 남은 것과 길에서 쓴 것이 모두 포함돼요.',
+    partialExpression: '남은 8과 사용한 7을 +로 연결하세요. 합이 10을 넘어도 관계는 같아요.',
     firstWorkedExpression: '8+2 = 10',
     firstWorkedExplanation: '7을 2와 5로 나누어 8에 2를 먼저 더하면 10이 돼요.',
-    explanation: '10에 남은 5를 더하므로 8+7은 15이고 꽃은 모두 15송이입니다.',
-    transferQuestion: '새 9마리와 5마리가 함께 모인 수를 나타내는 식은?',
+    explanation: '남은 8과 쓴 7을 합치면 처음 식량은 15개입니다. 처음 수를 확인하려면 15에서 7을 빼 봐요.',
+    transferQuestion: '물통 5개를 쓰고 9개가 남았습니다. 출발할 때의 수를 나타내는 식은?',
     transferExpression: '9+5',
-    relationSchema: 'combine-two-disjoint-sets',
+    relationSchema: 'recover-initial-from-remainder-and-outflow',
     astShape: 'add',
     operandBand: 'single-digit-inputs-sum-over-ten',
-    contextFamily: 'color-subsets-of-one-collection',
-    visualDescription: '장미 모둠 8송이와 튤립 모둠 7송이입니다. 그림 없이도 각각의 수량이 문장에 표시됩니다.',
+    contextFamily: 'expedition-supply-reconstruction',
+    unknownPosition: 'initial-quantity',
+    visualDescription: '출발 때의 식량은 알려져 있지 않습니다. 사용한 식량은 7개이고 남은 식량은 8개입니다.',
   ),
   'r01-c01-s08': _Problem(
     expression: '13-5',
-    concept: '열을 지나 빼기',
-    question: '정원 스티커가 13장 있습니다. 친구에게 5장을 주면 몇 장이 남을까요?',
-    objective: '10을 지나는 뺄셈을 처음 수와 꺼낸 수의 관계로 나타낸다.',
-    observation: '13장 중 5장이 줄어들고, 남는 수를 물어요.',
-    relationship: '처음 13에서 준 5를 빼요. 먼저 3을 빼서 10을 만들면 계산하기 쉬워요.',
-    partialExpression: '13 - 5로 시작하세요. 5를 3과 2로 나누어 계산할 수 있어요.',
+    concept: '전체에서 숨은 부분 찾기',
+    question: '지도에 길이 모두 13칸입니다. 보이는 길은 5칸이고 나머지는 안개 속입니다. 가려진 길은 몇 칸일까요?',
+    objective: '전체에서 알려진 부분을 빼고 10을 거치는 계산으로 숨은 부분을 구한다.',
+    observation: '13칸은 전체 길이고, 5칸은 그 안에서 보이는 부분이에요.',
+    relationship: '보이는 길과 가려진 길을 합치면 전체가 돼요. 전체에서 보이는 부분을 빼요.',
+    partialExpression: '전체 13에서 보이는 5를 빼는 부분식을 만들어 보세요.',
     firstWorkedExpression: '13-3 = 10',
-    firstWorkedExplanation: '줄어든 5장 중 3장을 먼저 빼면 10장이 남아요.',
-    explanation: '10에서 나머지 2장을 더 빼면 8장입니다. 따라서 13-5=8입니다.',
-    transferQuestion: '쿠폰 14장 중 6장을 쓰면 남는 수를 나타내는 식은?',
+    firstWorkedExplanation: '보이는 5칸을 3칸과 2칸으로 나누어 먼저 3칸을 제외하면 10칸이에요.',
+    explanation:
+        '10에서 나머지 2를 제외하면 가려진 길은 8칸입니다. 길이 없어진 것이 아니라 전체 중 숨은 부분을 구해요.',
+    transferQuestion: '벽화는 모두 14칸이고 6칸이 보입니다. 천에 가려진 부분을 나타내는 식은?',
     transferExpression: '14-6',
-    relationSchema: 'take-away-from-initial-set',
+    relationSchema: 'whole-minus-known-part-find-hidden-part',
     astShape: 'subtract',
     operandBand: 'two-digit-minuend-crosses-ten',
-    contextFamily: 'consumable-sharing',
+    contextFamily: 'partially-visible-route',
+    unknownPosition: 'hidden-part',
     visualDescription:
-        '스티커 13장 중 5장이 친구에게 이동합니다. 처음 수 13과 이동한 수 5가 모두 문자로 표시됩니다.',
+        '전체 길 13칸 가운데 5칸이 보이고 나머지는 안개에 가려져 있습니다. 길이 줄어드는 사건은 없습니다.',
   ),
   'r01-c01-s09': _Problem(
     expression: '5+3+4',

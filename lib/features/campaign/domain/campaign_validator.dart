@@ -6,6 +6,7 @@ import '../../puzzle/domain/puzzle_learning_support.dart';
 import 'board_mechanic_models.dart';
 import 'campaign_models.dart';
 import 'learning_models.dart';
+import 'sentence_math_validator.dart';
 import 'stage_recurrence_models.dart';
 
 enum CampaignIssueSeverity { warning, error }
@@ -86,6 +87,8 @@ enum CampaignIssueCode {
   invalidBoardMechanicPlan,
   invalidBoardMechanicSequence,
   unsupportedPlayableBoardMechanic,
+  invalidSentenceMathPlan,
+  invalidSentenceMathProblem,
 }
 
 class CampaignValidationIssue {
@@ -568,17 +571,74 @@ class CampaignValidator {
             stageIndexById,
             puzzleById,
           );
+          final hasBoardMathSource = _hasBoardMathSource(
+            stage,
+            orderedStages,
+            stageIndexById,
+            puzzleById,
+          );
+          final hasKnownMathLoad =
+              hasBoardMathSource &&
+              !_mathLoadIncreases(
+                stage.mathDifficulty,
+                orderedStages[stageIndexById[stage
+                        .boardMechanicPlan
+                        .learningSourceStageId]!]
+                    .mathDifficulty,
+              );
+          for (final prerequisite
+              in stage.boardMechanicPlan.prerequisiteStageIds) {
+            final prior = stageIndexById[prerequisite];
+            if (prior == null || prior >= stageIndexById[stage.id]!) {
+              issues.add(
+                _error(
+                  CampaignIssueCode.invalidBoardMechanicPlan,
+                  location,
+                  'Board prerequisites must reference earlier stages.',
+                ),
+              );
+            }
+          }
+          if (stage.boardMechanicPlan.learningSourceStageId != null &&
+              !hasBoardMathSource) {
+            issues.add(
+              _error(
+                CampaignIssueCode.invalidBoardMechanicPlan,
+                location,
+                'A new physical challenge needs a real earlier familiar math source.',
+              ),
+            );
+          }
           if (previousRegionStage != null) {
+            // A source-gated replay can return from an easier interlude to an
+            // already learned math load. The source must cover every load axis,
+            // including precedence/parentheses, not only the declared tier.
             if (stage.mathDifficulty.tier.index >
                     previousRegionStage.mathDifficulty.tier.index &&
                 stage.matchDifficulty.tier.index >
                     previousRegionStage.matchDifficulty.tier.index &&
-                !hasFamiliarMathSource) {
+                !hasFamiliarMathSource &&
+                !hasKnownMathLoad) {
               issues.add(
                 _error(
                   CampaignIssueCode.simultaneousDifficultyIncrease,
                   location,
                   'Math and match difficulty must not rise on the same stage.',
+                ),
+              );
+            }
+            if (stage.boardMechanicPlan.challengeLevel >
+                    previousRegionStage.boardMechanicPlan.challengeLevel &&
+                _mathLoadIncreases(
+                  stage.mathDifficulty,
+                  previousRegionStage.mathDifficulty,
+                ) &&
+                !hasKnownMathLoad) {
+              issues.add(
+                _error(
+                  CampaignIssueCode.simultaneousDifficultyIncrease,
+                  location,
+                  'Physical complexity and mathematical load must not rise together.',
                 ),
               );
             }
@@ -589,7 +649,8 @@ class CampaignValidator {
                   matchTier == MatchDifficultyTier.b4) &&
               introducedAdvancedMatchTiers.add(matchTier) &&
               stage.mathDifficulty.tier.index > MathDifficultyTier.m1.index &&
-              !hasFamiliarMathSource) {
+              !hasFamiliarMathSource &&
+              !hasBoardMathSource) {
             issues.add(
               _error(
                 CampaignIssueCode.advancedMatchRuleIntroducedWithHardMath,
@@ -601,6 +662,17 @@ class CampaignValidator {
           }
           _validateRules(stage, location, issues);
           _validateBoardMechanicPlan(stage, location, issues);
+          for (final problemIssue in const SentenceMathValidator().validatePlan(
+            stage,
+          )) {
+            issues.add(
+              _error(
+                CampaignIssueCode.invalidSentenceMathPlan,
+                location,
+                'Sentence-to-expression plan: ${problemIssue.name}.',
+              ),
+            );
+          }
 
           final puzzle = puzzleById[stage.puzzleId];
           if (stage.contentStatus == StageContentStatus.planned) {
@@ -694,6 +766,46 @@ class CampaignValidator {
         recurrence.revisit.meaningfulFingerprint ==
             stage.variantProfile.meaningfulFingerprint;
   }
+
+  bool _hasBoardMathSource(
+    StageDefinition stage,
+    List<StageDefinition> ordered,
+    Map<String, int> indices,
+    Map<String, Puzzle> puzzles,
+  ) {
+    final sourceIndex = indices[stage.boardMechanicPlan.learningSourceStageId];
+    if (sourceIndex == null ||
+        sourceIndex >= indices[stage.id]! ||
+        !stage.isPlayable)
+      return false;
+    final source = ordered[sourceIndex];
+    return source.isPlayable &&
+        source.learningPlan.status == LearningPlanStatus.authored &&
+        puzzles[source.puzzleId]?.learningSupport?.hasCompletePlayableSupport ==
+            true &&
+        (source.learningPlan.primarySkillId ==
+                stage.learningPlan.primarySkillId ||
+            source.variantProfile.answerAstShapeId ==
+                stage.variantProfile.answerAstShapeId) &&
+        !_mathLoadIncreases(
+          stage.mathDifficulty,
+          source.mathDifficulty,
+          includeComposition: false,
+        );
+  }
+
+  bool _mathLoadIncreases(
+    MathDifficulty current,
+    MathDifficulty previous, {
+    bool includeComposition = true,
+  }) =>
+      current.tier.index > previous.tier.index ||
+      current.reasoningSteps > previous.reasoningSteps ||
+      current.operatorKindCount > previous.operatorKindCount ||
+      includeComposition &&
+          current.compositionTier.index > previous.compositionTier.index ||
+      current.requiresParentheses && !previous.requiresParentheses ||
+      current.usesOrderOfOperations && !previous.usesOrderOfOperations;
 
   void _validateAdditionalUnlocks(
     StageDefinition stage,
@@ -1104,11 +1216,20 @@ class CampaignValidator {
     final match = stage.matchDifficulty;
     final plan = stage.boardMechanicPlan;
     if (!currentDiscoveryBoardMechanics.supportsForPlay(plan) ||
-        match.obstacleCount != 0 ||
         match.maxSealLayers < 1 ||
         match.maxSealLayers > 2) {
       return false;
     }
+    final blockers = plan.bindings
+        .map((binding) => binding.rule)
+        .whereType<AdjacentHitBlockerRule>()
+        .toList();
+    if (match.obstacleCount == 0
+        ? blockers.isNotEmpty
+        : blockers.length != 1 ||
+              blockers.single.blockerCount != match.obstacleCount ||
+              blockers.single.durability > 2)
+      return false;
     final layers = plan.bindings
         .map((binding) => binding.rule)
         .whereType<LayeredSealRule>()
@@ -1129,7 +1250,8 @@ class CampaignValidator {
       MatchSpecialRule.fourMatchPower =>
         powers.length == 1 &&
             powers.single.creationMatchLength == 4 &&
-            powers.single.requiredActivations == 1,
+            powers.single.requiredActivations >= 0 &&
+            powers.single.requiredActivations <= 1,
     };
   }
 
@@ -1234,7 +1356,8 @@ class CampaignValidator {
           match.decoySealCount == 0 &&
           match.maxSealLayers >= 1 &&
           match.maxSealLayers <= 2 &&
-          match.obstacleCount == 0 &&
+          match.obstacleCount >= 0 &&
+          match.obstacleCount <= 3 &&
           match.specialRule == MatchSpecialRule.fourMatchPower &&
           match.planningDepth == 5,
   };
@@ -1246,6 +1369,18 @@ class CampaignValidator {
     List<CampaignValidationIssue> issues,
   ) {
     _validatePuzzleLearningSupport(stage, puzzle, location, issues);
+    for (final problemIssue in const SentenceMathValidator().validate(
+      stage,
+      puzzle,
+    )) {
+      issues.add(
+        _error(
+          CampaignIssueCode.invalidSentenceMathProblem,
+          location,
+          'Sentence-to-expression content: ${problemIssue.name}.',
+        ),
+      );
+    }
     final answerOverlap = stage.startingTokenIds.intersection(
       stage.buriedTokenIds,
     );

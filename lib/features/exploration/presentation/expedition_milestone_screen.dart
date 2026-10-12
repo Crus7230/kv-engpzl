@@ -33,7 +33,11 @@ class ExpeditionMilestoneScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chapter = node?.chapterNumber ?? 1;
-    final destination = expeditionDestinationForChapter(chapter);
+    final regionNumber = expeditionRegionNumber(node?.regionId);
+    final destination = expeditionDestinationForChapter(
+      chapter,
+      regionNumber: regionNumber,
+    );
     final title = expeditionMilestoneTitle(node);
     final choices = node?.decorationIds ?? gardenDecorationIds;
     final milestones = restoredNodeIds
@@ -76,6 +80,7 @@ class ExpeditionMilestoneScreen extends StatelessWidget {
                             fit: StackFit.expand,
                             children: [
                               ExpeditionEnvironmentArt(
+                                regionNumber: regionNumber,
                                 chapter: chapter,
                                 milestones: milestones,
                                 decorationId: decorationId,
@@ -120,7 +125,7 @@ class ExpeditionMilestoneScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 5),
                                     Text(
-                                      '평원에서 $completedStageCount개의 관계를 발견했어요.',
+                                      '${regionNumber == 2 ? '숲' : '평원'}에서 $completedStageCount개의 관계를 발견했어요.',
                                       maxLines: 2,
                                       style: const TextStyle(
                                         color: Color(0xFFD9E9DD),

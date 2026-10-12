@@ -2,6 +2,7 @@ import 'equation_engine.dart';
 import 'equation_token.dart';
 import 'puzzle_learning_support.dart';
 import 'rational.dart';
+import 'sentence_math_problem.dart';
 
 class Puzzle {
   const Puzzle({
@@ -16,6 +17,7 @@ class Puzzle {
     required this.hints,
     required this.explanation,
     this.learningSupport,
+    this.sentenceMath,
     this.visualDescription = '',
   });
 
@@ -30,6 +32,7 @@ class Puzzle {
   final List<String> hints;
   final String explanation;
   final PuzzleLearningSupport? learningSupport;
+  final SentenceMathProblem? sentenceMath;
 
   /// Text equivalent of the quantities/layout; no illustration is required
   /// to solve an authored problem.

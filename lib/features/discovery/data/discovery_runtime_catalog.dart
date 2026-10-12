@@ -2,6 +2,7 @@ import '../../campaign/data/initial_campaign.dart';
 import '../../campaign/data/r1_authored_campaign.dart';
 import '../../campaign/domain/campaign_models.dart';
 import '../../campaign/domain/board_mechanic_models.dart';
+import '../../campaign/domain/sentence_math_validator.dart';
 import '../../puzzle/data/sample_puzzles.dart';
 import '../../puzzle/domain/equation_token.dart';
 import '../../puzzle/domain/puzzle.dart';
@@ -15,7 +16,7 @@ import 'tutorial_discovery_fixture.dart';
 typedef DiscoveryTutorialStep = DiscoverySwapInstruction;
 
 /// Runtime content is registered separately from the planned curriculum.
-/// A new stage needs its own authored puzzle and verified board builder.
+/// A new stage needs its own authored puzzle and self-checking board builder.
 class DiscoveryStageRuntime {
   DiscoveryStageRuntime({
     required this.puzzle,
@@ -27,6 +28,12 @@ class DiscoveryStageRuntime {
     this.suggestSwapFor,
     this.enableLinePowers = false,
     this.requiredLinePowerActivations = 0,
+    this.enableBurstPowers = false,
+    this.enableColorPowers = false,
+    this.enablePowerCombinations = false,
+    this.requiredPowerKind,
+    this.requiredCombinationActivations = 0,
+    this.requiredBlockerClears = 0,
   });
 
   final Puzzle puzzle;
@@ -36,6 +43,12 @@ class DiscoveryStageRuntime {
   final List<DiscoveryTutorialStep> tutorialSteps;
   final bool enableLinePowers;
   final int requiredLinePowerActivations;
+  final bool enableBurstPowers;
+  final bool enableColorPowers;
+  final bool enablePowerCombinations;
+  final DiscoveryLinePower? requiredPowerKind;
+  final int requiredCombinationActivations;
+  final int requiredBlockerClears;
 
   /// Verification/manual-play route. Unlike [tutorialSteps], this never
   /// restricts swaps or supplies an unsolicited direct-path hint.
@@ -58,7 +71,18 @@ class DiscoveryRuntimeCatalog {
     if (!stage.isPlayable || !_entries.containsKey(stage.id)) {
       throw StateError('Stage ${stage.id} has no playable runtime content.');
     }
-    return _entries[stage.id]!;
+    final runtime = _entries[stage.id]!;
+    final issues = const SentenceMathValidator().validate(
+      stage,
+      runtime.puzzle,
+    );
+    if (issues.isNotEmpty) {
+      throw StateError(
+        'Stage ${stage.id} has invalid sentence content: '
+        '${issues.map((issue) => issue.name).join(', ')}.',
+      );
+    }
+    return runtime;
   }
 
   bool contains(String stageId) => _entries.containsKey(stageId);
@@ -82,11 +106,32 @@ final discoveryRuntimeCatalog = DiscoveryRuntimeCatalog({
         DiscoveryTutorialFixture.refillPieces(idPrefix: variant.fixtureId),
   ),
   for (final stage in initialCampaign.stages)
-    if (r1PuzzlesByStageId.containsKey(stage.id))
-      stage.id: _authoredRuntime(stage, r1PuzzlesByStageId[stage.id]!),
+    if (authoredPuzzlesByStageId.containsKey(stage.id))
+      stage.id: _authoredRuntime(stage, authoredPuzzlesByStageId[stage.id]!),
+});
+
+/// Checkpoints without a rules version replay the original authored fixtures.
+final legacyDiscoveryRuntimeCatalog = DiscoveryRuntimeCatalog({
+  verticalSliceStage.id: discoveryRuntimeCatalog.resolve(verticalSliceStage),
+  for (final stage in r1LegacyStagesById.values)
+    stage.id: _authoredRuntime(stage, r1PuzzlesByStageId[stage.id]!),
 });
 
 DiscoveryStageRuntime _authoredRuntime(StageDefinition stage, Puzzle puzzle) {
+  final power = stage.boardMechanicPlan.bindings
+      .map((binding) => binding.rule)
+      .whereType<LinePowerRule>()
+      .firstOrNull;
+  final blocker = stage.boardMechanicPlan.bindings
+      .map((binding) => binding.rule)
+      .whereType<AdjacentHitBlockerRule>()
+      .firstOrNull;
+  final requiredKind = switch (power?.lesson) {
+    BoardPowerLesson.line => DiscoveryLinePower.row,
+    BoardPowerLesson.burst => DiscoveryLinePower.burst,
+    BoardPowerLesson.color => DiscoveryLinePower.color,
+    _ => null,
+  };
   final fixtures = <String, AuthoredDiscoveryFixture>{};
   AuthoredDiscoveryFixture fixture(BoardLayoutVariant variant) =>
       fixtures.putIfAbsent(
@@ -103,13 +148,14 @@ DiscoveryStageRuntime _authoredRuntime(StageDefinition stage, Puzzle puzzle) {
     enableLinePowers: stage.boardMechanicPlan.mechanicIds.contains(
       BoardMechanicId.linePower,
     ),
-    requiredLinePowerActivations:
-        stage.boardMechanicPlan.bindings
-            .map((binding) => binding.rule)
-            .whereType<LinePowerRule>()
-            .firstOrNull
-            ?.requiredActivations ??
-        0,
+    requiredLinePowerActivations: power?.requiredActivations ?? 0,
+    enableBurstPowers: power?.enableBurst ?? false,
+    enableColorPowers: power?.enableColor ?? false,
+    enablePowerCombinations: power?.enableCombinations ?? false,
+    requiredPowerKind: requiredKind,
+    requiredCombinationActivations:
+        power?.lesson == BoardPowerLesson.combination ? 1 : 0,
+    requiredBlockerClears: blocker?.blockerCount ?? 0,
     buildBoard: (variant) => fixture(variant).board,
     refillPieces: (_) => const [],
     referencePathFor: (variant) => fixture(variant).referencePath,
@@ -123,13 +169,14 @@ DiscoveryStageRuntime _authoredRuntime(StageDefinition stage, Puzzle puzzle) {
               enableLinePowers: stage.boardMechanicPlan.mechanicIds.contains(
                 BoardMechanicId.linePower,
               ),
-              requiredLinePowerActivations:
-                  stage.boardMechanicPlan.bindings
-                      .map((binding) => binding.rule)
-                      .whereType<LinePowerRule>()
-                      .firstOrNull
-                      ?.requiredActivations ??
-                  0,
+              requiredLinePowerActivations: power?.requiredActivations ?? 0,
+              enableBurstPowers: power?.enableBurst ?? false,
+              enableColorPowers: power?.enableColor ?? false,
+              enablePowerCombinations: power?.enableCombinations ?? false,
+              requiredPowerKind: requiredKind,
+              requiredCombinationActivations:
+                  power?.lesson == BoardPowerLesson.combination ? 1 : 0,
+              requiredBlockerClears: blocker?.blockerCount ?? 0,
               refillSource: SeededGemPieceSource(
                 seed: variant.seed,
                 idPrefix: '${stage.id}-${variant.fixtureId}-refill',

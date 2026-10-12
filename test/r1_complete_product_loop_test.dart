@@ -202,12 +202,12 @@ void main() {
         region.featuredCharacterIds.toSet(),
       );
       expect(complete.unlockedStageIds, contains('r02-c01-s01'));
-      expect(find.text('평원 탐험 완료 · 다음 지역 업데이트 예정'), findsOneWidget);
+      expect(find.text('평원 탐험 완료 · 모험 지도에서 숲으로 출발하세요'), findsOneWidget);
       final completeGarden = tester.widget<CampaignRegionGardenScreen>(
         find.byType(CampaignRegionGardenScreen),
       );
       expect(completeGarden.onPlay, isNull);
-      expect(find.text('평원 탐험 완료'), findsOneWidget);
+      expect(find.text('지역 탐험 완료'), findsOneWidget);
 
       // Every destination tab retains its original ten stable stage nodes.
       final labels = ['입구', '수확길', '수문', '기억길', '공방', '전망대'];
@@ -282,8 +282,7 @@ void main() {
         }
       }
 
-      // R2's stable unlock metadata is present, but no planned region has an
-      // executable puzzle or exploration button in this release.
+      // R2 is authored; R3 still has no executable route.
       await _tap(
         tester,
         find.byTooltip('탐험 지도에서 월드맵으로'),
@@ -291,17 +290,17 @@ void main() {
       );
       await _tap(
         tester,
-        find.byTooltip('규칙과 패턴의 숲 · 업데이트 예정'),
-        'R2 update placeholder',
+        find.byTooltip('단위와 측정의 협곡 · 업데이트 예정'),
+        'R3 update placeholder',
       );
       expect(find.text('업데이트 예정'), findsWidgets);
       expect(find.byType(DiscoveryPuzzleScreen), findsNothing);
       expect(find.byType(StageBriefingScreen), findsNothing);
       expect(find.text('체험 탐험하기'), findsNothing);
-      await _tap(tester, find.text('월드맵으로'), 'return from R2');
+      await _tap(tester, find.text('월드맵으로'), 'return from R3');
       expect(
         tester.widget<WorldMapScreen>(find.byType(WorldMapScreen)).onExplore,
-        isNull,
+        isNotNull,
       );
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -312,9 +311,10 @@ void main() {
       expect(resumed.restoredNodeIds, afterDecoration.restoredNodeIds);
       expect(resumed.decorationChoices, afterDecoration.decorationChoices);
       expect(resumed.viewedStoryIds, afterDecoration.viewedStoryIds);
-      expect(find.text('평원 완료 · 다음 지역 업데이트 예정'), findsOneWidget);
+      expect(find.byTooltip('R02-C01 S01'), findsOneWidget);
       final world = tester.widget<WorldMapScreen>(find.byType(WorldMapScreen));
-      expect(world.onExplore, isNull);
+      expect(world.explorationDetail, 'R02-C01 S01');
+      expect(world.onExplore, isNotNull);
       expect(world.onReview, isNotNull);
 
       // The next day's review is a real replay, not a falsely advertised new
@@ -336,7 +336,8 @@ void main() {
       expect(afterReview.restoredNodeIds, hasLength(24));
       expect(afterReview.rewardLedger, hasLength(61));
       expect(afterReview.dailyReviewActions['2026-10-12'], 1);
-      await _tap(tester, find.text('탐험 지도로 돌아가기'), 'review natural endpoint');
+      reviewResult.onBack();
+      await tester.pumpAndSettle();
       expect(find.byType(CampaignRegionGardenScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -346,7 +347,7 @@ void main() {
   );
 
   testWidgets(
-    'a persisted future-region unlock never opens planned R2 gameplay',
+    'a persisted future-region unlock never opens planned R3 gameplay',
     (tester) async {
       _viewport(tester);
       final store = MemoryKeyValueSaveStore();
@@ -354,8 +355,8 @@ void main() {
         store,
         initialFactory: () => _existingPlayer(
           SaveEnvelopeV1(
-            unlockedStageIds: const ['r02-c01-s01'],
-            completedStageIds: const ['r01-c03-s10'],
+            unlockedStageIds: const ['r03-c01-s01'],
+            completedStageIds: const ['r02-c03-s10'],
           ),
         ),
       ).update(
@@ -364,11 +365,11 @@ void main() {
       await _boot(tester, store, DateTime(2026, 10, 11));
       final world = tester.widget<WorldMapScreen>(find.byType(WorldMapScreen));
       expect(world.onExplore, isNull);
-      expect(world.availableRegionIds, isNot(contains('region-02-pattern')));
+      expect(world.availableRegionIds, isNot(contains('region-03-unit')));
       await _tap(
         tester,
-        find.byTooltip('규칙과 패턴의 숲 · 업데이트 예정'),
-        'forced unlocked R2',
+        find.byTooltip('단위와 측정의 협곡 · 업데이트 예정'),
+        'forced unlocked R3',
       );
       expect(find.text('업데이트 예정'), findsWidgets);
       expect(find.byType(DiscoveryPuzzleScreen), findsNothing);

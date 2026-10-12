@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../../campaign/data/initial_campaign.dart';
+import '../../campaign/data/r1_authored_campaign.dart';
 import '../../campaign/domain/campaign_models.dart';
 import '../../campaign/domain/board_mechanic_models.dart';
 import '../../campaign/domain/learning_models.dart';
@@ -11,6 +12,7 @@ import '../../puzzle/domain/authored_expression_checker.dart';
 import '../../puzzle/domain/equation_token.dart';
 import '../../puzzle/domain/puzzle.dart';
 import '../../puzzle/domain/puzzle_learning_support.dart';
+import '../../puzzle/domain/sentence_math_problem.dart';
 import '../data/discovery_runtime_catalog.dart';
 import '../domain/discovery_engine.dart';
 import '../domain/discovery_models.dart';
@@ -36,9 +38,20 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
     required DiscoveryBoardConfig boardConfig,
     StageDefinition? stage,
     DiscoveryRuntimeCatalog? runtimeCatalog,
+    this.rulesVersion = 3,
   }) : _boardConfig = boardConfig,
-       _stage = stage ?? _prototypePlayableStage() {
-    _runtime = (runtimeCatalog ?? discoveryRuntimeCatalog).resolve(_stage);
+       _stage = rulesVersion == 1 && stage != null
+           ? r1LegacyStagesById[stage.id] ?? stage
+           : stage ?? _prototypePlayableStage() {
+    if (rulesVersion != 1 && rulesVersion != 3) {
+      throw const FormatException('Unknown puzzle rules version.');
+    }
+    _runtime =
+        (runtimeCatalog ??
+                (rulesVersion == 1
+                    ? legacyDiscoveryRuntimeCatalog
+                    : discoveryRuntimeCatalog))
+            .resolve(_stage);
     _validateSupportedStage();
     _boardVariant = _resolveBoardVariant();
     _puzzle = _runtime.puzzle;
@@ -51,6 +64,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   }
 
   final DiscoveryBoardConfig _boardConfig;
+  final int rulesVersion;
   final StageDefinition _stage;
   late final DiscoveryStageRuntime _runtime;
   late final BoardLayoutVariant _boardVariant;
@@ -102,6 +116,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   /// The materialized board is retained as a verification snapshot as well.
   Map<String, dynamic> exportSession() => {
     'sessionVersion': 1,
+    if (rulesVersion != 1) 'rulesVersion': rulesVersion,
     'stageId': _stage.id,
     'puzzleId': _puzzle.id,
     'fixtureId': _boardVariant.fixtureId,
@@ -128,6 +143,15 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
 
   Map<String, dynamic> _boardSnapshot() => {
     'movesRemaining': movesLeft,
+    if (rulesVersion != 1) ...{
+      'powerActivations': {
+        for (final kind in DiscoveryLinePower.values)
+          if ((_engine.state.powerActivations[kind] ?? 0) > 0)
+            kind.name: _engine.state.powerActivations[kind],
+      },
+      'combinationActivations': _engine.state.combinationActivations,
+      'blockersCleared': _engine.state.blockersCleared,
+    },
     if (_engine.state.linePowerActivations > 0)
       'linePowerActivations': _engine.state.linePowerActivations,
     'cells': [
@@ -139,6 +163,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
               'matchKey': cell.piece!.matchKey,
               'targetId': cell.buriedTarget?.id,
               if (cell.sealLayers > 1) 'sealLayers': cell.sealLayers,
+              if (cell.blockerLayers > 0) 'blockerLayers': cell.blockerLayers,
               if (cell.piece!.linePower != null)
                 'linePower': cell.piece!.linePower!.name,
             },
@@ -159,6 +184,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
 
   void _restoreSession(Map<String, dynamic> saved) {
     if (saved['sessionVersion'] != 1 ||
+        (saved['rulesVersion'] ?? 1) != rulesVersion ||
         saved['stageId'] != _stage.id ||
         saved['puzzleId'] != _puzzle.id ||
         saved['fixtureId'] != _boardVariant.fixtureId ||
@@ -281,7 +307,10 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   String get concept => _stage.conceptLabel;
 
   @override
-  String get question => _puzzle.question;
+  String get question => _puzzle.sentenceMath?.fullText ?? _puzzle.question;
+
+  @override
+  SentenceMathProblem? get sentenceMath => _puzzle.sentenceMath;
 
   @override
   String get visualDescription => _puzzle.visualDescription.isEmpty
@@ -355,6 +384,15 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       return;
     }
 
+    if (_boardCells[index].blockerLayers > 0) {
+      _selectedCellIndex = null;
+      _setFeedback(
+        '장애물은 옆에서 매치하거나 특수 블록으로 타격해 제거하세요.',
+        DiscoveryFeedbackTone.warning,
+      );
+      notifyListeners();
+      return;
+    }
     final selected = _selectedCellIndex;
     if (selected == null) {
       _selectedCellIndex = index;
@@ -418,12 +456,26 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
           );
         } else if (result.cascades.any((c) => c.activatedPowers.isNotEmpty)) {
           _setFeedback(
-            '직선 파워가 한 줄을 타격했어요. 남은 봉인을 확인하세요.',
+            result.cascades.any(
+                  (c) => c.activatedPowers.any(
+                    (p) =>
+                        p.combination != null &&
+                        p.combination != DiscoveryPowerCombination.colorGem,
+                  ),
+                )
+                ? '특수 블록 조합! 넓은 범위를 함께 타격했어요.'
+                : '특수 블록 타격! ${_nextDiscoveryInstruction(result.state.collectedTargetIds)}',
             DiscoveryFeedbackTone.reward,
           );
         } else if (result.cascades.any((c) => c.createdPowers.isNotEmpty)) {
           _setFeedback(
-            '4개 매치로 직선 파워 생성! 인접 보석과 바꾸면 한 줄을 타격해요.',
+            '${_powerName(result.cascades.expand((c) => c.createdPowers).first.direction)} 생성! '
+            '인접 보석과 바꿔 활성화하세요.',
+            DiscoveryFeedbackTone.reward,
+          );
+        } else if (result.cascades.any((c) => c.blockerHits.isNotEmpty)) {
+          _setFeedback(
+            '장애물을 타격했어요. 인접 매치나 특수 블록으로 길을 여세요.',
             DiscoveryFeedbackTone.reward,
           );
         } else if (result.cascades.any((c) => c.sealHits.isNotEmpty)) {
@@ -456,6 +508,11 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       case DiscoverySwapStatus.notAdjacent:
         _setFeedback(
           '가로나 세로로 맞닿은 보석만 바꿀 수 있어요.',
+          DiscoveryFeedbackTone.warning,
+        );
+      case DiscoverySwapStatus.blocked:
+        _setFeedback(
+          '장애물 칸은 바꿀 수 없어요. 옆에서 매치하거나 특수 블록으로 타격하세요.',
           DiscoveryFeedbackTone.warning,
         );
       case DiscoverySwapStatus.invalidPosition:
@@ -527,9 +584,9 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
                 '${suggestion.to.row + 1}행 ${suggestion.to.column + 1}열을 바꾸세요. '
                 '${suggestion.targetId == null
                     ? suggestion.activatesLinePower
-                          ? '직선 파워를 활성하는 경로예요. 한 줄의 봉인을 함께 타격해요.'
+                          ? '특수 블록을 활성하는 경로예요. 타격 범위를 확인하세요.'
                           : suggestion.createsLinePower
-                          ? '직선 파워를 생성하는 경로예요. 생성 뒤 인접 교환으로 활성하세요.'
+                          ? '특수 블록을 생성하는 경로예요. 생성 뒤 인접 교환으로 활성하세요.'
                           : '가능한 교환이에요. 봉인까지의 경로는 아직 확인하지 못했어요.'
                     : suggestion.movesToTarget == 1
                     ? '${_tokenForId(suggestion.targetId!).label} 조각을 발굴할 수 있어요.'
@@ -612,7 +669,8 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
     if (_stage.decoyTokenIds.isNotEmpty ||
         _stage.matchDifficulty.decoySealCount != 0 ||
         _stage.matchDifficulty.maxSealLayers > 2 ||
-        _stage.matchDifficulty.obstacleCount != 0 ||
+        _stage.matchDifficulty.obstacleCount !=
+            _runtime.requiredBlockerClears ||
         !currentDiscoveryBoardMechanics.supportsForPlay(
           _stage.boardMechanicPlan,
         ) ||
@@ -622,7 +680,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       throw ArgumentError.value(
         _stage.id,
         'stage',
-        'The fixture supports seals up to two layers and optional line powers.',
+        'The fixture requires supported seals, powers, and adjacent-hit blockers.',
       );
     }
     if (_stage.matchDifficulty.gemKindCount != _runtime.gemKeys.length) {
@@ -733,6 +791,12 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       moves: _stage.moveLimit,
       enableLinePowers: _runtime.enableLinePowers,
       requiredLinePowerActivations: _runtime.requiredLinePowerActivations,
+      enableBurstPowers: _runtime.enableBurstPowers,
+      enableColorPowers: _runtime.enableColorPowers,
+      enablePowerCombinations: _runtime.enablePowerCombinations,
+      requiredPowerKind: _runtime.requiredPowerKind,
+      requiredCombinationActivations: _runtime.requiredCombinationActivations,
+      requiredBlockerClears: _runtime.requiredBlockerClears,
       refillSource: QueuedPieceSource(
         pieces: _runtime.refillPieces(_boardVariant),
         fallback: SeededGemPieceSource(
@@ -797,9 +861,13 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
     DiscoveryMotionPower powerFor(DiscoveryPowerEvent event) =>
         DiscoveryMotionPower(
           index: indexFor(event.position),
-          direction: event.direction == DiscoveryLinePower.row
-              ? DiscoveryLinePowerKind.row
-              : DiscoveryLinePowerKind.column,
+          direction: _presentedPower(event.direction),
+          affectedIndices: List.unmodifiable(
+            event.affectedPositions.map(indexFor),
+          ),
+          isCombination:
+              event.combination != null &&
+              event.combination != DiscoveryPowerCombination.colorGem,
         );
     return DiscoveryBoardTurnMotion(
       fromIndex: fromIndex,
@@ -827,6 +895,14 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
             ],
             createdPowers: step.createdPowers.map(powerFor),
             activatedPowers: step.activatedPowers.map(powerFor),
+            blockerHits: [
+              for (final hit in step.blockerHits)
+                DiscoveryMotionSealHit(
+                  index: indexFor(hit.position),
+                  layersBefore: hit.layersBefore,
+                  layersAfter: hit.layersAfter,
+                ),
+            ],
             discoveries: [
               for (final target in step.discoveredTargets)
                 DiscoveryMotionDiscovery(
@@ -847,6 +923,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
             : _cellForPosition(board, position),
         sealKind: _sealKind(board.cellAt(position).buriedTarget?.kind),
         sealLayers: board.cellAt(position).sealLayers,
+        blockerLayers: board.cellAt(position).blockerLayers,
       ),
   ];
 
@@ -901,11 +978,10 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       id: piece.id,
       kind: _gemKind(piece.matchKey),
       sealLayers: cell.sealLayers,
-      linePowerKind: switch (piece.linePower) {
-        DiscoveryLinePower.row => DiscoveryLinePowerKind.row,
-        DiscoveryLinePower.column => DiscoveryLinePowerKind.column,
-        null => null,
-      },
+      blockerLayers: cell.blockerLayers,
+      linePowerKind: piece.linePower == null
+          ? null
+          : _presentedPower(piece.linePower!),
       sealKind: switch (cell.buriedTarget?.kind) {
         DiscoveryPieceKind.number => DiscoverySealKind.number,
         DiscoveryPieceKind.mathOperator => DiscoverySealKind.operatorSymbol,
@@ -984,17 +1060,45 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       }
     }
     if (_engine.state.isCompleted) return '필요한 블록을 모두 찾았어요. 오른쪽에서 식을 완성하세요.';
-    if (_runtime.enableLinePowers &&
-        _engine.state.requiredTargetIds.every(
-          _engine.state.collectedTargetIds.contains,
-        ))
-      return '직선 파워를 인접 보석과 바꿔 활성하면 식을 확인할 수 있어요.';
+    final state = _engine.state;
+    if (_runtime.requiredPowerKind != null &&
+        (state.powerActivations[_runtime.requiredPowerKind] ?? 0) == 0) {
+      return switch (_runtime.requiredPowerKind!) {
+        DiscoveryLinePower.row ||
+        DiscoveryLinePower.column => '4개를 한 줄로 매치해 직선 파워를 만들고 인접 교환으로 활성화하세요.',
+        DiscoveryLinePower.burst => 'L/T형 매치로 범위 폭발을 만들고 인접 교환으로 3×3을 타격하세요.',
+        DiscoveryLinePower.color => '5개를 한 줄로 매치해 색상 파워를 만들고 없앨 색의 보석과 바꾸세요.',
+      };
+    }
+    if (state.combinationActivations < state.requiredCombinationActivations) {
+      return '맞닿은 특수 블록 두 개를 바꿔 조합 효과를 배워 보세요.';
+    }
+    if (state.blockersCleared < state.requiredBlockerClears) {
+      return '장애물 옆에서 매치하거나 특수 블록으로 타격해 길을 여세요.';
+    }
+    if (state.linePowerActivations < state.requiredLinePowerActivations) {
+      return '특수 블록을 인접 보석과 바꿔 활성화하세요.';
+    }
     return _runtime.enableLinePowers
         ? '4개 매치로 파워를 만들고 인접 교환으로 한 줄을 타격하세요.'
         : _stage.matchDifficulty.maxSealLayers > 1
         ? '두 겹 봉인은 같은 칸에서 매치를 두 번 만들어 열어요.'
         : '봉인이 있는 칸에서 보석 3개를 연결해 조각을 찾아보세요.';
   }
+
+  DiscoveryLinePowerKind _presentedPower(DiscoveryLinePower power) =>
+      switch (power) {
+        DiscoveryLinePower.row => DiscoveryLinePowerKind.row,
+        DiscoveryLinePower.column => DiscoveryLinePowerKind.column,
+        DiscoveryLinePower.burst => DiscoveryLinePowerKind.burst,
+        DiscoveryLinePower.color => DiscoveryLinePowerKind.color,
+      };
+
+  String _powerName(DiscoveryLinePower power) => switch (power) {
+    DiscoveryLinePower.row || DiscoveryLinePower.column => '직선 파워',
+    DiscoveryLinePower.burst => '범위 폭발',
+    DiscoveryLinePower.color => '색상 파워',
+  };
 
   bool _isExpectedTutorialSwap(
     DiscoveryPosition from,

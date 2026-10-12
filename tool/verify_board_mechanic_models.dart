@@ -80,8 +80,8 @@ void main() {
     capabilities
             .capabilityFor(BoardMechanicId.adjacentHitBlocker)
             .supportState ==
-        BoardMechanicSupportState.modelOnly,
-    'Adjacent blockers remain model-only.',
+        BoardMechanicSupportState.supported,
+    'Adjacent-hit covers are implemented; fixed blockers remain planned.',
   );
   for (final mechanicId in const [
     BoardMechanicId.swapLock,

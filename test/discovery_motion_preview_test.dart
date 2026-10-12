@@ -54,7 +54,7 @@ void main() {
     ),
     (
       name: 'r1-power-birth-cascade',
-      id: 'r01-c06-s07',
+      id: 'r01-c02-s09',
       config: DiscoveryBoardConfig.standardPhone,
     ),
   ]) {
@@ -83,7 +83,12 @@ void main() {
             trace.cascades.length +
             trace.cascades.fold<int>(
               0,
-              (sum, cascade) => sum + cascade.activatedPowers.length * 10,
+              (sum, cascade) =>
+                  sum +
+                  (preview.name.contains('birth')
+                          ? cascade.createdPowers.length
+                          : cascade.activatedPowers.length) *
+                      10,
             );
         if (score > bestScore) {
           bestScore = score;
@@ -134,7 +139,12 @@ void main() {
       await capture(0);
       _swap(model, path[stepIndex]);
       final trace = model.boardTurnMotion!;
-      if (preview.name.contains('power')) {
+      if (preview.name.contains('birth')) {
+        expect(
+          trace.cascades.any((cascade) => cascade.createdPowers.isNotEmpty),
+          isTrue,
+        );
+      } else if (preview.name.contains('power')) {
         expect(
           trace.cascades.any((cascade) => cascade.activatedPowers.isNotEmpty),
           isTrue,

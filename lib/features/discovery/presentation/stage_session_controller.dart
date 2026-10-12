@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../campaign/domain/campaign_models.dart';
 import '../../progress/progress.dart';
 import 'discovery_puzzle_view_model.dart';
 import 'engine_discovery_puzzle_view_model.dart';
@@ -9,7 +10,7 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
     implements DiscoveryCompletionHandler {
   StageSessionController({
     required this.repository,
-    required super.stage,
+    required StageDefinition stage,
     required super.boardConfig,
     required this.onContinue,
     required this.onSaveError,
@@ -17,7 +18,12 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
     super.runtimeCatalog,
     String? reviewTicketId,
     bool isDailyReview = false,
-  }) {
+  }) : super(
+         stage: stage,
+         rulesVersion: savedSession == null
+             ? 3
+             : _savedRulesVersion(savedSession),
+       ) {
     final savedTicket = savedSession?['reviewTicketId'];
     final savedReview = savedSession?['isDailyReview'];
     if (savedTicket != null && savedTicket is! String ||
@@ -51,6 +57,14 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
   Future<void> _pending = Future<void>.value();
   Object? _lastError;
   bool _savingEnabled = true;
+
+  static int _savedRulesVersion(Map<String, dynamic> session) {
+    final version = session['rulesVersion'] ?? 1;
+    if (version is! int || (version != 1 && version != 3)) {
+      throw const FormatException('Unknown puzzle rules version.');
+    }
+    return version;
+  }
 
   static String _newAttemptId() =>
       '${DateTime.now().microsecondsSinceEpoch}-${Random.secure().nextInt(0x100000000)}';

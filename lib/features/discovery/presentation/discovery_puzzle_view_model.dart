@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
 import '../../puzzle/domain/puzzle_learning_support.dart';
+import '../../puzzle/domain/sentence_math_problem.dart';
 
 /// Presentation boundary for the discovery puzzle screen.
 ///
@@ -13,6 +14,7 @@ abstract interface class DiscoveryPuzzleViewModel implements Listenable {
   String get difficultyLabel;
   String get concept;
   String get question;
+  SentenceMathProblem? get sentenceMath;
   String get visualDescription;
   String get learningObjective;
   List<PuzzleWorkedSolutionStep> get workedSolutionSteps;
@@ -46,7 +48,7 @@ abstract interface class DiscoveryCompletionHandler {
 
 enum DiscoveryGemKind { berry, ocean, citrus, grape, leaf, sun }
 
-enum DiscoveryLinePowerKind { row, column }
+enum DiscoveryLinePowerKind { row, column, burst, color }
 
 class DiscoveryGemCell {
   const DiscoveryGemCell({
@@ -55,6 +57,7 @@ class DiscoveryGemCell {
     this.sealKind,
     this.sealLayers = 0,
     this.linePowerKind,
+    this.blockerLayers = 0,
   });
 
   final String id;
@@ -62,6 +65,7 @@ class DiscoveryGemCell {
   final DiscoverySealKind? sealKind;
   final int sealLayers;
   final DiscoveryLinePowerKind? linePowerKind;
+  final int blockerLayers;
 }
 
 enum DiscoverySealKind { number, operatorSymbol, parenthesis }
@@ -138,6 +142,9 @@ class DemoDiscoveryPuzzleViewModel extends ChangeNotifier
 
   @override
   String get stageLabel => '수정 협곡 1-3';
+
+  @override
+  SentenceMathProblem? get sentenceMath => null;
 
   @override
   String get difficultyLabel => '수학 2 · 퍼즐 1';

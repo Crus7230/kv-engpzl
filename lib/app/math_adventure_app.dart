@@ -12,6 +12,7 @@ import '../features/campaign/data/legacy_region_catalog.dart';
 import '../features/discovery/domain/discovery_models.dart';
 import '../features/discovery/data/discovery_runtime_catalog.dart';
 import '../features/garden/data/garden_catalog.dart';
+import '../features/garden/domain/garden_models.dart';
 import '../features/discovery/presentation/discovery_puzzle_screen.dart';
 import '../features/discovery/presentation/stage_session_controller.dart';
 import '../features/garden/presentation/garden_screens.dart';
@@ -161,6 +162,9 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         stage,
         _campaign,
         _save!.completedStageIds,
+        usesLegacyBoardRules:
+            _save!.activeSession?['stageId'] == stage.id &&
+            (_save!.activeSession?['rulesVersion'] ?? 1) == 1,
       );
 
   @override
@@ -204,6 +208,12 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       setState(() => _loadError = null);
     }
     try {
+      if (!_usesPrototype) {
+        await CampaignContentUpdateService(
+          _repository,
+          _campaign,
+        ).reconcileUnlocks();
+      }
       final save = _usesPrototype
           ? await _repository.load()
           : await CompanionProgressService(_repository).reconcileEligibility();
@@ -393,15 +403,14 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   }
 
   void _showBriefing() {
-    if (_regionId != 'region-01-calculation') return;
     final active = _save!.activeSession;
-    final daily = const DailyRouteService().build(_save!, _campaign, now: _now);
     final rawStageId = active?['stageId'];
     final stage =
         _findStage(rawStageId is String ? rawStageId : null) ??
-        daily.explorationStage;
+        (_usesPrototype ? verticalSliceStage : _regionalNextStage);
     if (stage == null) return;
     setState(() {
+      _regionId = _regionForStage(stage);
       _selectedStage = stage;
       _reviewTicketId = active?['reviewTicketId'] is String
           ? active!['reviewTicketId'] as String
@@ -458,7 +467,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 : null)
           : reviewTicketId;
       _isDailyReview = resuming ? active['isDailyReview'] == true : isReview;
-      _regionId = 'region-01-calculation';
+      _regionId = _regionForStage(stage);
       _route = RenewalRoute.briefing;
     });
   }
@@ -606,19 +615,58 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     for (final receipt in _save!.rewardLedger.values)
       ...receipt.unlockedRestorationNodeIds,
   };
+  String _regionForStage(StageDefinition stage) =>
+      _campaign.regions
+          .where(
+            (region) =>
+                region.chapters.any((chapter) => chapter.id == stage.chapterId),
+          )
+          .firstOrNull
+          ?.id ??
+      'region-01-calculation';
+
+  StageDefinition? get _regionalNextStage {
+    final candidates = _campaign.regions
+        .where((region) => region.id == _regionId)
+        .expand((region) => region.stages)
+        .where(
+          (stage) =>
+              !_save!.completedStageIds.contains(stage.id) &&
+              _canEnterStage(stage),
+        );
+    return candidates
+            .where((stage) => stage.recurrencePlan?.isSpiral != true)
+            .firstOrNull ??
+        candidates.firstOrNull;
+  }
+
+  StageDefinition? _nextAfterResult(DailyRouteRecommendations daily) =>
+      _stage.recurrencePlan?.isSpiral == true && _session?.isDailyReview != true
+      ? _regionalNextStage ?? daily.explorationStage
+      : daily.explorationStage;
+
+  RestorationNode? get _restorationNode => gardenDefinitions
+      .map((garden) => garden.nodeById(_nodeId ?? ''))
+      .whereType<RestorationNode>()
+      .firstOrNull;
+
+  Set<String> get _earnedRegionNodeIds =>
+      gardenDefinitionByRegionId(_regionId)?.restorationNodes
+          .where((node) => _earnedNodeIds.contains(node.id))
+          .map((node) => node.id)
+          .toSet() ??
+      const {};
   String? get _nodeId =>
       _restorationNodeId ??
       (_earnedNodeIds.isEmpty ? null : _earnedNodeIds.first);
   bool get _canRestore => _earnedNodeIds.isNotEmpty;
   String? get _nodeTitle {
     if (_nodeId == 'r01-demo-meadow') return null;
-    return gardenDefinitionByRegionId(
-      'region-01-calculation',
-    )?.nodeById(_nodeId ?? '')?.title;
+    return _restorationNode?.title;
   }
 
   Future<void> _chooseRestorationNode(BuildContext context) async {
-    final earned = _earnedNodeIds;
+    final earned = _usesPrototype ? _earnedNodeIds : _earnedRegionNodeIds;
     if (earned.isEmpty) return;
     final selected = await showDialog<String>(
       context: context,
@@ -636,7 +684,9 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                   subtitle: const Text('체험 화단 · 무료로 장식 바꾸기'),
                   onTap: () => Navigator.pop(context, demoRestorationNode.id),
                 ),
-              for (final node in gardenDefinitions.first.restorationNodes)
+              for (final node
+                  in gardenDefinitionByRegionId(_regionId)?.restorationNodes ??
+                      <RestorationNode>[])
                 if (earned.contains(node.id))
                   ListTile(
                     leading: Icon(
@@ -671,13 +721,13 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     final story = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('평원의 친구들'),
+        title: const Text('탐험길의 친구들'),
         content: SizedBox(
           width: 400,
           child: ListView(
             shrinkWrap: true,
             children: [
-              for (final entry in r1CharacterStories)
+              for (final entry in allCharacterStories)
                 ListTile(
                   leading: Icon(
                     unlocked.contains(entry.characterId)
@@ -710,7 +760,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       ),
     );
     if (!mounted || story == null) return;
-    final entry = r1CharacterStories.singleWhere((entry) => entry.id == story);
+    final entry = allCharacterStories.singleWhere((entry) => entry.id == story);
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -742,6 +792,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             .where((id) => !_save!.restoredNodeIds.contains(id))
             .firstOrNull ??
         _earnedNodeIds.lastOrNull;
+    final node = _restorationNode;
+    if (node != null) _regionId = node.regionId;
     _route = RenewalRoute.restoration;
   });
   Future<void> _chooseDecoration(String choice) async {
@@ -922,8 +974,14 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     }
     final daily = const DailyRouteService().build(save, _campaign, now: _now);
     final campaignStages = _campaign.stages
-        .where((stage) => stage.isPlayable && stage.id.startsWith('r01-'))
+        .where(
+          (stage) => stage.isPlayable && _regionForStage(stage) == _regionId,
+        )
         .toList();
+    final availableRegions = {
+      for (final region in _campaign.regions)
+        if (region.stages.any((stage) => stage.isPlayable)) region.id,
+    };
     final unlockedRegions = {
       for (final region in legacyRegionCatalog)
         if (region.prerequisiteRegionId == null ||
@@ -954,6 +1012,9 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 onDepart: () => unawaited(_depart()),
               )
             : WorldMapScreen(
+                availableRegionIds: _usesPrototype
+                    ? const {'region-01-calculation'}
+                    : availableRegions,
                 unlockedRegionIds: unlockedRegions,
                 restoredNodeIds: save.restoredNodeIds,
                 totalStars: save.bestStars.values.fold(0, (a, b) => a + b),
@@ -962,7 +1023,12 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                     daily.explorationStage == null && save.activeSession == null
                     ? null
                     : () {
-                        _regionId = 'region-01-calculation';
+                        final activeId = save.activeSession?['stageId'];
+                        final next =
+                            _findStage(activeId is String ? activeId : null) ??
+                            daily.explorationStage;
+                        if (next == null) return;
+                        _regionId = _regionForStage(next);
                         _showBriefing();
                       },
                 onReview: daily.reviewStage == null
@@ -993,12 +1059,11 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                     ? '저장된 탐험 이어가기'
                     : daily.explorationStage == null
                     ? daily.completedRegionIds.contains('region-01-calculation')
-                          ? '평원 완료 · 다음 지역 업데이트 예정'
+                          ? '탐험 완료 · 다음 지역 업데이트 예정'
                           : '새 묶음 준비 중 · 복습은 계속'
                     : '${daily.explorationStage!.chapterId.toUpperCase()} S${daily.explorationStage!.number.toString().padLeft(2, '0')}',
                 onRestore: _canRestore
                     ? () {
-                        _regionId = 'region-01-calculation';
                         _showRestoration(daily.pendingRestorationNodeId);
                       }
                     : null,
@@ -1011,14 +1076,15 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       if (showRegionFoundation)
         MaterialPage(
           key: const ValueKey(RenewalRoute.regionGarden),
-          child: !_usesPrototype && _regionId == 'region-01-calculation'
+          child: !_usesPrototype && availableRegions.contains(_regionId)
               ? CampaignRegionGardenScreen(
+                  regionNumber: expeditionRegionNumber(_regionId),
                   stages: campaignStages,
                   completedStageIds: save.completedStageIds,
                   unlockedStageIds: save.unlockedStageIds,
                   restoredNodeIds: save.restoredNodeIds,
                   decorationChoices: save.decorationChoices,
-                  nextStageId: daily.explorationStage?.id,
+                  nextStageId: _regionalNextStage?.id,
                   unlockedCharacterIds: save.unlockedCharacterIds,
                   playerCharacterId: save.playerCharacterId,
                   onCompanions: _showCompanions,
@@ -1026,14 +1092,13 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                   onStories: () => unawaited(_viewCharacterStories(context)),
                   onBack: () => setState(() => _route = RenewalRoute.worldMap),
                   onPlay:
-                      daily.explorationStage == null &&
-                          save.activeSession == null
+                      _regionalNextStage == null && save.activeSession == null
                       ? null
                       : _showBriefing,
                   onSelectStage: (id) =>
                       unawaited(_openStage(context, _campaign.stageById(id)!)),
                   onRestore: () => unawaited(_chooseRestorationNode(context)),
-                  canRestore: _canRestore,
+                  canRestore: _earnedRegionNodeIds.isNotEmpty,
                   hasActiveSession: save.activeSession != null,
                 )
               : RegionGardenScreen(
@@ -1059,7 +1124,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             stage: _usesPrototype || _stage.id == verticalSliceStage.id
                 ? null
                 : _stage,
-            isReview: _isDailyReview || _stage.chapterId == 'r01-c04',
+            isReview: _isDailyReview || _stage.chapterId.endsWith('-c04'),
             onBack: _returnToExpedition,
             onStart: () => unawaited(_start(context)),
             resume: save.activeSession != null,
@@ -1090,7 +1155,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 ? '모험 출발하기'
                 : _receipt!.unlockedRestorationNodeIds.isNotEmpty
                 ? '탐험의 흔적 남기기'
-                : daily.explorationStage == null
+                : _nextAfterResult(daily) == null
                 ? '탐험 지도로 돌아가기'
                 : '다음 탐험 안내',
             stars: _receipt!.stars,
@@ -1104,8 +1169,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                   nextUnviewedCompanionArrival(save, regionId: _regionId) !=
                       null)
                 _returnToExpedition();
-              else if (!_usesPrototype && daily.explorationStage != null)
-                unawaited(_openStage(context, daily.explorationStage!));
+              else if (!_usesPrototype && _nextAfterResult(daily) != null)
+                unawaited(_openStage(context, _nextAfterResult(daily)!));
               else
                 _returnToExpedition();
             },
@@ -1117,13 +1182,17 @@ class _MathAdventureAppState extends State<MathAdventureApp>
           key: const ValueKey(RenewalRoute.restoration),
           child: RestorationRevealScreen(
             nodeTitle: _nodeTitle,
-            node: gardenDefinitions.first.nodeById(_nodeId ?? ''),
+            node: _restorationNode,
             unlockedCharacterIds: save.unlockedCharacterIds,
             restoredNodeIds: _usesPrototype ? const {} : save.restoredNodeIds,
             completedStageCount: _usesPrototype
                 ? 0
                 : save.completedStageIds
-                      .where((id) => id.startsWith('r01-'))
+                      .where(
+                        (id) =>
+                            _findStage(id) != null &&
+                            _regionForStage(_findStage(id)!) == _regionId,
+                      )
                       .length,
             alreadyRestored: save.restoredNodeIds.contains(_nodeId),
             decorationId: save.decorationChoices[_nodeId] ?? 'wildflowers',

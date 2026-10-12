@@ -129,7 +129,10 @@ Future<void> main() async {
     finalSave.unlockedStageIds.contains('r02-c01-s01'),
     'next region metadata preserved',
   );
-  _expect(finalRoute.explorationStage == null, 'no fake new stage after R1');
+  _expect(
+    finalRoute.explorationStage?.id == 'r02-c01-s01',
+    'authored R2 follows R1',
+  );
   _expect(
     finalRoute.completedRegionIds.contains(region.id),
     'R1 complete contract',

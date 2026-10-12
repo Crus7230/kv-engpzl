@@ -23,7 +23,10 @@ class WorldMapScreen extends StatelessWidget {
     required this.onExplore,
     required this.onSelectRegion,
     required this.onSettings,
-    this.availableRegionIds = const {'region-01-calculation'},
+    this.availableRegionIds = const {
+      'region-01-calculation',
+      'region-02-pattern',
+    },
     this.onReview,
     this.onRestore,
     this.statusMessage,
@@ -74,83 +77,102 @@ class WorldMapScreen extends StatelessWidget {
         ),
       ],
     ),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxHeight < 330;
-        final largeText = MediaQuery.textScalerOf(context).scale(13) > 15;
-        return Column(
-          children: [
-            if (statusMessage != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
-                child: Text(
-                  statusMessage!,
-                  style: const TextStyle(
-                    color: GardenColors.muted,
-                    fontSize: 12,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: _WorldMap(
-                  unlockedRegionIds: unlockedRegionIds,
-                  availableRegionIds: availableRegionIds,
-                  restoredNodeIds: restoredNodeIds,
-                  onSelectRegion: onSelectRegion,
-                ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+      child: Column(
+        children: [
+          if (statusMessage != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
+              child: Text(
+                statusMessage!,
+                style: const TextStyle(color: GardenColors.ink, fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
-              child: SizedBox(
-                height: largeText ? 80 : (compact ? 66 : 78),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final largeText =
+                    MediaQuery.textScalerOf(context).scale(13) > 15;
+                return Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Expanded(
-                      child: _DailyCard(
-                        icon: Icons.spa_outlined,
-                        title: '기억의 씨앗',
-                        detail:
-                            reviewDetail ??
-                            (onReview == null ? '복습은 준비 중이에요' : '오늘 돌아온 개념 1개'),
-                        onTap: onReview,
-                      ),
+                    _WorldMap(
+                      unlockedRegionIds: unlockedRegionIds,
+                      availableRegionIds: availableRegionIds,
+                      restoredNodeIds: restoredNodeIds,
+                      onSelectRegion: onSelectRegion,
+                      showGuide: statusMessage == null,
+                      // Only very short safe areas need a separate control gutter.
+                      bottomClearance: constraints.maxHeight < 240 ? 54 : 0,
                     ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: _DailyCard(
-                        icon: Icons.explore_outlined,
-                        title: '오늘의 탐험',
-                        detail: explorationDetail ?? '한 문제로 시작하기',
-                        onTap: onExplore,
-                        highlighted: true,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: _DailyCard(
-                        icon: Icons.local_florist_outlined,
-                        title: onCompanions == null ? '정원 돌보기' : '탐험의 흔적',
-                        detail: onRestore != null
-                            ? onCompanions == null
-                                  ? '화단에 새 모습을 골라요'
-                                  : '이정표와 쉼터에 흔적 남기기'
-                            : '이번 주 ${math.min(weeklyActions, 5)}/5번의 발걸음',
-                        onTap: onRestore,
+                    Positioned(
+                      left: 6,
+                      bottom: 4,
+                      child: SizedBox(
+                        width: math.min(
+                          constraints.maxWidth - 12,
+                          largeText ? 414 : 366,
+                        ),
+                        height: 48,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _WorldMapAction(
+                                key: const ValueKey('world-review'),
+                                icon: Icons.spa_outlined,
+                                title: '기억의 씨앗',
+                                detail:
+                                    reviewDetail ??
+                                    (onReview == null
+                                        ? '복습은 준비 중이에요'
+                                        : '오늘 돌아온 개념 1개'),
+                                onTap: onReview,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _WorldMapAction(
+                                key: const ValueKey('world-explore'),
+                                icon: Icons.explore_outlined,
+                                title: '오늘의 탐험',
+                                detail: explorationDetail ?? '한 문제로 시작하기',
+                                onTap: onExplore,
+                                highlighted: true,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _WorldMapAction(
+                                key: const ValueKey('world-traces'),
+                                icon: onCompanions == null
+                                    ? Icons.local_florist_outlined
+                                    : Icons.signpost_outlined,
+                                title: onCompanions == null
+                                    ? '정원 돌보기'
+                                    : '탐험의 흔적',
+                                detail: onRestore != null
+                                    ? onCompanions == null
+                                          ? '화단에 새 모습을 골라요'
+                                          : '이정표와 쉼터에 흔적 남기기'
+                                    : '이번 주 ${math.min(weeklyActions, 5)}/5번의 발걸음',
+                                onTap: onRestore,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
-                ),
-              ),
+                );
+              },
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -318,6 +340,7 @@ class RegionGardenScreen extends StatelessWidget {
 /// Lists only authored content; future 420-slot planning is not exposed here.
 class CampaignRegionGardenScreen extends StatelessWidget {
   const CampaignRegionGardenScreen({
+    this.regionNumber = 1,
     required this.stages,
     required this.completedStageIds,
     required this.unlockedStageIds,
@@ -338,6 +361,7 @@ class CampaignRegionGardenScreen extends StatelessWidget {
     super.key,
   });
   final List<StageDefinition> stages;
+  final int regionNumber;
   final Set<String> completedStageIds;
   final Set<String> unlockedStageIds;
   final Set<String> restoredNodeIds;
@@ -354,6 +378,7 @@ class CampaignRegionGardenScreen extends StatelessWidget {
   final Set<String> unlockedCharacterIds;
   @override
   Widget build(BuildContext context) => R1ExpeditionScreen(
+    regionNumber: regionNumber,
     stages: stages,
     completedStageIds: completedStageIds,
     unlockedStageIds: unlockedStageIds,
@@ -372,6 +397,16 @@ class CampaignRegionGardenScreen extends StatelessWidget {
     canRestore: canRestore,
     hasActiveSession: hasActiveSession,
   );
+}
+
+String _briefingRegionTitle(StageDefinition stage) {
+  final prefix = RegExp(r'^r(\d{2})-').firstMatch(stage.chapterId);
+  final regionNumber = prefix == null ? null : int.tryParse(prefix.group(1)!);
+  return legacyRegionCatalog
+          .where((region) => region.number == regionNumber)
+          .firstOrNull
+          ?.title ??
+      '수식 모험';
 }
 
 class StageBriefingScreen extends StatelessWidget {
@@ -397,8 +432,12 @@ class StageBriefingScreen extends StatelessWidget {
     title: stage?.title ?? '묶음과 낱개',
     onBack: onBack,
     child: _TwoPane(
-      leading: stage != null && stage!.chapterId.startsWith('r01-')
+      leading:
+          stage != null &&
+              (stage!.chapterId.startsWith('r01-') ||
+                  stage!.chapterId.startsWith('r02-'))
           ? ExpeditionTravelerScene(
+              regionNumber: int.parse(stage!.chapterId.substring(1, 3)),
               chapter: int.tryParse(stage!.chapterId.split('-c').last) ?? 1,
               playerCharacterId: playerCharacterId,
             )
@@ -422,7 +461,7 @@ class StageBriefingScreen extends StatelessWidget {
                           ? '개발용 체험'
                           : isReview
                           ? '기억의 씨앗 · 복습'
-                          : '계산의 평원 · 탐험 준비',
+                          : '${_briefingRegionTitle(stage!)} · 탐험 준비',
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -449,6 +488,11 @@ class StageBriefingScreen extends StatelessWidget {
                         stage!.learningPlan.objective,
                         style: const TextStyle(fontSize: 13, height: 1.4),
                       ),
+                    if (stage?.sentenceMathPlan != null)
+                      _Note(
+                        icon: Icons.schema_outlined,
+                        text: stage!.sentenceMathPlan!.phaseGoal,
+                      ),
                     if (stage?.boardMechanicPlan.mechanicIds.contains(
                           BoardMechanicId.layeredSeal,
                         ) ??
@@ -465,6 +509,54 @@ class StageBriefingScreen extends StatelessWidget {
                         icon: Icons.swap_horiz_rounded,
                         text:
                             '같은 보석 4개를 연결하면 직선 파워가 생겨요. 옆 보석과 바꾸면 화살표 방향의 줄을 타격합니다.',
+                      ),
+                    if (stage?.boardMechanicPlan.bindings.any(
+                          (b) =>
+                              b.rule is LinePowerRule &&
+                              (b.rule as LinePowerRule).enableBurst,
+                        ) ??
+                        false)
+                      const _Note(
+                        icon: Icons.flare_rounded,
+                        text: 'L/T형 매치는 범위 폭발을 만들어요. 인접 교환으로 주변 3×3을 타격합니다.',
+                      ),
+                    if (stage?.boardMechanicPlan.bindings.any(
+                          (b) =>
+                              b.rule is LinePowerRule &&
+                              (b.rule as LinePowerRule).enableColor,
+                        ) ??
+                        false)
+                      const _Note(
+                        icon: Icons.palette_rounded,
+                        text: '한 줄 5개 매치는 색상 파워를 만들어요. 바꾼 보석과 같은 색을 모두 타격합니다.',
+                      ),
+                    if (stage?.boardMechanicPlan.bindings.any(
+                          (b) =>
+                              b.rule is LinePowerRule &&
+                              (b.rule as LinePowerRule).enableCombinations,
+                        ) ??
+                        false)
+                      const _Note(
+                        icon: Icons.auto_awesome_rounded,
+                        text:
+                            '특수 블록끼리 바꾸면 조합 효과가 나와요. 직선끼리는 십자, 폭발끼리는 5×5, 색상과 다른 특수 블록은 같은 색을 변환합니다.',
+                      ),
+                    if (stage?.matchDifficulty.obstacleCount != null &&
+                        stage!.matchDifficulty.obstacleCount > 0)
+                      const _Note(
+                        icon: Icons.terrain_rounded,
+                        text: '장애물은 교환과 낙하를 막아요. 옆에서 매치하거나 특수 블록으로 타격해 제거하세요.',
+                      ),
+                    if (stage?.boardMechanicPlan.bindings.any(
+                          (b) =>
+                              b.rule is AdjacentHitBlockerRule &&
+                              (b.rule as AdjacentHitBlockerRule).durability ==
+                                  2,
+                        ) ??
+                        false)
+                      const _Note(
+                        icon: Icons.forest_outlined,
+                        text: '단단한 덩굴은 두 번 타격해야 제거돼요. 같은 연쇄 단계에서는 한 번만 손상됩니다.',
                       ),
                     _Note(
                       icon: resume
@@ -942,12 +1034,16 @@ class _WorldMap extends StatelessWidget {
     required this.availableRegionIds,
     required this.restoredNodeIds,
     required this.onSelectRegion,
+    required this.showGuide,
+    required this.bottomClearance,
   });
 
   final Set<String> unlockedRegionIds;
   final Set<String> availableRegionIds;
   final Set<String> restoredNodeIds;
   final ValueChanged<String> onSelectRegion;
+  final bool showGuide;
+  final double bottomClearance;
 
   @override
   Widget build(BuildContext context) => ClipRRect(
@@ -957,7 +1053,10 @@ class _WorldMap extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           const sourceSize = Size(6000, 2413);
-          final destination = Size(constraints.maxWidth, constraints.maxHeight);
+          final destination = Size(
+            constraints.maxWidth,
+            math.max(0, constraints.maxHeight - bottomClearance),
+          );
           final fitted = applyBoxFit(BoxFit.contain, sourceSize, destination);
           final imageRect = Alignment.center.inscribe(
             fitted.destination,
@@ -970,6 +1069,7 @@ class _WorldMap extends StatelessWidget {
                 rect: imageRect,
                 child: Image.asset(
                   'assets/legacy/world-map.png',
+                  key: const ValueKey('world-map-artwork'),
                   cacheWidth:
                       (imageRect.width * MediaQuery.devicePixelRatioOf(context))
                           .ceil()
@@ -993,6 +1093,7 @@ class _WorldMap extends StatelessWidget {
                   width: 90,
                   height: 68,
                   child: _MapMarker(
+                    key: ValueKey('world-region-${region.id}'),
                     number: region.number,
                     title: _regionShortTitle(region.number),
                     fullTitle: region.title,
@@ -1006,23 +1107,24 @@ class _WorldMap extends StatelessWidget {
                     onTap: () => onSelectRegion(region.id),
                   ),
                 ),
-              Positioned(
-                bottom: 5,
-                right: 9,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: GardenColors.paper.withValues(alpha: .88),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    child: Text(
-                      '지역을 눌러 탐험을 시작하세요',
-                      style: TextStyle(fontSize: 10, color: GardenColors.ink),
+              if (showGuide)
+                Positioned(
+                  top: 6,
+                  right: 9,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: GardenColors.paper.withValues(alpha: .88),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      child: Text(
+                        '지역을 눌러 탐험을 시작하세요',
+                        style: TextStyle(fontSize: 10, color: GardenColors.ink),
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           );
         },
@@ -1040,6 +1142,7 @@ class _MapMarker extends StatelessWidget {
     required this.available,
     required this.restored,
     required this.onTap,
+    super.key,
   });
 
   final int number;
@@ -1150,13 +1253,14 @@ class _MapMarker extends StatelessWidget {
   );
 }
 
-class _DailyCard extends StatelessWidget {
-  const _DailyCard({
+class _WorldMapAction extends StatelessWidget {
+  const _WorldMapAction({
     required this.icon,
     required this.title,
     required this.detail,
     required this.onTap,
     this.highlighted = false,
+    super.key,
   });
 
   final IconData icon;
@@ -1166,64 +1270,70 @@ class _DailyCard extends StatelessWidget {
   final bool highlighted;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: highlighted ? GardenColors.green : GardenColors.paper,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(14),
-      side: BorderSide(
-        color: highlighted ? GardenColors.green : GardenColors.border,
-      ),
-    ),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: highlighted ? Colors.white : GardenColors.green,
-              size: 22,
+  Widget build(BuildContext context) {
+    final primary = highlighted && onTap != null;
+    final foreground = primary
+        ? Colors.white
+        : onTap != null
+        ? GardenColors.ink
+        : GardenColors.muted;
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: '$title · $detail',
+      child: Tooltip(
+        message: detail,
+        excludeFromSemantics: true,
+        child: Material(
+          color: primary ? GardenColors.green : GardenColors.paper,
+          elevation: 3,
+          shadowColor: const Color(0x44000000),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(
+              color: primary ? GardenColors.green : GardenColors.border,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.15,
-                      fontWeight: FontWeight.w800,
-                      color: highlighted ? Colors.white : GardenColors.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    detail,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10,
-                      height: 1.3,
-                      color: highlighted
-                          ? const Color(0xFFD9E8DD)
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(24),
+            child: ExcludeSemantics(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  children: [
+                    Icon(
+                      icon,
+                      color: primary
+                          ? Colors.white
+                          : onTap != null
+                          ? GardenColors.green
                           : GardenColors.muted,
+                      size: 18,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.15,
+                          fontWeight: FontWeight.w800,
+                          color: foreground,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _PathEntry extends StatelessWidget {

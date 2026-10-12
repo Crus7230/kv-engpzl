@@ -1,4 +1,5 @@
 import '../../campaign/data/regional_campaign.dart';
+import '../../exploration/data/r1_expedition_catalog.dart';
 import '../domain/garden_models.dart';
 
 /// All 168 nodes point to existing, stable campaign stage identifiers.
@@ -11,7 +12,11 @@ final List<GardenDefinition> gardenDefinitions = List.unmodifiable([
       title: '${region.title}의 정원',
       backgroundAsset: region.number == 1 ? 'assets/legacy/plains.png' : null,
       featuredCharacterIds: region.featuredCharacterIds,
-      projectScenes: region.number == 1 ? r1GardenProjectScenes : const [],
+      projectScenes: region.number == 1
+          ? r1GardenProjectScenes
+          : region.number == 2
+          ? r2GardenProjectScenes
+          : const [],
       restorationNodes: [
         for (final chapter in region.chapters)
           for (final milestone in const [2, 4, 7, 10])
@@ -27,12 +32,18 @@ final List<GardenDefinition> gardenDefinitions = List.unmodifiable([
               milestone: milestone,
               sceneId: region.number == 1
                   ? r1GardenProjectScenes[chapter.number - 1].id
+                  : region.number == 2
+                  ? r2GardenProjectScenes[chapter.number - 1].id
                   : null,
               characterId: region.number == 1
                   ? r1GardenProjectScenes[chapter.number - 1].characterId
+                  : region.number == 2
+                  ? r2GardenProjectScenes[chapter.number - 1].characterId
                   : null,
               storyText: region.number == 1
                   ? _r1RestorationStory(chapter.number, milestone)
+                  : region.number == 2
+                  ? _r2ExplorationStory(chapter.number, milestone)
                   : null,
             ),
       ],
@@ -166,4 +177,66 @@ String _r1RestorationStory(int chapterNumber, int milestone) {
       ? '완성한 곳은 언제든 돌아와 다시 꾸밀 수 있어요.'
       : '다음 관계를 찾으면 이 풍경에 새로운 부분이 더해집니다.';
   return '${project.title}에 $progress $next';
+}
+
+final r2GardenProjectScenes = <GardenProjectScene>[
+  for (final destination in r2ExpeditionDestinations)
+    GardenProjectScene(
+      id: 'r02-scene-${destination.number}',
+      chapterId: destination.chapterId,
+      title: destination.title,
+      description: destination.description,
+      environmentLayerId: 'forest-trail-${destination.number}',
+      characterId: switch (destination.number) {
+        1 || 4 => 'CHAR_B',
+        2 => 'CHAR_F',
+        3 || 6 => 'CHAR_R',
+        _ => 'CHAR_N',
+      },
+    ),
+];
+
+final allCharacterStories = <GardenCharacterStory>[
+  ...r1CharacterStories,
+  for (final entry in const [
+    (
+      'CHAR_B',
+      'r02-c01-s10',
+      '표지판의 규칙',
+      'Bravo: 간격을 확인하면 다음 표지판이 어디에 있는지 예상할 수 있어.',
+    ),
+    (
+      'CHAR_F',
+      'r02-c01-s10',
+      '반복의 다른 모습',
+      'Foxtrot: 마지막에 무슨 일을 했는지 기록해 두면 다음 차례를 찾을 수 있어.',
+    ),
+    (
+      'CHAR_R',
+      'r02-c03-s10',
+      '고목의 입력과 출력',
+      'Romeo: 어떤 값이 입력인지 먼저 살펴봐. 출력에서 돌아갈 때는 순서도 반대야.',
+    ),
+    (
+      'CHAR_N',
+      'r02-c05-s10',
+      '덩굴 너머의 길',
+      'November: 익숙한 관계로 단단한 덩굴을 뚫었네. 다른 모습의 단서도 함께 찾아보자.',
+    ),
+  ])
+    GardenCharacterStory(
+      id: 'r02-character-${entry.$1.substring(5).toLowerCase()}-intro',
+      characterId: entry.$1,
+      requiredStageId: entry.$2,
+      title: entry.$3,
+      text: entry.$4,
+    ),
+];
+
+String _r2ExplorationStory(int chapter, int milestone) {
+  final destination = expeditionDestinationForChapter(chapter, regionNumber: 2);
+  final discovery =
+      destination.milestones[const [2, 4, 7, 10].indexOf(milestone)];
+  return '${destination.title}에서 $discovery. '
+      '${milestone == 10 ? '이어진 길은 언제든 다시 탐험할 수 있어요.' : '다음 규칙을 찾으면 안개 너머의 길이 더 드러납니다.'}';
 }

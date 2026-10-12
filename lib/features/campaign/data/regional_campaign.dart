@@ -4,6 +4,7 @@ import '../domain/campaign_models.dart';
 import '../domain/learning_models.dart';
 import '../domain/stage_recurrence_models.dart';
 import 'legacy_region_catalog.dart';
+import 'sentence_math_curriculum.dart';
 
 /// Authoritative seven-region curriculum blueprint.
 ///
@@ -205,6 +206,11 @@ StageDefinition _buildStage({
     answerExpression: plan.answerExpression,
     puzzleId: 'planned.${plan.skillId}.$stageId',
     contentStatus: StageContentStatus.planned,
+    sentenceMathPlan: sentenceMathPlanFor(
+      regionNumber: regionNumber,
+      chapterNumber: chapterNumber,
+      sourceStageId: plan.sourceStageId,
+    ),
     mathDifficulty: _mathDifficulty(plan),
     matchDifficulty: matchDifficulty,
     boardMechanicPlan: boardMechanicPlan,

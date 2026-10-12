@@ -246,8 +246,13 @@ void main() {
     'power sweeps precede clear, preserve direction and sequence cascades',
     () {
       final observed = <DiscoveryLinePowerKind>{};
-      for (var number = 6; number <= 10; number++) {
-        final model = _model('r01-c05-s${number.toString().padLeft(2, '0')}');
+      for (final id in [
+        'r01-c01-s04',
+        'r01-c02-s09',
+        'r01-c02-s10',
+        'r01-c04-s06',
+      ]) {
+        final model = _model(id);
         addTearDown(model.dispose);
         for (final step in _path(model)) {
           _swap(model, step);
@@ -265,6 +270,19 @@ void main() {
                 phase.cascade!.activatedPowers.map((power) => power.direction),
               );
               expect(phases[index + 1].kind, DiscoveryMotionPhaseKind.clear);
+              for (final power in phase.cascade!.activatedPowers) {
+                expect(
+                  power.affectedIndices.every(
+                    (index) => index >= 0 && index < trace.beforeSwap.length,
+                  ),
+                  isTrue,
+                );
+                if (power.direction == DiscoveryLinePowerKind.burst ||
+                    power.direction == DiscoveryLinePowerKind.color ||
+                    power.isCombination) {
+                  expect(power.affectedIndices, isNotEmpty);
+                }
+              }
             }
             if (phase.kind == DiscoveryMotionPhaseKind.clear) {
               final settle = phases[index + 1];
@@ -306,7 +324,14 @@ void main() {
           );
         }
       }
-      expect(observed, DiscoveryLinePowerKind.values.toSet());
+      expect(
+        observed,
+        containsAll([
+          DiscoveryLinePowerKind.row,
+          DiscoveryLinePowerKind.burst,
+          DiscoveryLinePowerKind.color,
+        ]),
+      );
     },
   );
 
@@ -516,7 +541,7 @@ void main() {
   testWidgets(
     'created powers grow before settle without a position or scale jump',
     (tester) async {
-      final model = _model('r01-c05-s06');
+      final model = _model('r01-c01-s04');
       addTearDown(model.dispose);
       DiscoveryTutorialStep? powerStep;
       Map<String, dynamic>? checkpoint;

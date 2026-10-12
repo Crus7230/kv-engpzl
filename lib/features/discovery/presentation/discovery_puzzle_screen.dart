@@ -343,61 +343,68 @@ class _ThreePaneGameLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 560) {
+        if (constraints.maxWidth < 440) {
           return _NarrowFallbackLayout(
             viewModel: viewModel,
             shortHeight: shortHeight,
           );
         }
 
-        final compactSafe = compactBoard && constraints.maxWidth < 600;
+        final compactSafe = constraints.maxWidth < 600;
         final gap = compactSafe
             ? 4.0
             : dense
             ? 6.0
             : 12.0;
-        final boardFraction = compactBoard ? 0.38 : 0.40;
-        final minimumBoardWidth = compactSafe
-            ? 218.0
-            : compactBoard
-            ? 238.0
-            : 264.0;
-        final preferredBoardWidth = math.max(
-          minimumBoardWidth,
-          constraints.maxWidth * boardFraction,
-        );
+        final minimumQuestionWidth = compactSafe ? 132.0 : 164.0;
+        final minimumWorkspaceWidth = compactSafe ? 180.0 : 218.0;
+        final minimumBoardWidth = compactSafe ? 120.0 : 168.0;
+        final availableWidth = constraints.maxWidth - gap * 2;
         final maximumBoardWidth =
-            constraints.maxWidth -
-            gap * 2 -
-            (compactSafe
-                ? 128
-                : compactBoard
-                ? 110
-                : 128) -
-            (compactBoard ? 218 : 230);
-        final boardWidth = shortHeight
-            ? math.min(
-                constraints.maxHeight,
-                math.min(246.0, maximumBoardWidth),
-              )
-            : math.min(
-                constraints.maxHeight,
-                math.min(preferredBoardWidth, maximumBoardWidth),
-              );
-        final sidePanelWidth = constraints.maxWidth - boardWidth - gap * 2;
-        final preferredQuestionWidth =
-            sidePanelWidth *
-            (compactSafe
-                ? 0.37
-                : compactBoard
-                ? 0.36
-                : 0.33);
-        const minimumQuestionWidth = 128.0;
-        final minimumWorkspaceWidth = compactBoard ? 218.0 : 230.0;
-        final questionWidth = math.min(
-          math.max(minimumQuestionWidth, preferredQuestionWidth),
-          sidePanelWidth - minimumWorkspaceWidth,
+            availableWidth - minimumQuestionWidth - minimumWorkspaceWidth;
+        var boardWidth = math.min(
+          constraints.maxHeight,
+          math.min(
+            shortHeight ? 246.0 : constraints.maxWidth * 0.38,
+            maximumBoardWidth,
+          ),
         );
+        var questionWidth = math.max(
+          minimumQuestionWidth,
+          (availableWidth - boardWidth) * 0.47,
+        );
+        questionWidth = math.min(
+          questionWidth,
+          availableWidth - boardWidth - minimumWorkspaceWidth,
+        );
+
+        // Give reading space priority over decorative board area. Keep the
+        // actual 5x5/6x6 board intact; only its on-screen size changes.
+        final maximumQuestionWidth =
+            availableWidth - minimumBoardWidth - minimumWorkspaceWidth;
+        final readingHeight = math.max(
+          1.0,
+          constraints.maxHeight - (dense ? 62 : 148),
+        );
+        final measure = TextPainter(
+          text: _HighlightedQuestion.spanFor(
+            context,
+            viewModel.question,
+            compact: dense,
+          ),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        );
+        while (questionWidth < maximumQuestionWidth) {
+          measure.layout(maxWidth: math.max(1.0, questionWidth - 12));
+          if (measure.height <= readingHeight) break;
+          questionWidth = math.min(maximumQuestionWidth, questionWidth + 12);
+          boardWidth = math.min(
+            boardWidth,
+            availableWidth - questionWidth - minimumWorkspaceWidth,
+          );
+        }
+        measure.dispose();
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -513,6 +520,7 @@ class _QuestionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      key: const ValueKey('puzzle-question-panel'),
       child: Padding(
         padding: EdgeInsets.all(
           shortHeight
@@ -532,15 +540,11 @@ class _QuestionPanel extends StatelessWidget {
                   Expanded(
                     child: _HighlightedQuestion(
                       text: viewModel.question,
-                      maxLines: 3,
                       compact: true,
                     ),
                   ),
                   SizedBox(width: shortHeight ? 5 : 8),
-                  SizedBox(
-                    width: 82,
-                    child: _CollectionProgress(viewModel: viewModel),
-                  ),
+                  _QuestionReaderButton(viewModel: viewModel),
                 ],
               )
             : Column(
@@ -551,20 +555,22 @@ class _QuestionPanel extends StatelessWidget {
                       _QuestionIcon(
                         description: viewModel.visualDescription,
                         size: shortHeight
-                            ? 44
+                            ? 24
                             : ultraCompact
-                            ? 48
+                            ? 28
                             : 56,
                       ),
                       const SizedBox(width: 7),
                       Expanded(
                         child: Text(
-                          ultraCompact ? '문제' : '문장을 읽어 보세요',
+                          ultraCompact ? '문제' : '모험의 조건',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontSize: dense ? 14 : 17),
                         ),
                       ),
+                      _QuestionReaderButton(viewModel: viewModel),
                     ],
                   ),
                   SizedBox(
@@ -577,11 +583,6 @@ class _QuestionPanel extends StatelessWidget {
                   Expanded(
                     child: _HighlightedQuestion(
                       text: viewModel.question,
-                      maxLines: shortHeight
-                          ? 10
-                          : ultraCompact
-                          ? 11
-                          : 10,
                       compact: dense,
                     ),
                   ),
@@ -594,12 +595,85 @@ class _QuestionPanel extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
-                  if (!shortHeight) ...[
+                  if (!dense) ...[
                     SizedBox(height: dense ? 5 : 10),
                     _CollectionProgress(viewModel: viewModel),
                   ],
                 ],
               ),
+      ),
+    );
+  }
+}
+
+class _QuestionReaderButton extends StatelessWidget {
+  const _QuestionReaderButton({required this.viewModel});
+
+  final DiscoveryPuzzleViewModel viewModel;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 44,
+      child: IconButton(
+        key: const ValueKey('question-reader-button'),
+        tooltip: '문제 크게 읽기',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+        icon: const Icon(Icons.zoom_in_rounded, size: 21),
+        onPressed: () => showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('문제 크게 읽기'),
+            content: SizedBox(
+              width: 560,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (viewModel.sentenceMath != null) ...[
+                      const Text('알고 있는 조건'),
+                      const SizedBox(height: 6),
+                      for (final fact in viewModel.sentenceMath!.givenFacts)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            fact,
+                            style: const TextStyle(fontSize: 18, height: 1.5),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      const Text('구할 것'),
+                      const SizedBox(height: 6),
+                    ],
+                    Text(
+                      viewModel.sentenceMath?.targetQuestion ??
+                          viewModel.question,
+                      style: const TextStyle(
+                        color: AppColors.ink,
+                        fontSize: 18,
+                        height: 1.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (viewModel.visualDescription != viewModel.question) ...[
+                      const SizedBox(height: 16),
+                      const Text('상황 설명'),
+                      const SizedBox(height: 6),
+                      Text(viewModel.visualDescription),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('퍼즐로 돌아가기'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -693,66 +767,56 @@ class _PencilBundlePainter extends CustomPainter {
 }
 
 class _HighlightedQuestion extends StatelessWidget {
-  const _HighlightedQuestion({
-    required this.text,
-    required this.maxLines,
-    required this.compact,
-  });
+  const _HighlightedQuestion({required this.text, required this.compact});
 
   final String text;
-  final int maxLines;
   final bool compact;
 
   static final RegExp _importantParts = RegExp(
     r'(\d+(?:시간|분|자루|개|cm|g|kg)?|상자|봉지|낱개|모두|합|차|가로|세로)',
   );
 
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textScaler = MediaQuery.textScalerOf(context);
-        final needsTighterCompactText =
-            compact && textScaler.scale(13.5) > 16.5;
-        final baseStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
-          fontSize: compact
-              ? needsTighterCompactText
-                    ? 12
-                    : 13.5
-              : 16,
-          height: compact
-              ? needsTighterCompactText
-                    ? 1.25
-                    : 1.35
-              : 1.5,
-          fontWeight: FontWeight.w600,
-        );
-        final highlightStyle = baseStyle?.copyWith(
-          color: AppColors.primaryDark,
-          fontWeight: FontWeight.w900,
-          backgroundColor: const Color(0xFFFFE8A8),
-        );
-        final spans = <InlineSpan>[];
-        var cursor = 0;
-        for (final match in _importantParts.allMatches(text)) {
-          if (match.start > cursor) {
-            spans.add(TextSpan(text: text.substring(cursor, match.start)));
-          }
-          spans.add(TextSpan(text: match.group(0), style: highlightStyle));
-          cursor = match.end;
-        }
-        if (cursor < text.length) {
-          spans.add(TextSpan(text: text.substring(cursor)));
-        }
-
-        return Text.rich(
-          TextSpan(style: baseStyle, children: spans),
-          maxLines: maxLines,
-          overflow: TextOverflow.ellipsis,
-        );
-      },
+  static TextSpan spanFor(
+    BuildContext context,
+    String text, {
+    required bool compact,
+  }) {
+    // Respect the user's text scale instead of making accessibility text
+    // smaller to fit. Extremely small panes can scroll or use the full reader.
+    final baseStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: AppColors.ink,
+      fontSize: compact ? 14.5 : 17,
+      height: compact ? 1.35 : 1.5,
+      fontWeight: FontWeight.w600,
     );
+    final highlightStyle = baseStyle?.copyWith(
+      color: AppColors.primaryDark,
+      fontWeight: FontWeight.w800,
+    );
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final match in _importantParts.allMatches(text)) {
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, match.start)));
+      }
+      spans.add(TextSpan(text: match.group(0), style: highlightStyle));
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
+    }
+    return TextSpan(style: baseStyle, children: spans);
   }
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    key: const ValueKey('puzzle-question-scroll'),
+    primary: false,
+    child: Text.rich(
+      spanFor(context, text, compact: compact),
+      key: const ValueKey('puzzle-question-text'),
+    ),
+  );
 }
 
 class _CollectionProgress extends StatelessWidget {
@@ -1073,12 +1137,19 @@ class _GemButton extends StatelessWidget {
       label:
           '$row행 $column열, ${style.name} 보석${sealLabel == null ? '' : ', $sealLabel 있음'}'
           '${cell.sealLayers > 1 ? ', ${cell.sealLayers}층 봉인' : ''}'
-          '${cell.linePowerKind == null
-              ? ''
-              : cell.linePowerKind == DiscoveryLinePowerKind.row
-              ? ', 가로 직선 파워'
-              : ', 세로 직선 파워'}'
-          '${selected ? ', 선택됨' : ', 선택하기'}',
+          '${switch (cell.linePowerKind) {
+            DiscoveryLinePowerKind.row => ', 가로 직선 파워',
+            DiscoveryLinePowerKind.column => ', 세로 직선 파워',
+            DiscoveryLinePowerKind.burst => ', L/T형 범위 폭발',
+            DiscoveryLinePowerKind.color => ', 5매치 색상 파워',
+            null => '',
+          }}'
+          '${cell.blockerLayers > 0 ? ', 장애물 ${cell.blockerLayers}층, 교환 불가, 인접 매치로 제거' : ''}'
+          '${cell.blockerLayers > 0
+              ? ', 제거 방법 확인'
+              : selected
+              ? ', 선택됨'
+              : ', 선택하기'}',
       child: AnimatedContainer(
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
@@ -1149,11 +1220,38 @@ class _GemButton extends StatelessWidget {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Icon(
-                              cell.linePowerKind == DiscoveryLinePowerKind.row
-                                  ? Icons.swap_horiz_rounded
-                                  : Icons.swap_vert_rounded,
+                              switch (cell.linePowerKind!) {
+                                DiscoveryLinePowerKind.row =>
+                                  Icons.swap_horiz_rounded,
+                                DiscoveryLinePowerKind.column =>
+                                  Icons.swap_vert_rounded,
+                                DiscoveryLinePowerKind.burst =>
+                                  Icons.flare_rounded,
+                                DiscoveryLinePowerKind.color =>
+                                  Icons.palette_rounded,
+                              },
                               color: Colors.white,
                               size: iconSize * .8,
+                            ),
+                          ),
+                        ),
+                      if (cell.blockerLayers > 0)
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xED596474),
+                              border: Border.all(
+                                color: const Color(0xFFBAC8D5),
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.terrain_rounded,
+                                color: Colors.white,
+                                size: iconSize,
+                              ),
                             ),
                           ),
                         ),
@@ -1294,14 +1392,18 @@ class _EquationWorkspace extends StatelessWidget {
     final awaitingTokens =
         visibleBlockCount < viewModel.discoveredBlocks.length;
     return Card(
+      key: const ValueKey('puzzle-equation-workspace'),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final ultraTight = constraints.maxHeight < 230;
           final veryTight = shortHeight || constraints.maxHeight < 290;
           final tight =
               dense ||
               constraints.maxWidth < 290 ||
               constraints.maxHeight < 340;
-          final rowHeight = veryTight
+          final rowHeight = ultraTight
+              ? 36.0
+              : veryTight
               ? 44.0
               : tight
               ? 50.0
@@ -1317,38 +1419,39 @@ class _EquationWorkspace extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(
-                  height: veryTight
-                      ? 20
-                      : tight
-                      ? 24
-                      : 30,
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.construction_rounded,
-                        color: AppColors.primary,
-                        size: veryTight ? 17 : 20,
-                      ),
-                      SizedBox(width: veryTight ? 3 : 5),
-                      Expanded(
-                        child: Text(
-                          '획득 블록 → 식 만들기',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                fontSize: veryTight
-                                    ? 12
-                                    : tight
-                                    ? 14
-                                    : 17,
-                              ),
+                if (!ultraTight)
+                  SizedBox(
+                    height: veryTight
+                        ? 20
+                        : tight
+                        ? 24
+                        : 30,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.construction_rounded,
+                          color: AppColors.primary,
+                          size: veryTight ? 17 : 20,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: veryTight ? 3 : 5),
+                        Expanded(
+                          child: Text(
+                            '획득 블록 → 식 만들기',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontSize: veryTight
+                                      ? 12
+                                      : tight
+                                      ? 14
+                                      : 17,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 _WorkspaceSectionLabel(
                   label: '획득 보관함',
                   trailing:
@@ -1418,7 +1521,11 @@ class _WorkspaceSectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: compact ? 16 : 21,
+      height: math.max(
+        compact ? 16.0 : 21.0,
+        MediaQuery.textScalerOf(context).scale(compact ? 10.5 : 12.5) * 1.45 +
+            2,
+      ),
       child: Row(
         children: [
           Expanded(

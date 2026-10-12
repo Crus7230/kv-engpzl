@@ -294,7 +294,7 @@ void main() {
           'r${region.number.toString().padLeft(2, '0')}-c05-s10',
         );
         for (final p in planned) {
-          expect(p.available, region.number == 1);
+          expect(p.available, region.number <= 2);
           expect(p.arrivalStoryId, 'expedition-join-${p.characterId}');
         }
       }

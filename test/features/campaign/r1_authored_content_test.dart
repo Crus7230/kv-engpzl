@@ -14,12 +14,12 @@ import '../../../lib/features/puzzle/domain/puzzle.dart';
 
 void main() {
   test(
-    '60 authored alpha stages overlay420 slots without changing blueprint',
+    '120 authored R1/R2 stages overlay420 slots without changing blueprint',
     () {
       expect(initialCampaign.stages.length, 420);
       expect(
         initialCampaign.stages.where((stage) => stage.isPlayable).length,
-        60,
+        120,
       );
       expect(r1PuzzlesByStageId.length, 60);
       expect(
@@ -28,14 +28,14 @@ void main() {
       );
       final report = const CampaignValidator().validate(
         campaign: initialCampaign,
-        puzzles: r1PuzzlesByStageId.values,
+        puzzles: authoredPuzzlesByStageId.values,
       );
       expect(
         report.errors,
         isEmpty,
         reason: report.errors.map((issue) => issue.message).join('\n'),
       );
-      expect(report.warnings.length, 360);
+      expect(report.warnings.length, 300);
       expect(
         initialCampaign.stageById('r07-c01-s01')!.contentStatus,
         StageContentStatus.planned,
@@ -62,12 +62,72 @@ void main() {
     }
     expect(
       initialCampaign.regions
-          .skip(1)
+          .skip(2)
           .expand((region) => region.stages)
           .every((stage) => !stage.isPlayable),
       isTrue,
     );
   });
+
+  test('early R1 asks for unknown quantities, not operation keywords', () {
+    const expectedUnknowns = {
+      'r01-c01-s03': 'initial-quantity',
+      'r01-c01-s05': 'larger-compared-quantity',
+      'r01-c01-s06': 'missing-increase',
+      'r01-c01-s07': 'initial-quantity',
+      'r01-c01-s08': 'hidden-part',
+    };
+    for (final entry in expectedUnknowns.entries) {
+      final stage = initialCampaign.stageById(entry.key)!;
+      expect(stage.variantProfile.unknownPositionId, entry.value);
+      expect(stage.title, r1PuzzlesByStageId[entry.key]!.concept);
+      expect(
+        stage.learningPlan.primarySkillId,
+        regionalCampaign.stageById(entry.key)!.learningPlan.primarySkillId,
+      );
+    }
+    expect(r1PuzzlesByStageId['r01-c01-s03']!.question, contains('전에는'));
+    expect(r1PuzzlesByStageId['r01-c01-s05']!.question, contains('짧다면'));
+    expect(r1PuzzlesByStageId['r01-c01-s06']!.question, contains('더 찾아야'));
+    expect(r1PuzzlesByStageId['r01-c01-s08']!.question, contains('가려진'));
+    // Repeated reconstruction is practice, not a noun/number-only independent
+    // variation. The semantic profile must honestly preserve that similarity.
+    final first = initialCampaign.stageById('r01-c01-s03')!.variantProfile;
+    final later = initialCampaign.stageById('r01-c01-s07')!.variantProfile;
+    expect(later.differingAxesFrom(first), {VariationAxis.operandBand});
+    expect(later.isIndependentVariationFrom(first), isFalse);
+  });
+
+  test(
+    'reading rewrite retains previous R1 answer and checkpoint manifests',
+    () {
+      const oldExpressions = {
+        'r01-c01-s03': '4+5',
+        'r01-c01-s04': '9-4',
+        'r01-c01-s05': '6+3',
+        'r01-c01-s06': '10-6',
+        'r01-c01-s07': '8+7',
+        'r01-c01-s08': '13-5',
+      };
+      for (final entry in oldExpressions.entries) {
+        final stage = initialCampaign.stageById(entry.key)!;
+        final puzzle = r1PuzzlesByStageId[entry.key]!;
+        expect(stage.answerExpression, entry.value);
+        expect(puzzle.tokens.map((token) => token.label).join(), entry.value);
+        expect(puzzle.tokens.map((token) => token.id), [
+          '${entry.key}-t1',
+          '${entry.key}-t2',
+          '${entry.key}-t3',
+        ]);
+        expect(stage.startingTokenIds, {'${entry.key}-t1'});
+        expect(stage.buriedTokenIds, {'${entry.key}-t2', '${entry.key}-t3'});
+        expect(
+          const PuzzleValidator().validate(puzzle, puzzle.tokens).isCorrect,
+          isTrue,
+        );
+      }
+    },
+  );
 
   test('all answers use exact unique manifests and ASTs', () {
     for (final entry in r1PuzzlesByStageId.entries) {
@@ -255,9 +315,9 @@ void main() {
     }
   });
 
-  test('C05 introduces one effect at a time before C06 combines them', () {
-    final firstLayered = initialCampaign.stageById('r01-c05-s01')!;
-    final firstPower = initialCampaign.stageById('r01-c05-s06')!;
+  test('R1 teaches effects early before late chapters combine them', () {
+    final firstLayered = initialCampaign.stageById('r01-c04-s01')!;
+    final firstPower = initialCampaign.stageById('r01-c01-s04')!;
     expect(firstLayered.boardMechanicPlan.role, BoardMechanicRole.introduce);
     expect(firstLayered.boardMechanicPlan.advancedMechanicIds, {
       BoardMechanicId.layeredSeal,
@@ -273,11 +333,13 @@ void main() {
       expect(stage.boardMechanicPlan.advancedMechanicIds, {
         BoardMechanicId.layeredSeal,
         BoardMechanicId.linePower,
+        BoardMechanicId.adjacentHitBlocker,
       });
       expect(stage.matchDifficulty.maxSealLayers, 2);
-      expect(stage.moveBudget.referenceMoves, 8);
-      expect(stage.moveBudget.parMoves, 10);
-      expect(stage.moveLimit, 16);
+      expect(stage.matchDifficulty.obstacleCount, 3);
+      expect(stage.moveBudget.referenceMoves, 12);
+      expect(stage.moveBudget.parMoves, 14);
+      expect(stage.moveLimit, 20);
     }
   });
 
@@ -298,7 +360,16 @@ void main() {
         for (final variant in stage.boardVariants.variants) {
           final oldVariant = original.boardVariants.variantFor(variant.config);
           expect(variant.seed, oldVariant.seed);
-          expect(variant.fixtureId, oldVariant.fixtureId);
+          final legacy = r1LegacyStagesById[stage.id]!.boardVariants.variantFor(
+            variant.config,
+          );
+          expect(legacy.fixtureId, oldVariant.fixtureId);
+          expect(
+            variant.fixtureId,
+            stage.boardMechanicPlan.challengeLevel == 0
+                ? oldVariant.fixtureId
+                : '${oldVariant.fixtureId}-physics3',
+          );
         }
       }
       expect(
@@ -402,6 +473,7 @@ StageDefinition _copyForTest(
     nextStageId: nextStageId,
   ),
   variantProfile: profile,
+  sentenceMathPlan: stage.sentenceMathPlan,
   seed: stage.seed,
   startingTokenIds: stage.startingTokenIds,
   buriedTokenIds: stage.buriedTokenIds,

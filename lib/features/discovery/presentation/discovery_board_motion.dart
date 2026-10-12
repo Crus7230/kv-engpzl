@@ -14,11 +14,13 @@ class DiscoveryMotionCell {
     required this.gem,
     required this.sealKind,
     required this.sealLayers,
+    this.blockerLayers = 0,
   });
 
   final DiscoveryGemCell? gem;
   final DiscoverySealKind? sealKind;
   final int sealLayers;
+  final int blockerLayers;
 }
 
 class DiscoveryMotionSealHit {
@@ -34,10 +36,17 @@ class DiscoveryMotionSealHit {
 }
 
 class DiscoveryMotionPower {
-  const DiscoveryMotionPower({required this.index, required this.direction});
+  const DiscoveryMotionPower({
+    required this.index,
+    required this.direction,
+    this.affectedIndices = const [],
+    this.isCombination = false,
+  });
 
   final int index;
   final DiscoveryLinePowerKind direction;
+  final List<int> affectedIndices;
+  final bool isCombination;
 }
 
 class DiscoveryMotionDiscovery {
@@ -58,6 +67,7 @@ class DiscoveryCascadeMotion {
     required Iterable<DiscoveryMotionPower> createdPowers,
     required Iterable<DiscoveryMotionPower> activatedPowers,
     required Iterable<DiscoveryMotionDiscovery> discoveries,
+    Iterable<DiscoveryMotionSealHit> blockerHits = const [],
   }) : clearedIndices = List.unmodifiable(clearedIndices),
        afterClear = List.unmodifiable(afterClear),
        afterFall = List.unmodifiable(afterFall),
@@ -65,7 +75,8 @@ class DiscoveryCascadeMotion {
        sealHits = List.unmodifiable(sealHits),
        createdPowers = List.unmodifiable(createdPowers),
        activatedPowers = List.unmodifiable(activatedPowers),
-       discoveries = List.unmodifiable(discoveries);
+       discoveries = List.unmodifiable(discoveries),
+       blockerHits = List.unmodifiable(blockerHits);
 
   final int index;
   final List<int> clearedIndices;
@@ -76,6 +87,7 @@ class DiscoveryCascadeMotion {
   final List<DiscoveryMotionPower> createdPowers;
   final List<DiscoveryMotionPower> activatedPowers;
   final List<DiscoveryMotionDiscovery> discoveries;
+  final List<DiscoveryMotionSealHit> blockerHits;
 }
 
 class DiscoveryBoardTurnMotion {

@@ -83,7 +83,12 @@ class DailyRouteService {
     if (!reviewCompletedToday) {
       // An older unserviceable ticket must not hide another due skill.
       for (final candidate in due) {
-        for (final stage in available) {
+        // Prefer the authored source-linked review over unrelated main-route
+        // variants of the same skill. Keep core variants as a valid fallback.
+        for (final stage in [
+          ...available.where((s) => s.recurrencePlan?.isSpiral == true),
+          ...available.where((s) => s.recurrencePlan?.isSpiral != true),
+        ]) {
           if (_isEligibleReview(stage, candidate, snapshot)) {
             ticket = candidate;
             reviewStage = stage;

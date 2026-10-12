@@ -15,6 +15,21 @@
 
 배포 본문은 [v0.1.4 안내](RELEASE_NOTES_0_1_4.md)를 사용한다. 초안 APK 개수·digest 검증, 공개 API 및 인증 없는 다운로드의 SHA256 비교와 production 업데이트 selector 검증 후 공개 완료로 판정한다.
 
+### v0.1.4 공개 결과
+
+배포 전용 checkout의 커밋 `15e02627908bea7a9e899ced87cfb9e162e4858b` (`Release KVM R1 alpha 0.1.4 as the expedition starting baseline`)와 `v0.1.4-r1-alpha` 태그를 atomic push했다. 같은 커밋의 구현·콘텐츠·검증 입력 199개를 작업 소스와 SHA256 비교했다. 공개용 README는 설치 안내를 별도로 갱신했으며 서명 비밀 파일·로컬 SDK 경로·APK·캐시는 커밋하지 않았다. 상위 C:\grus.py Git에는 커밋하거나 push하지 않았다.
+
+릴리스 ID `409723262`, 첨부 APK 1개(65,322,678 bytes)의 digest와 업데이트 표식을 초안에서 검증한 뒤 `draft=false`, `prerelease=true`로 공개했다. 이전 릴리스·이력은 변경하지 않았다.
+
+- Release: https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.4-r1-alpha
+- APK: https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.4-r1-alpha/KVM-R1-0.1.4-alpha.apk
+
+인증 없는 공개 릴리스 목록과 APK 다운로드는 모두 HTTP 200이었다. 다운로드 최종 호스트는 `release-assets.githubusercontent.com`이고 파일 크기·SHA256이 빌드 원본과 일치했다. 공개된 태그 README의 링크·해시·초기화 안내와 원격 main 커밋도 확인했다.
+
+실제 공개 JSON으로 `test/core/updates/public_release_verification_test.dart`를 실행해 production `AppUpdateRelease.select`가 installedCode 4에서 0.1.4/code 5를 선택하고 installedCode 5에서 같은 버전을 제외하는지 검증했다(1개 통과). 전체 테스트 재실행은 360개 통과, 이 조건부 공개 검사만 당시 JSON 미지정으로 skip 1개였으며 게시 후 별도 실행으로 확인을 완료했다.
+
+이 공개 결과 문단은 게시 후 로컬 유지보수 기록이며 배포 태그에 포함된 코드·APK를 변경하지 않는다. 실제 휴대폰 설치·최종 설치 확인·실행 성능 검증은 남아 있다.
+
 ## v0.1.3 모션·시작 업데이트 빌드
 
 사용자가 승인한 아이콘·인트로·보석 교환→제거→동시 낙하·보충→연쇄 개선과 시작 GitHub 업데이트 확인을 묶어 `0.1.3+4` 전체 APK를 빌드했다. 배포 대상은 `Crus7230/kv-engpzl`, 태그는 `v0.1.3-r1-alpha`, 첨부 파일은 `KVM-R1-0.1.3-alpha.apk` 한 개다. 새 런타임 의존성을 추가하지 않았다.

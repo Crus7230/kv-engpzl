@@ -1,5 +1,6 @@
 import 'discovery_models.dart';
 import 'discovery_piece_source.dart';
+import 'discovery_power_resolver.dart';
 
 class DiscoveryEngine {
   DiscoveryEngine({
@@ -9,6 +10,12 @@ class DiscoveryEngine {
     required DiscoveryPieceSource refillSource,
     this.enableLinePowers = false,
     this.requiredLinePowerActivations = 0,
+    this.enableBurstPowers = false,
+    this.enableColorPowers = false,
+    this.enablePowerCombinations = false,
+    this.requiredPowerKind,
+    this.requiredCombinationActivations = 0,
+    this.requiredBlockerClears = 0,
   }) : _board = initialBoard,
        _requiredTargetIds = Set.unmodifiable(requiredTargetIds),
        _movesRemaining = moves,
@@ -16,12 +23,42 @@ class DiscoveryEngine {
     if (moves < 0) {
       throw ArgumentError.value(moves, 'moves', 'Must not be negative.');
     }
+    if (requiredCombinationActivations < 0 ||
+        requiredBlockerClears < 0 ||
+        (enableBurstPowers ||
+                enableColorPowers ||
+                enablePowerCombinations ||
+                requiredPowerKind != null) &&
+            !enableLinePowers ||
+        requiredCombinationActivations > 0 && !enablePowerCombinations ||
+        enablePowerCombinations && (!enableBurstPowers || !enableColorPowers) ||
+        requiredPowerKind == DiscoveryLinePower.burst && !enableBurstPowers ||
+        requiredPowerKind == DiscoveryLinePower.color && !enableColorPowers) {
+      throw ArgumentError(
+        'Special objectives require their enabled mechanics.',
+      );
+    }
+    if (initialBoard.visiblePieces.any(
+      (piece) =>
+          piece.linePower == DiscoveryLinePower.burst && !enableBurstPowers ||
+          piece.linePower == DiscoveryLinePower.color && !enableColorPowers,
+    )) {
+      throw ArgumentError('Initial special pieces require enabled mechanics.');
+    }
     if (requiredLinePowerActivations < 0 ||
         (!enableLinePowers && requiredLinePowerActivations != 0)) {
       throw ArgumentError('Required line activations need enabled powers.');
     }
     if (!initialBoard.isFull) {
       throw ArgumentError('The initial discovery board must be full.');
+    }
+    if (requiredBlockerClears >
+        initialBoard.positions
+            .where((p) => initialBoard.cellAt(p).blockerLayers > 0)
+            .length) {
+      throw ArgumentError(
+        'Blocker objective exceeds the initial blocker count.',
+      );
     }
     if (!enableLinePowers &&
         initialBoard.visiblePieces.any((piece) => piece.linePower != null)) {
@@ -59,6 +96,15 @@ class DiscoveryEngine {
   final bool enableLinePowers;
   final int requiredLinePowerActivations;
   int _linePowerActivations = 0;
+  final bool enableBurstPowers;
+  final bool enableColorPowers;
+  final bool enablePowerCombinations;
+  final DiscoveryLinePower? requiredPowerKind;
+  final int requiredCombinationActivations;
+  final int requiredBlockerClears;
+  final Map<DiscoveryLinePower, int> _powerActivations = {};
+  int _combinationActivations = 0;
+  int _blockersCleared = 0;
   DiscoveryGameState? _cachedState;
 
   DiscoveryGameState get state => _cachedState ??= _createState();
@@ -76,6 +122,9 @@ class DiscoveryEngine {
     }
     if (!from.isAdjacentTo(to)) {
       return _unchangedResult(DiscoverySwapStatus.notAdjacent, from, to);
+    }
+    if (!_board.canSwapAt(from) || !_board.canSwapAt(to)) {
+      return _unchangedResult(DiscoverySwapStatus.blocked, from, to);
     }
 
     var candidate = _swapPieces(_board, from, to);
@@ -96,17 +145,52 @@ class DiscoveryEngine {
     final newlyDiscoveredTargets = <DiscoveryPiece>[];
     var cascadeIndex = 0;
     var nextLinePowerActivations = _linePowerActivations;
+    final nextPowerActivations = Map<DiscoveryLinePower, int>.of(
+      _powerActivations,
+    );
+    var nextCombinationActivations = _combinationActivations;
+    var nextBlockersCleared = _blockersCleared;
 
     while (matches.isNotEmpty) {
       if (cascadeIndex >= 100) {
         throw StateError('Cascade limit exceeded. Check the refill source.');
       }
-      final created = enableLinePowers
+      var created = enableLinePowers
           ? _createLinePowers(candidate, cascadeIndex == 0 ? [to, from] : [])
           : <DiscoveryPosition, DiscoveryPiece>{};
       final activated = <DiscoveryPowerEvent>[];
-      if (enableLinePowers) _expandPowerHits(candidate, matches, activated);
+      if (enableLinePowers &&
+          (enableBurstPowers || enableColorPowers || enablePowerCombinations)) {
+        final resolution =
+            DiscoveryPowerResolver(
+              enableBurst: enableBurstPowers,
+              enableColor: enableColorPowers,
+              enableCombinations: enablePowerCombinations,
+            ).resolve(
+              candidate,
+              matches,
+              cascadeIndex == 0 ? [to, from] : [],
+              from: cascadeIndex == 0 ? from : null,
+              to: cascadeIndex == 0 ? to : null,
+            );
+        created = resolution.created;
+        matches = resolution.hits;
+        activated.addAll(resolution.activations);
+      } else if (enableLinePowers) {
+        _expandPowerHits(candidate, matches, activated);
+      }
       nextLinePowerActivations += activated.length;
+      for (final event in activated) {
+        nextPowerActivations.update(
+          event.direction,
+          (n) => n + 1,
+          ifAbsent: () => 1,
+        );
+        if (event.combination != null &&
+            event.combination != DiscoveryPowerCombination.colorGem) {
+          nextCombinationActivations++;
+        }
+      }
       final orderedMatches = matches.toList()
         ..sort((left, right) {
           final rowOrder = left.row.compareTo(right.row);
@@ -116,8 +200,46 @@ class DiscoveryEngine {
       final clearedPieces = <DiscoveryClearedPiece>[];
       final discoveredTargets = <DiscoveredTarget>[];
       final sealHits = <DiscoverySealHit>[];
+      final blockerHits = <DiscoveryBlockerHit>[];
+      final blockerPositions = <DiscoveryPosition>{};
+      for (final p in matches) {
+        if (candidate.cellAt(p).blockerLayers > 0) {
+          blockerPositions.add(p);
+          continue;
+        }
+        for (final neighbor in [
+          DiscoveryPosition(p.row - 1, p.column),
+          DiscoveryPosition(p.row + 1, p.column),
+          DiscoveryPosition(p.row, p.column - 1),
+          DiscoveryPosition(p.row, p.column + 1),
+        ]) {
+          if (candidate.contains(neighbor) &&
+              candidate.cellAt(neighbor).blockerLayers > 0) {
+            blockerPositions.add(neighbor);
+          }
+        }
+      }
+      for (final p in blockerPositions) {
+        final cell = candidate.cellAt(p);
+        final remaining = cell.blockerLayers - 1;
+        cells[p.row][p.column] = DiscoveryCell(
+          piece: cell.piece,
+          buriedTarget: cell.buriedTarget,
+          sealLayers: cell.sealLayers,
+          blockerLayers: remaining,
+        );
+        blockerHits.add(
+          DiscoveryBlockerHit(
+            position: p,
+            layersBefore: cell.blockerLayers,
+            layersAfter: remaining,
+          ),
+        );
+        if (remaining == 0) nextBlockersCleared++;
+      }
 
       for (final position in orderedMatches) {
+        if (candidate.cellAt(position).blockerLayers > 0) continue;
         final cell = cells[position.row][position.column];
         final piece = cell.piece;
         if (piece == null) {
@@ -173,6 +295,7 @@ class DiscoveryEngine {
               ),
           ],
           activatedPowers: activated,
+          blockerHits: blockerHits,
         ),
       );
       candidate = boardAfterRefill;
@@ -183,6 +306,11 @@ class DiscoveryEngine {
     _board = candidate;
     _movesRemaining = nextMovesRemaining;
     _linePowerActivations = nextLinePowerActivations;
+    _powerActivations
+      ..clear()
+      ..addAll(nextPowerActivations);
+    _combinationActivations = nextCombinationActivations;
+    _blockersCleared = nextBlockersCleared;
     _collectedTargets
       ..clear()
       ..addAll(nextCollectedTargets);
@@ -211,6 +339,12 @@ class DiscoveryEngine {
     hasAvailableMove: _hasAvailableMove(_board),
     linePowerActivations: _linePowerActivations,
     requiredLinePowerActivations: requiredLinePowerActivations,
+    powerActivations: Map.unmodifiable(_powerActivations),
+    requiredPowerKind: requiredPowerKind,
+    combinationActivations: _combinationActivations,
+    requiredCombinationActivations: requiredCombinationActivations,
+    blockersCleared: _blockersCleared,
+    requiredBlockerClears: requiredBlockerClears,
   );
 
   DiscoveryBoard _swapPieces(
@@ -221,16 +355,8 @@ class DiscoveryEngine {
     final cells = _mutableCells(board);
     final fromCell = cells[from.row][from.column];
     final toCell = cells[to.row][to.column];
-    cells[from.row][from.column] = DiscoveryCell(
-      piece: toCell.piece,
-      buriedTarget: fromCell.buriedTarget,
-      sealLayers: fromCell.sealLayers,
-    );
-    cells[to.row][to.column] = DiscoveryCell(
-      piece: fromCell.piece,
-      buriedTarget: toCell.buriedTarget,
-      sealLayers: toCell.sealLayers,
-    );
+    cells[from.row][from.column] = fromCell.withPiece(toCell.piece);
+    cells[to.row][to.column] = toCell.withPiece(fromCell.piece);
     return DiscoveryBoard.fromCells(cells);
   }
 
@@ -240,9 +366,11 @@ class DiscoveryEngine {
     for (var row = 0; row < board.rowCount; row += 1) {
       var runStart = 0;
       for (var column = 1; column <= board.columnCount; column += 1) {
-        final previousKey = board.cells[row][column - 1].piece?.matchKey;
+        final previousKey = board.matchKeyAt(
+          DiscoveryPosition(row, column - 1),
+        );
         final currentKey = column < board.columnCount
-            ? board.cells[row][column].piece?.matchKey
+            ? board.matchKeyAt(DiscoveryPosition(row, column))
             : null;
         if (previousKey == null || previousKey != currentKey) {
           if (previousKey != null && column - runStart >= 3) {
@@ -262,9 +390,11 @@ class DiscoveryEngine {
     for (var column = 0; column < board.columnCount; column += 1) {
       var runStart = 0;
       for (var row = 1; row <= board.rowCount; row += 1) {
-        final previousKey = board.cells[row - 1][column].piece?.matchKey;
+        final previousKey = board.matchKeyAt(
+          DiscoveryPosition(row - 1, column),
+        );
         final currentKey = row < board.rowCount
-            ? board.cells[row][column].piece?.matchKey
+            ? board.matchKeyAt(DiscoveryPosition(row, column))
             : null;
         if (previousKey == null || previousKey != currentKey) {
           if (previousKey != null && row - runStart >= 3) {
@@ -283,20 +413,23 @@ class DiscoveryEngine {
   DiscoveryBoard _applyGravity(DiscoveryBoard board) {
     final cells = _mutableCells(board);
     for (var column = 0; column < board.columnCount; column += 1) {
-      final fallingPieces = <DiscoveryPiece>[];
-      for (var row = board.rowCount - 1; row >= 0; row -= 1) {
-        final piece = cells[row][column].piece;
-        if (piece != null) {
-          fallingPieces.add(piece);
+      var segmentBottom = board.rowCount - 1;
+      for (var row = board.rowCount - 1; row >= -1; row--) {
+        if (row >= 0 && cells[row][column].blockerLayers == 0) continue;
+        final falling = <DiscoveryPiece>[];
+        for (var r = segmentBottom; r > row; r--) {
+          final piece = cells[r][column].piece;
+          if (piece != null) falling.add(piece);
+          cells[r][column] = cells[r][column].withPiece(null);
         }
-        cells[row][column] = cells[row][column].withPiece(null);
-      }
-      var destinationRow = board.rowCount - 1;
-      for (final piece in fallingPieces) {
-        cells[destinationRow][column] = cells[destinationRow][column].withPiece(
-          piece,
-        );
-        destinationRow -= 1;
+        var destination = segmentBottom;
+        for (final piece in falling) {
+          cells[destination][column] = cells[destination][column].withPiece(
+            piece,
+          );
+          destination--;
+        }
+        segmentBottom = row - 1;
       }
     }
     return DiscoveryBoard.fromCells(cells);
@@ -312,10 +445,8 @@ class DiscoveryEngine {
     void inspect(List<DiscoveryPosition> line, DiscoveryLinePower direction) {
       var start = 0;
       for (var end = 1; end <= line.length; end++) {
-        final key = board.pieceAt(line[end - 1])?.matchKey;
-        final next = end < line.length
-            ? board.pieceAt(line[end])?.matchKey
-            : null;
+        final key = board.matchKeyAt(line[end - 1]);
+        final next = end < line.length ? board.matchKeyAt(line[end]) : null;
         if (key == null || key != next) {
           if (key != null && end - start >= 4) {
             final run = line.sublist(start, end);
@@ -362,6 +493,7 @@ class DiscoveryEngine {
               .where(
                 (p) =>
                     !processed.contains(p) &&
+                    board.cellAt(p).blockerLayers == 0 &&
                     board.pieceAt(p)?.linePower != null,
               )
               .toList()
@@ -408,18 +540,22 @@ class DiscoveryEngine {
   }
 
   bool _hasAvailableMove(DiscoveryBoard board) {
-    if (enableLinePowers &&
-        board.visiblePieces.any((piece) => piece.linePower != null))
-      return true;
     for (final position in board.positions) {
+      if (!board.canSwapAt(position)) continue;
       final right = DiscoveryPosition(position.row, position.column + 1);
-      if (board.contains(right) &&
-          _findMatches(_swapPieces(board, position, right)).isNotEmpty) {
+      if (board.canSwapAt(right) &&
+          (enableLinePowers &&
+                  (board.pieceAt(position)?.linePower != null ||
+                      board.pieceAt(right)?.linePower != null) ||
+              _findMatches(_swapPieces(board, position, right)).isNotEmpty)) {
         return true;
       }
       final below = DiscoveryPosition(position.row + 1, position.column);
-      if (board.contains(below) &&
-          _findMatches(_swapPieces(board, position, below)).isNotEmpty) {
+      if (board.canSwapAt(below) &&
+          (enableLinePowers &&
+                  (board.pieceAt(position)?.linePower != null ||
+                      board.pieceAt(below)?.linePower != null) ||
+              _findMatches(_swapPieces(board, position, below)).isNotEmpty)) {
         return true;
       }
     }

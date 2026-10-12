@@ -12,7 +12,7 @@ void main() {
   _expect(r1PuzzlesByStageId.length == 60, 'exactly60 authored stages');
   final report = const CampaignValidator().validate(
     campaign: initialCampaign,
-    puzzles: r1PuzzlesByStageId.values,
+    puzzles: authoredPuzzlesByStageId.values,
   );
   _expect(
     report.isValid,
@@ -20,7 +20,7 @@ void main() {
         .map((issue) => '${issue.location}: ${issue.message}')
         .join('\n'),
   );
-  _expect(report.warnings.length == 360, 'remaining360 stages stay planned');
+  _expect(report.warnings.length == 300, 'remaining300 stages stay planned');
   _expect(
     regionalCampaign.stages.every((stage) => !stage.hasAuthoredPuzzle),
     'blueprint stays immutable and planned',
@@ -116,7 +116,7 @@ void main() {
   stdout.writeln(
     'R1 authored content verification passed:60 alpha stages, '
     'actual ASTs including parentheses, complete support,30 independent '
-    'source-linked revisits,360 planned slots; '
+    'source-linked revisits,300 planned slots; '
     'board paths/human calibration checked separately.',
   );
 }

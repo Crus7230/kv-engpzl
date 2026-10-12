@@ -30,12 +30,12 @@ String _boardShape(DiscoveryBoard board) => board.cells
     .join('/');
 
 void main() {
-  test('all 60 R1 stages have registered executable runtime', () {
+  test('all 120 R1/R2 stages have registered executable runtime', () {
     expect(r1PuzzlesByStageId.length, 60);
     final authored = initialCampaign.stages.where((stage) => stage.isPlayable);
     expect(
       authored.map((stage) => stage.id).toSet(),
-      r1PuzzlesByStageId.keys.toSet(),
+      authoredPuzzlesByStageId.keys.toSet(),
     );
     expect(discoveryRuntimeCatalog.contains(verticalSliceStage.id), isTrue);
     for (final stage in authored) {
@@ -44,7 +44,7 @@ void main() {
     }
   });
 
-  for (final id in r1PuzzlesByStageId.keys) {
+  for (final id in authoredPuzzlesByStageId.keys) {
     final stage = initialCampaign.stageById(id)!;
     for (final variant in stage.boardVariants.variants) {
       final label = '${variant.config.rows}x${variant.config.columns}';
@@ -69,6 +69,13 @@ void main() {
           moves: stage.moveLimit,
           enableLinePowers: runtime.enableLinePowers,
           requiredLinePowerActivations: runtime.requiredLinePowerActivations,
+          enableBurstPowers: runtime.enableBurstPowers,
+          enableColorPowers: runtime.enableColorPowers,
+          enablePowerCombinations: runtime.enablePowerCombinations,
+          requiredPowerKind: runtime.requiredPowerKind,
+          requiredCombinationActivations:
+              runtime.requiredCombinationActivations,
+          requiredBlockerClears: runtime.requiredBlockerClears,
           refillSource: QueuedPieceSource(
             pieces: runtime.refillPieces(variant),
             fallback: SeededGemPieceSource(
@@ -252,6 +259,13 @@ void main() {
           moves: stage.moveLimit,
           enableLinePowers: runtime.enableLinePowers,
           requiredLinePowerActivations: runtime.requiredLinePowerActivations,
+          enableBurstPowers: runtime.enableBurstPowers,
+          enableColorPowers: runtime.enableColorPowers,
+          enablePowerCombinations: runtime.enablePowerCombinations,
+          requiredPowerKind: runtime.requiredPowerKind,
+          requiredCombinationActivations:
+              runtime.requiredCombinationActivations,
+          requiredBlockerClears: runtime.requiredBlockerClears,
           refillSource: SeededGemPieceSource(
             seed: variant.seed,
             gemKeys: runtime.gemKeys,

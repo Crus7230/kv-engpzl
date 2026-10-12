@@ -74,17 +74,46 @@ class DiscoveryBoardHintSolver {
             (target) => turn.state.requiredTargetIds.contains(target.id),
           );
           final needsPower =
-              state.linePowerActivations < state.requiredLinePowerActivations;
+              state.linePowerActivations < state.requiredLinePowerActivations ||
+              (state.requiredPowerKind != null &&
+                  (state.powerActivations[state.requiredPowerKind] ?? 0) ==
+                      0) ||
+              state.combinationActivations <
+                  state.requiredCombinationActivations;
           final activates =
               turn.state.linePowerActivations > state.linePowerActivations;
           final creates = turn.cascades.any((c) => c.createdPowers.isNotEmpty);
-          if (needsPower && (activates || creates)) {
+          final requiredKind = state.requiredPowerKind;
+          final relevantPower =
+              requiredKind == null ||
+              (turn.state.powerActivations[requiredKind] ?? 0) >
+                  (state.powerActivations[requiredKind] ?? 0) ||
+              turn.cascades.any(
+                (c) => c.createdPowers.any((p) => p.direction == requiredKind),
+              );
+          final needsCombination =
+              state.combinationActivations <
+              state.requiredCombinationActivations;
+          if (needsPower &&
+              (activates || creates) &&
+              relevantPower &&
+              (!needsCombination ||
+                  turn.state.combinationActivations >
+                      state.combinationActivations)) {
             return DiscoveryHintSuggestion(
               from: path.first.from,
               to: path.first.to,
               route: List.unmodifiable(path),
               activatesLinePower: activates,
               createsLinePower: !activates,
+            );
+          }
+          if (state.blockersCleared < state.requiredBlockerClears &&
+              turn.state.blockersCleared > state.blockersCleared) {
+            return DiscoveryHintSuggestion(
+              from: path.first.from,
+              to: path.first.to,
+              route: List.unmodifiable(path),
             );
           }
           if (targets.isNotEmpty) {
@@ -109,9 +138,12 @@ class DiscoveryBoardHintSolver {
   /// The engine always settles cascades, so a new match must involve one of
   /// the two swapped positions. Returned pairs are adjacent and in bounds.
   static List<DiscoverySwapPair> legalSwaps(DiscoveryBoard board) {
-    final keys = [
-      for (final row in board.cells)
-        [for (final cell in row) cell.piece!.matchKey],
+    final keys = <List<String?>>[
+      for (var row = 0; row < board.rowCount; row++)
+        [
+          for (var column = 0; column < board.columnCount; column++)
+            board.matchKeyAt(DiscoveryPosition(row, column)),
+        ],
     ];
     final moves = <DiscoverySwapPair>[];
     for (final from in board.positions) {
@@ -119,7 +151,7 @@ class DiscoveryBoardHintSolver {
         DiscoveryPosition(from.row, from.column + 1),
         DiscoveryPosition(from.row + 1, from.column),
       ]) {
-        if (!board.contains(to)) continue;
+        if (!board.canSwapAt(from) || !board.canSwapAt(to)) continue;
         final first = keys[from.row][from.column];
         keys[from.row][from.column] = keys[to.row][to.column];
         keys[to.row][to.column] = first;
@@ -136,8 +168,12 @@ class DiscoveryBoardHintSolver {
     return moves;
   }
 
-  static bool _hasMatchAt(List<List<String>> keys, DiscoveryPosition position) {
+  static bool _hasMatchAt(
+    List<List<String?>> keys,
+    DiscoveryPosition position,
+  ) {
     final key = keys[position.row][position.column];
+    if (key == null) return false;
     var horizontal = 1;
     for (
       var column = position.column - 1;

@@ -6,6 +6,7 @@ import '../../campaign/domain/campaign_models.dart';
 import '../../companions/data/companion_catalog.dart';
 import '../../companions/presentation/companion_screens.dart';
 import '../data/r1_expedition_catalog.dart';
+import 'pattern_forest_backdrop.dart';
 
 const _ink = Color(0xFF183F40);
 const _muted = Color(0xFF607374);
@@ -18,6 +19,7 @@ const _gold = Color(0xFFF6CE72);
 /// the application; viewing a future destination never unlocks it.
 class R1ExpeditionScreen extends StatefulWidget {
   const R1ExpeditionScreen({
+    this.regionNumber = 1,
     required this.stages,
     required this.completedStageIds,
     required this.unlockedStageIds,
@@ -38,6 +40,7 @@ class R1ExpeditionScreen extends StatefulWidget {
     super.key,
   });
 
+  final int regionNumber;
   final List<StageDefinition> stages;
   final Set<String> completedStageIds;
   final Set<String> unlockedStageIds;
@@ -60,6 +63,9 @@ class R1ExpeditionScreen extends StatefulWidget {
 class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
   int _chapter = 1;
   bool _overview = false;
+  List<ExpeditionDestination> get _destinations =>
+      expeditionDestinationsForRegion(widget.regionNumber);
+  String get _regionTitle => expeditionRegionTitle(widget.regionNumber);
 
   @override
   void initState() {
@@ -70,7 +76,13 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
   @override
   void didUpdateWidget(covariant R1ExpeditionScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.nextStageId != oldWidget.nextStageId) _followNextStage();
+    if (widget.regionNumber != oldWidget.regionNumber) {
+      _chapter = 1;
+      _overview = false;
+    }
+    if (widget.nextStageId != oldWidget.nextStageId ||
+        widget.regionNumber != oldWidget.regionNumber)
+      _followNextStage();
   }
 
   void _followNextStage() {
@@ -89,7 +101,10 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final destination = expeditionDestinationForChapter(_chapter);
+    final destination = expeditionDestinationForChapter(
+      _chapter,
+      regionNumber: widget.regionNumber,
+    );
     final player = companionProfileById(widget.playerCharacterId ?? '');
     final stages =
         widget.stages
@@ -137,12 +152,12 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                         ),
                       ),
                     ),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '계산의 평원 · 탐험 지도',
+                      '$_regionTitle · 탐험 지도',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: _ink,
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -150,7 +165,8 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                     ),
                   ),
                   Semantics(
-                    label: '계산의 평원 탐험 $completed / ${widget.stages.length} 완료',
+                    label:
+                        '$_regionTitle 탐험 $completed / ${widget.stages.length} 완료',
                     child: Text(
                       '$completed / ${widget.stages.length}',
                       style: const TextStyle(
@@ -163,7 +179,7 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                   const SizedBox(width: 10),
                   IconButton(
                     key: const ValueKey('expedition-overview'),
-                    tooltip: '평원 전체 지도',
+                    tooltip: '${widget.regionNumber == 2 ? '숲' : '평원'} 전체 지도',
                     onPressed: () => setState(() => _overview = !_overview),
                     icon: Icon(
                       _overview ? Icons.route_outlined : Icons.map_outlined,
@@ -196,7 +212,7 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                 height: 35,
                 child: Row(
                   children: [
-                    for (final entry in r1ExpeditionDestinations)
+                    for (final entry in _destinations)
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -237,6 +253,7 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                         child: SizedBox.expand(
                           key: ValueKey('scene-$_chapter-$_overview'),
                           child: ExpeditionBackdrop(
+                            regionNumber: widget.regionNumber,
                             chapter: _overview ? null : _chapter,
                           ),
                         ),
@@ -270,12 +287,13 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                         builder: (context, constraints) {
                           if (_overview) {
                             return _OverviewMap(
+                              destinations: _destinations,
                               size: Size(
                                 constraints.maxWidth,
                                 constraints.maxHeight,
                               ),
                               completedCounts: [
-                                for (final entry in r1ExpeditionDestinations)
+                                for (final entry in _destinations)
                                   widget.stages
                                       .where(
                                         (stage) =>
@@ -288,7 +306,7 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                                       .length,
                               ],
                               accessible: [
-                                for (final entry in r1ExpeditionDestinations)
+                                for (final entry in _destinations)
                                   widget.stages.any(
                                     (stage) =>
                                         stage.chapterId == entry.chapterId &&
@@ -369,7 +387,7 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                               ),
                               child: Text(
                                 _overview
-                                    ? '계산의 평원 · 여섯 탐험길'
+                                    ? '$_regionTitle · 여섯 탐험길'
                                     : '${destination.title}  ·  $selectedCompleted / ${stages.length}',
                                 style: const TextStyle(
                                   fontSize: 12,
@@ -426,7 +444,9 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                             widget.hasActiveSession
                                 ? '작성 중인 퍼즐에서 이어서 출발해요'
                                 : completed == 60
-                                ? '평원 탐험 완료 · 다음 지역 업데이트 예정'
+                                ? widget.regionNumber == 1
+                                      ? '평원 탐험 완료 · 모험 지도에서 숲으로 출발하세요'
+                                      : '숲 탐험 완료 · 다음 지역 업데이트 예정'
                                 : canSeeChapter
                                 ? destination.description
                                 : '안개 너머의 장소 · 앞 탐험의 단서를 모아 열어요',
@@ -477,7 +497,7 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
                         widget.hasActiveSession
                             ? '이어서 탐험하기'
                             : widget.onPlay == null
-                            ? '평원 탐험 완료'
+                            ? '지역 탐험 완료'
                             : '다음 탐험',
                         style: const TextStyle(
                           fontSize: 12,
@@ -499,58 +519,67 @@ class _R1ExpeditionScreenState extends State<R1ExpeditionScreen> {
 /// Enhanced artwork is optional while loading or recovering the asset pack.
 /// The legacy source image remains a valid fallback without changing saves.
 class ExpeditionBackdrop extends StatelessWidget {
-  const ExpeditionBackdrop({this.chapter, super.key});
+  const ExpeditionBackdrop({this.chapter, this.regionNumber = 1, super.key});
 
   final int? chapter;
+  final int regionNumber;
 
   @override
-  Widget build(BuildContext context) => Image.asset(
-    'assets/expedition/r1-trail.png',
-    fit: BoxFit.cover,
-    alignment: switch (chapter) {
-      1 => const Alignment(-.76, .44),
-      2 => const Alignment(-.64, -.16),
-      3 => const Alignment(-.14, -.14),
-      4 => const Alignment(.36, .22),
-      5 => const Alignment(.44, -.38),
-      6 => const Alignment(.82, -.76),
-      _ => Alignment.center,
-    },
-    excludeFromSemantics: true,
-    errorBuilder: (_, _, _) => Image.asset(
-      'assets/legacy/plains.png',
-      fit: BoxFit.cover,
-      excludeFromSemantics: true,
-      errorBuilder: (_, _, _) => const DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFB8D8C8), Color(0xFFDAE2A8), Color(0xFF6E9C7C)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+  Widget build(BuildContext context) => regionNumber == 2
+      ? PatternForestBackdrop(chapter: chapter)
+      : Image.asset(
+          'assets/expedition/r1-trail.png',
+          fit: BoxFit.cover,
+          alignment: switch (chapter) {
+            1 => const Alignment(-.76, .44),
+            2 => const Alignment(-.64, -.16),
+            3 => const Alignment(-.14, -.14),
+            4 => const Alignment(.36, .22),
+            5 => const Alignment(.44, -.38),
+            6 => const Alignment(.82, -.76),
+            _ => Alignment.center,
+          },
+          excludeFromSemantics: true,
+          errorBuilder: (_, _, _) => Image.asset(
+            'assets/legacy/plains.png',
+            fit: BoxFit.cover,
+            excludeFromSemantics: true,
+            errorBuilder: (_, _, _) => const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Color(0xFFB8D8C8),
+                    Color(0xFFDAE2A8),
+                    Color(0xFF6E9C7C),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
-    ),
-  );
+        );
 }
 
 /// The same destination landmark is used in the trail and milestone reveal.
 class ExpeditionEnvironmentArt extends StatelessWidget {
   const ExpeditionEnvironmentArt({
     required this.chapter,
+    this.regionNumber = 1,
     this.milestones = 0,
     this.decorationId,
     super.key,
   });
 
   final int chapter, milestones;
+  final int regionNumber;
   final String? decorationId;
 
   @override
   Widget build(BuildContext context) => Stack(
     fit: StackFit.expand,
     children: [
-      ExpeditionBackdrop(chapter: chapter),
+      ExpeditionBackdrop(chapter: chapter, regionNumber: regionNumber),
       if (decorationId != null)
         Align(
           alignment: const Alignment(.64, .55),
@@ -583,24 +612,29 @@ class ExpeditionEnvironmentArt extends StatelessWidget {
 class ExpeditionTravelerScene extends StatelessWidget {
   const ExpeditionTravelerScene({
     required this.chapter,
+    this.regionNumber = 1,
     this.playerCharacterId,
     super.key,
   });
 
   final int chapter;
+  final int regionNumber;
   final String? playerCharacterId;
 
   @override
   Widget build(BuildContext context) {
     final player = companionProfileById(playerCharacterId ?? '');
-    final destination = expeditionDestinationForChapter(chapter);
+    final destination = expeditionDestinationForChapter(
+      chapter,
+      regionNumber: regionNumber,
+    );
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: LayoutBuilder(
         builder: (context, constraints) => Stack(
           fit: StackFit.expand,
           children: [
-            ExpeditionBackdrop(chapter: chapter),
+            ExpeditionBackdrop(chapter: chapter, regionNumber: regionNumber),
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -742,7 +776,7 @@ class _StageTrailNode extends StatelessWidget {
     child: Tooltip(
       message: unlocked
           ? '${stage.title} · ${stage.conceptLabel}'
-          : stage.chapterId == 'r01-c04'
+          : stage.chapterId.endsWith('-c04')
           ? '원본 문제를 완료하면 열려요'
           : '앞 탐험을 완료하면 열려요',
       child: Material(
@@ -817,12 +851,14 @@ class _StageTrailNode extends StatelessWidget {
 class _OverviewMap extends StatelessWidget {
   const _OverviewMap({
     required this.size,
+    required this.destinations,
     required this.completedCounts,
     required this.accessible,
     required this.onSelect,
   });
 
   final Size size;
+  final List<ExpeditionDestination> destinations;
   final List<int> completedCounts;
   final List<bool> accessible;
   final ValueChanged<int> onSelect;
@@ -850,7 +886,7 @@ class _OverviewMap extends StatelessWidget {
             left: points[index].dx - 36,
             top: points[index].dy - 21,
             child: _DestinationMapNode(
-              destination: r1ExpeditionDestinations[index],
+              destination: destinations[index],
               completed: completedCounts[index],
               accessible: accessible[index],
               onTap: () => onSelect(index + 1),

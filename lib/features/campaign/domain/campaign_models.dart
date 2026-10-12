@@ -1,6 +1,7 @@
 import '../../discovery/domain/discovery_models.dart';
 import 'board_mechanic_models.dart';
 import 'learning_models.dart';
+import 'sentence_math_plan.dart';
 import 'stage_attempt_metrics.dart';
 import 'stage_recurrence_models.dart';
 
@@ -333,6 +334,7 @@ class StageDefinition {
     required this.learningPlan,
     required this.variantProfile,
     this.recurrencePlan,
+    this.sentenceMathPlan,
     required this.seed,
     Iterable<String> startingTokenIds = const [],
     Iterable<String> buriedTokenIds = const [],
@@ -371,6 +373,7 @@ class StageDefinition {
   final StageLearningPlan learningPlan;
   final LearningVariantProfile variantProfile;
   final StageRecurrencePlan? recurrencePlan;
+  final SentenceMathPlan? sentenceMathPlan;
 
   /// Deterministic problem seed. Board seeds live on layout fixtures.
   final int seed;

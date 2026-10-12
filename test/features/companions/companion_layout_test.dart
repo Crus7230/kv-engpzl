@@ -72,7 +72,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('companion-CHAR_B')));
         await tester.pumpAndSettle();
-        expect(find.text('R2 탐험 · 업데이트 예정'), findsOneWidget);
+        expect(find.text('R2 C01 완료 후 구조'), findsOneWidget);
         expect(find.text('ISTJ'), findsNothing);
         expect(tester.takeException(), isNull);
       });

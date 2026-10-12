@@ -525,7 +525,7 @@ void main() {
         home: RepaintBoundary(
           key: boundary,
           child: RegionGardenScreen(
-            regionId: 'region-02-pattern',
+            regionId: 'region-03-unit',
             restoredNodeIds: const {},
             decorationChoices: const {},
             onBack: () {},

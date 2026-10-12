@@ -274,7 +274,7 @@ void main() {
           receipt.nextStageId,
           index + 1 < coreStages.length
               ? coreStages[index + 1].id
-              : 'r01-c04-s01',
+              : 'r02-c01-s01',
         );
       }
       expect(
@@ -307,12 +307,10 @@ void main() {
         );
         restorationIds.addAll(receipt.unlockedRestorationNodeIds);
         reviewIndex++;
-        expect(
-          receipt.nextStageId,
-          reviewIndex < 30 ? reviews.elementAt(reviewIndex).id : null,
-        );
+        expect(receipt.nextStageId, 'r02-c01-s01');
       }
       final finalSnapshot = await repository.load();
+      expect(reviewIndex, 30);
       expect(finalSnapshot.completedStageIds, hasLength(60));
       expect(finalSnapshot.rewardLedger, hasLength(60));
       expect(finalSnapshot.dailyReviewActions['2026-10-12'], 30);
@@ -321,8 +319,9 @@ void main() {
       expect(
         const DailyRouteService()
             .build(finalSnapshot, initialCampaign, now: DateTime(2026, 10, 13))
-            .explorationStage,
-        isNull,
+            .explorationStage
+            ?.id,
+        'r02-c01-s01',
       );
     },
   );

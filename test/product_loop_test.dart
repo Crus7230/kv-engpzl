@@ -223,7 +223,7 @@ void main() {
       );
       expect(
         initialCampaign.stages.where((stage) => stage.isPlayable).length,
-        60,
+        120,
       );
       await tester.tap(find.text('첫 화단 복원하기'));
       await tester.pumpAndSettle();

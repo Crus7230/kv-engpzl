@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kvm/features/campaign/data/initial_campaign.dart';
+import 'package:kvm/features/campaign/data/r1_authored_campaign.dart';
+import 'package:kvm/features/campaign/data/regional_campaign.dart';
 import 'package:kvm/features/campaign/domain/campaign_models.dart';
 import 'package:kvm/features/garden/data/garden_catalog.dart';
 import 'package:kvm/features/progress/data/progress_repository.dart';
@@ -59,21 +61,26 @@ void main() {
         campaign: initialCampaign,
       );
       await _completeCore(service);
+      // Solo layer/combo lessons are mandatory before the early finale.
+      for (final id in ['r01-c04-s01', 'r01-c04-s06']) {
+        await service.complete(_success(_stage(id)));
+      }
       final earlyFinale = await service.complete(
         _success(_stage('r01-c04-s10')),
       );
-      expect(earlyFinale.nextStageId, 'r01-c04-s01');
+      expect(earlyFinale.nextStageId, 'r02-c01-s01');
       expect(
         (await repository.load()).unlockedStageIds,
         isNot(contains('r01-c05-s01')),
       );
       CompletionReceipt? last;
       for (var number = 1; number <= 9; number++) {
+        if (number == 1 || number == 6) continue;
         last = await service.complete(
           _success(_stage('r01-c04-s${number.toString().padLeft(2, '0')}')),
         );
       }
-      expect(last!.nextStageId, 'r01-c05-s01');
+      expect(last!.nextStageId, 'r02-c01-s01');
       expect(
         (await repository.load()).unlockedStageIds,
         contains('r01-c05-s01'),
@@ -171,7 +178,7 @@ void main() {
     },
   );
 
-  test('R1 end honestly leaves no new stage but offers daily replay', () async {
+  test('R1 end continues into authored R2 and offers daily replay', () async {
     final repository = ProgressRepository(MemoryKeyValueSaveStore());
     final service = StageCompletionService(
       repository,
@@ -187,10 +194,10 @@ void main() {
       now: DateTime(2026, 10, 12),
     );
     expect(route.completedPlayableStageCount, 60);
-    expect(route.playableStageCount, 60);
+    expect(route.playableStageCount, 120);
     expect(route.completedRegionIds, {'region-01-calculation'});
     expect(route.campaignCompleted, isFalse);
-    expect(route.explorationStage, isNull);
+    expect(route.explorationStage?.id, 'r02-c01-s01');
     expect(route.reviewStage, isNotNull);
     expect(snapshot.unlockedStageIds, contains('r02-c01-s01'));
     expect(
@@ -217,18 +224,23 @@ void main() {
     () async {
       final store = MemoryKeyValueSaveStore();
       final originalRepository = ProgressRepository(store);
+      final previousCampaign = buildR1Campaign(
+        regionalCampaign,
+        renewedMechanics: false,
+      );
       final originalService = StageCompletionService(
         originalRepository,
-        campaign: initialCampaign,
+        campaign: previousCampaign,
       );
       final region = initialCampaign.regions.first;
-      for (final stage in region.chapters.first.stages) {
+      final oldRegion = previousCampaign.regions.first;
+      for (final stage in oldRegion.chapters.first.stages) {
         await originalService.complete(_success(stage));
       }
-      for (final stage in region.chapters[1].stages.take(5)) {
+      for (final stage in oldRegion.chapters[1].stages.take(5)) {
         await originalService.complete(_success(stage));
       }
-      for (final stage in region.chapters[3].stages) {
+      for (final stage in oldRegion.chapters[3].stages) {
         await originalService.complete(_success(stage));
       }
       final oldSave = await originalRepository.load();
@@ -251,8 +263,9 @@ void main() {
       for (final stage in region.chapters[2].stages) {
         finalCore = await newService.complete(_success(stage));
       }
-      expect(finalCore!.nextStageId, 'r01-c05-s01');
+      expect(finalCore!.nextStageId, 'r02-c01-s01');
       final updated = await afterUpdate.load();
+      expect(updated.unlockedStageIds, contains('r01-c05-s01'));
       expect(updated.rewardLedger.keys, containsAll(oldSave.rewardLedger.keys));
       expect(updated.completedStageIds, hasLength(40));
       expect(updated.bestStars.keys, containsAll(oldSave.bestStars.keys));

@@ -1,6 +1,17 @@
 enum DiscoveryPieceKind { gem, number, mathOperator, parenthesis }
 
-enum DiscoveryLinePower { row, column }
+/// Historical name retained for checkpoints; burst/color extend the family.
+enum DiscoveryLinePower { row, column, burst, color }
+
+enum DiscoveryPowerCombination {
+  lineLine,
+  lineBurst,
+  burstBurst,
+  colorGem,
+  colorLine,
+  colorBurst,
+  colorColor,
+}
 
 class DiscoveryBoardConfig {
   const DiscoveryBoardConfig({this.rows = 6, this.columns = 6})
@@ -118,20 +129,30 @@ class DiscoveryPiece {
 }
 
 class DiscoveryCell {
-  const DiscoveryCell({required this.piece, this.buriedTarget, int? sealLayers})
-    : sealLayers = sealLayers ?? (buriedTarget == null ? 0 : 1);
+  const DiscoveryCell({
+    required this.piece,
+    this.buriedTarget,
+    int? sealLayers,
+    this.blockerLayers = 0,
+  }) : sealLayers = sealLayers ?? (buriedTarget == null ? 0 : 1);
 
   final DiscoveryPiece? piece;
   final DiscoveryPiece? buriedTarget;
   final int sealLayers;
 
+  /// Stationary cover: prevents swapping, matching and falling through it.
+  /// Adjacent matches and direct power hits damage it once per cascade.
+  final int blockerLayers;
+
   DiscoveryCell withPiece(DiscoveryPiece? value) => DiscoveryCell(
     piece: value,
     buriedTarget: buriedTarget,
     sealLayers: sealLayers,
+    blockerLayers: blockerLayers,
   );
 
-  DiscoveryCell withoutBuriedTarget() => DiscoveryCell(piece: piece);
+  DiscoveryCell withoutBuriedTarget() =>
+      DiscoveryCell(piece: piece, blockerLayers: blockerLayers);
 }
 
 class DiscoveryBoard {
@@ -140,6 +161,7 @@ class DiscoveryBoard {
     DiscoveryBoardConfig? config,
     Map<DiscoveryPosition, DiscoveryPiece> buriedTargets = const {},
     Map<DiscoveryPosition, int> sealLayers = const {},
+    Map<DiscoveryPosition, int> blockerLayers = const {},
   }) {
     final cells = <List<DiscoveryCell>>[
       for (var row = 0; row < rows.length; row += 1)
@@ -149,6 +171,7 @@ class DiscoveryBoard {
               piece: rows[row][column],
               buriedTarget: buriedTargets[DiscoveryPosition(row, column)],
               sealLayers: sealLayers[DiscoveryPosition(row, column)],
+              blockerLayers: blockerLayers[DiscoveryPosition(row, column)] ?? 0,
             ),
         ],
     ];
@@ -182,6 +205,12 @@ class DiscoveryBoard {
 
     for (final row in cells) {
       for (final cell in row) {
+        if (cell.blockerLayers < 0 ||
+            cell.blockerLayers > 0 && cell.piece == null) {
+          throw ArgumentError(
+            'A blocker needs a gem and nonnegative durability.',
+          );
+        }
         if (cell.piece?.linePower != null &&
             cell.piece?.kind != DiscoveryPieceKind.gem) {
           throw ArgumentError('Only gems can carry a line power.');
@@ -227,6 +256,15 @@ class DiscoveryBoard {
   }
 
   DiscoveryPiece? pieceAt(DiscoveryPosition position) => cellAt(position).piece;
+  bool canSwapAt(DiscoveryPosition position) =>
+      contains(position) &&
+      cellAt(position).blockerLayers == 0 &&
+      pieceAt(position) != null;
+  String? matchKeyAt(DiscoveryPosition position) =>
+      cellAt(position).blockerLayers > 0 ||
+          pieceAt(position)?.linePower == DiscoveryLinePower.color
+      ? null
+      : pieceAt(position)?.matchKey;
 
   Iterable<DiscoveryPosition> get positions sync* {
     for (var row = 0; row < rowCount; row += 1) {
@@ -283,9 +321,27 @@ class DiscoverySealHit {
 }
 
 class DiscoveryPowerEvent {
-  const DiscoveryPowerEvent({required this.position, required this.direction});
+  const DiscoveryPowerEvent({
+    required this.position,
+    required this.direction,
+    this.combination,
+    this.affectedPositions = const [],
+  });
   final DiscoveryPosition position;
   final DiscoveryLinePower direction;
+  final DiscoveryPowerCombination? combination;
+  final List<DiscoveryPosition> affectedPositions;
+}
+
+class DiscoveryBlockerHit {
+  const DiscoveryBlockerHit({
+    required this.position,
+    required this.layersBefore,
+    required this.layersAfter,
+  });
+  final DiscoveryPosition position;
+  final int layersBefore;
+  final int layersAfter;
 }
 
 class DiscoveryCascadeStep {
@@ -299,11 +355,13 @@ class DiscoveryCascadeStep {
     Iterable<DiscoverySealHit> sealHits = const [],
     Iterable<DiscoveryPowerEvent> createdPowers = const [],
     Iterable<DiscoveryPowerEvent> activatedPowers = const [],
+    Iterable<DiscoveryBlockerHit> blockerHits = const [],
   }) : clearedPieces = List.unmodifiable(clearedPieces),
        discoveredTargets = List.unmodifiable(discoveredTargets),
        sealHits = List.unmodifiable(sealHits),
        createdPowers = List.unmodifiable(createdPowers),
-       activatedPowers = List.unmodifiable(activatedPowers);
+       activatedPowers = List.unmodifiable(activatedPowers),
+       blockerHits = List.unmodifiable(blockerHits);
 
   final int index;
   final List<DiscoveryClearedPiece> clearedPieces;
@@ -314,6 +372,7 @@ class DiscoveryCascadeStep {
   final List<DiscoverySealHit> sealHits;
   final List<DiscoveryPowerEvent> createdPowers;
   final List<DiscoveryPowerEvent> activatedPowers;
+  final List<DiscoveryBlockerHit> blockerHits;
 }
 
 enum DiscoverySwapStatus {
@@ -323,6 +382,7 @@ enum DiscoverySwapStatus {
   noMatch,
   noMovesRemaining,
   alreadyCompleted,
+  blocked,
 }
 
 class DiscoveryGameState {
@@ -334,8 +394,15 @@ class DiscoveryGameState {
     required this.hasAvailableMove,
     this.linePowerActivations = 0,
     this.requiredLinePowerActivations = 0,
+    Map<DiscoveryLinePower, int> powerActivations = const {},
+    this.requiredPowerKind,
+    this.combinationActivations = 0,
+    this.requiredCombinationActivations = 0,
+    this.blockersCleared = 0,
+    this.requiredBlockerClears = 0,
   }) : requiredTargetIds = Set.unmodifiable(requiredTargetIds),
-       collectedTargets = List.unmodifiable(collectedTargets);
+       collectedTargets = List.unmodifiable(collectedTargets),
+       powerActivations = Map.unmodifiable(powerActivations);
 
   final DiscoveryBoard board;
   final int movesRemaining;
@@ -347,10 +414,20 @@ class DiscoveryGameState {
   final bool hasAvailableMove;
   final int linePowerActivations;
   final int requiredLinePowerActivations;
+  final Map<DiscoveryLinePower, int> powerActivations;
+  final DiscoveryLinePower? requiredPowerKind;
+  final int combinationActivations;
+  final int requiredCombinationActivations;
+  final int blockersCleared;
+  final int requiredBlockerClears;
 
   bool get isCompleted =>
       requiredTargetIds.every(collectedTargetIds.contains) &&
-      linePowerActivations >= requiredLinePowerActivations;
+      linePowerActivations >= requiredLinePowerActivations &&
+      (requiredPowerKind == null ||
+          (powerActivations[requiredPowerKind] ?? 0) >= 1) &&
+      combinationActivations >= requiredCombinationActivations &&
+      blockersCleared >= requiredBlockerClears;
 
   bool get isOutOfMoves => !isCompleted && movesRemaining == 0;
 

@@ -9,6 +9,7 @@ class ExpeditionDestination {
     required this.shortTitle,
     required this.description,
     required this.milestones,
+    this.regionNumber = 1,
   });
 
   final int number;
@@ -16,8 +17,10 @@ class ExpeditionDestination {
   final String shortTitle;
   final String description;
   final List<String> milestones;
+  final int regionNumber;
 
-  String get chapterId => 'r01-c${number.toString().padLeft(2, '0')}';
+  String get chapterId =>
+      'r${regionNumber.toString().padLeft(2, '0')}-c${number.toString().padLeft(2, '0')}';
 }
 
 const r1ExpeditionDestinations = <ExpeditionDestination>[
@@ -65,12 +68,77 @@ const r1ExpeditionDestinations = <ExpeditionDestination>[
   ),
 ];
 
-ExpeditionDestination expeditionDestinationForChapter(int chapter) =>
-    r1ExpeditionDestinations[(chapter - 1).clamp(0, 5)];
+const r2ExpeditionDestinations = <ExpeditionDestination>[
+  ExpeditionDestination(
+    regionNumber: 2,
+    number: 1,
+    title: '발자국의 숲 입구',
+    shortTitle: '숲 입구',
+    description: '일정한 간격의 흔적을 따라 Bravo와 Foxtrot를 찾아요.',
+    milestones: ['발자국 조사', '숲 표지판 연결', '반복 무늬 쉼터', 'Bravo · Foxtrot 구조길 개방'],
+  ),
+  ExpeditionDestination(
+    regionNumber: 2,
+    number: 2,
+    title: '교대 덩굴길',
+    shortTitle: '덩굴길',
+    description: '두 배 성장과 교대하는 차례를 구별하며 나아가요.',
+    milestones: ['성장 흔적 기록', '교대 신호 해독', '덩굴 사이 통로', '두 단계 성장길 개방'],
+  ),
+  ExpeditionDestination(
+    regionNumber: 2,
+    number: 3,
+    title: '규칙의 고목',
+    shortTitle: '고목',
+    description: '입력과 출력의 관계로 고목 수문을 열고 Romeo를 구해요.',
+    milestones: ['기계 기록 발견', '장치 순서 연결', '고목 계단 연결', 'Romeo 구조 · 숲 수문 개방'],
+  ),
+  ExpeditionDestination(
+    regionNumber: 2,
+    number: 4,
+    title: '되돌아오는 숲길',
+    shortTitle: '기억길',
+    description: '탐험 일지에서 익숙한 규칙을 다시 꺼내 샛길을 찾아요.',
+    milestones: ['기억 일지 발견', '옛 표식 연결', '파워 조합 쉼터', '기억의 샛길 완성'],
+  ),
+  ExpeditionDestination(
+    regionNumber: 2,
+    number: 5,
+    title: '덩굴과 꽃의 미로',
+    shortTitle: '미로',
+    description: '익숙한 수학으로 단단한 덩굴을 공략해 November를 구해요.',
+    milestones: ['공방 보급길', '미로 단서 연결', '단단한 덩굴 제거', 'November 구조길 개방'],
+  ),
+  ExpeditionDestination(
+    regionNumber: 2,
+    number: 6,
+    title: '숲과 평원의 교차로',
+    shortTitle: '교차로',
+    description: '평원과 숲에서 배운 관계로 전망대 신호를 완성해요.',
+    milestones: ['평원 보급 연결', '협곡 방향 조사', '탐험대 야영지', '숲 전망대 신호 완성'],
+  ),
+];
+
+List<ExpeditionDestination> expeditionDestinationsForRegion(int regionNumber) =>
+    regionNumber == 2 ? r2ExpeditionDestinations : r1ExpeditionDestinations;
+
+String expeditionRegionTitle(int number) =>
+    number == 2 ? '규칙과 패턴의 숲' : '계산의 평원';
+
+int expeditionRegionNumber(String? regionId) =>
+    regionId == 'region-02-pattern' ? 2 : 1;
+
+ExpeditionDestination expeditionDestinationForChapter(
+  int chapter, {
+  int regionNumber = 1,
+}) => expeditionDestinationsForRegion(regionNumber)[(chapter - 1).clamp(0, 5)];
 
 String expeditionMilestoneTitle(RestorationNode? node) {
   if (node == null || node.chapterNumber < 1) return '첫 탐험길 발견';
-  final destination = expeditionDestinationForChapter(node.chapterNumber);
+  final destination = expeditionDestinationForChapter(
+    node.chapterNumber,
+    regionNumber: expeditionRegionNumber(node.regionId),
+  );
   final index = const [2, 4, 7, 10].indexOf(node.milestone);
   return destination.milestones[index < 0 ? 0 : index];
 }

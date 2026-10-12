@@ -84,6 +84,7 @@ void main() {
         ),
         variantProfile: source.variantProfile,
         recurrencePlan: source.recurrencePlan,
+        sentenceMathPlan: source.sentenceMathPlan,
         seed: source.seed,
         startingTokenIds: source.startingTokenIds,
         buriedTokenIds: source.buriedTokenIds,
@@ -185,6 +186,7 @@ void main() {
       final route = const DailyRouteService().build(
         snapshot,
         prototypeCampaign,
+        now: DateTime(2026, 10, 11),
       );
       expect(route.reviewTicket, isNotNull);
       expect(route.reviewStage, isNull);

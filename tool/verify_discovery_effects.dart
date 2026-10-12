@@ -40,6 +40,12 @@ void main() {
         moves: stage.moveLimit,
         enableLinePowers: runtime.enableLinePowers,
         requiredLinePowerActivations: runtime.requiredLinePowerActivations,
+        enableBurstPowers: runtime.enableBurstPowers,
+        enableColorPowers: runtime.enableColorPowers,
+        enablePowerCombinations: runtime.enablePowerCombinations,
+        requiredPowerKind: runtime.requiredPowerKind,
+        requiredCombinationActivations: runtime.requiredCombinationActivations,
+        requiredBlockerClears: runtime.requiredBlockerClears,
         refillSource: SeededGemPieceSource(
           seed: variant.seed,
           gemKeys: runtime.gemKeys,
@@ -66,9 +72,23 @@ void main() {
       }
       _expect(engine.state.isCompleted, '${variant.fixtureId} complete.');
       if (powered) {
+        if (runtime.requiredPowerKind != null) {
+          _expect(
+            created > 0 &&
+                (engine.state.powerActivations[runtime.requiredPowerKind] ??
+                        0) >=
+                    1,
+            '${variant.fixtureId} teaches its required power family.',
+          );
+        }
         _expect(
-          created > 0 && engine.state.linePowerActivations >= 1,
-          '${variant.fixtureId} creates and activates a power in actual play.',
+          engine.state.combinationActivations >=
+              runtime.requiredCombinationActivations,
+          '${variant.fixtureId} satisfies its combination lesson.',
+        );
+        _expect(
+          engine.state.blockersCleared >= runtime.requiredBlockerClears,
+          '${variant.fixtureId} clears its blocking covers.',
         );
         lineFixtures++;
       }
@@ -77,7 +97,7 @@ void main() {
     }
   }
   _expect(
-    layeredFixtures == 30 && lineFixtures == 30 && mixedFixtures == 20,
+    layeredFixtures == 60 && lineFixtures == 110 && mixedFixtures == 58,
     'All advanced R1 stage pairs are present.',
   );
   stdout.writeln(

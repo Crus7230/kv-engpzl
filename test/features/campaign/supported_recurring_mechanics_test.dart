@@ -1,12 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../lib/features/campaign/data/initial_campaign.dart';
+import '../../../lib/features/campaign/data/regional_campaign.dart';
 import '../../../lib/features/campaign/data/r1_authored_campaign.dart';
 import '../../../lib/features/campaign/domain/board_mechanic_models.dart';
 import '../../../lib/features/campaign/domain/campaign_models.dart';
 import '../../../lib/features/campaign/domain/campaign_validator.dart';
 import '../../../lib/features/campaign/domain/stage_recurrence_models.dart';
 import '../../../lib/features/puzzle/domain/puzzle.dart';
+
+// Preserve the v1 recurrence contract alongside the new v3 progression tests.
+final initialCampaign = buildR1Campaign(
+  regionalCampaign,
+  renewedMechanics: false,
+);
 
 void main() {
   final layered = initialCampaign.stageById('r01-c05-s01')!;
@@ -225,28 +231,34 @@ void main() {
     },
   );
 
-  test('obstacles and model-only or reserved mechanics remain blocked', () {
-    final blockers = _plan(layered, [
-      AdjacentHitBlockerRule(blockerCount: 1, durability: 1),
-    ]);
-    final replacement = _copy(
-      layered,
-      boardPlan: blockers,
-      match: _match(layered.matchDifficulty, layers: 1, obstacles: 1),
-    );
-    final codes = _codes(replacement);
-    expect(codes, contains(CampaignIssueCode.unsupportedPlayableMatchRules));
-    expect(codes, contains(CampaignIssueCode.unsupportedPlayableBoardMechanic));
-    for (final rule in [
-      SwapLockRule(lockCount: 2, unlockHits: 1),
-      PortalRule(pairCount: 1),
-    ]) {
+  test(
+    'unimplemented fixed obstacles and reserved mechanics remain blocked',
+    () {
+      final blockers = _plan(layered, [
+        FixedBlockerRule(blockerCount: 1, durability: 1),
+      ]);
+      final replacement = _copy(
+        layered,
+        boardPlan: blockers,
+        match: _match(layered.matchDifficulty, layers: 1, obstacles: 1),
+      );
+      final codes = _codes(replacement);
+      expect(codes, contains(CampaignIssueCode.unsupportedPlayableMatchRules));
       expect(
-        _codes(_copy(layered, boardPlan: _plan(layered, [rule]))),
+        codes,
         contains(CampaignIssueCode.unsupportedPlayableBoardMechanic),
       );
-    }
-  });
+      for (final rule in [
+        SwapLockRule(lockCount: 2, unlockHits: 1),
+        PortalRule(pairCount: 1),
+      ]) {
+        expect(
+          _codes(_copy(layered, boardPlan: _plan(layered, [rule]))),
+          contains(CampaignIssueCode.unsupportedPlayableBoardMechanic),
+        );
+      }
+    },
+  );
 }
 
 Set<CampaignIssueCode> _codes(
@@ -320,6 +332,7 @@ StageDefinition _copy(
   learningPlan: stage.learningPlan,
   variantProfile: stage.variantProfile,
   recurrencePlan: clearRecurrence ? null : recurrence ?? stage.recurrencePlan,
+  sentenceMathPlan: stage.sentenceMathPlan,
   seed: stage.seed,
   startingTokenIds: stage.startingTokenIds,
   buriedTokenIds: stage.buriedTokenIds,

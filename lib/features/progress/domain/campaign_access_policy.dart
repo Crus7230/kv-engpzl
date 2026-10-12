@@ -9,10 +9,23 @@ class CampaignAccessPolicy {
   bool canEnterStage(
     StageDefinition stage,
     CampaignDefinition campaign,
-    Set<String> completedStageIds,
-  ) {
+    Set<String> completedStageIds, {
+    bool usesLegacyBoardRules = false,
+  }) {
     if (!stage.isPlayable ||
-        stage.learningPlan.status != LearningPlanStatus.authored) {
+        stage.learningPlan.status != LearningPlanStatus.authored ||
+        (!usesLegacyBoardRules &&
+            !completedStageIds.contains(stage.id) &&
+            !completedStageIds.containsAll(
+              stage.boardMechanicPlan.prerequisiteStageIds,
+            ))) {
+      return false;
+    }
+    final familiarMathSource = stage.boardMechanicPlan.learningSourceStageId;
+    if (!usesLegacyBoardRules &&
+        !completedStageIds.contains(stage.id) &&
+        familiarMathSource != null &&
+        !completedStageIds.contains(familiarMathSource)) {
       return false;
     }
     final source = stage.recurrencePlan?.sourceStageId;
@@ -24,6 +37,16 @@ class CampaignAccessPolicy {
     for (final region in campaign.regions) {
       for (final chapter in region.chapters) {
         if (chapter.id != stage.chapterId) continue;
+        if (region.prerequisiteRegionId != null &&
+            !completedStageIds.contains(
+              campaign.regions
+                  .singleWhere(
+                    (prior) => prior.id == region.prerequisiteRegionId,
+                  )
+                  .accessGateStageId,
+            )) {
+          return false;
+        }
         // C04 is intentionally an early, source-linked review branch. C05 and
         // C06 are sequential projects after the main route and earlier gardens.
         if (chapter.number >= 5) {

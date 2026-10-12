@@ -43,6 +43,12 @@ void main() {
         moves: stage.moveLimit,
         enableLinePowers: runtime.enableLinePowers,
         requiredLinePowerActivations: runtime.requiredLinePowerActivations,
+        enableBurstPowers: runtime.enableBurstPowers,
+        enableColorPowers: runtime.enableColorPowers,
+        enablePowerCombinations: runtime.enablePowerCombinations,
+        requiredPowerKind: runtime.requiredPowerKind,
+        requiredCombinationActivations: runtime.requiredCombinationActivations,
+        requiredBlockerClears: runtime.requiredBlockerClears,
         refillSource: QueuedPieceSource(
           pieces: runtime.refillPieces(variant),
           fallback: SeededGemPieceSource(

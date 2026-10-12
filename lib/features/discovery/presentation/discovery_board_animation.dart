@@ -394,6 +394,29 @@ class _MotionFrame extends StatelessWidget {
                 if (phase.after[power.index].gem case final gem?)
                   _createdPowerGem(gem, power.index, extent, point),
             for (var index = 0; index < seals.length; index++)
+              if (seals[index].blockerLayers > 0)
+                Positioned(
+                  left: point(index).dx,
+                  top: point(index).dy,
+                  width: extent,
+                  height: extent,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xED596474),
+                      border: Border.all(
+                        color: const Color(0xFFBAC8D5),
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.terrain_rounded,
+                      color: Colors.white,
+                      size: extent * .58,
+                    ),
+                  ),
+                ),
+            for (var index = 0; index < seals.length; index++)
               if (seals[index].sealKind != null)
                 Positioned(
                   left: point(index).dx,
@@ -761,6 +784,54 @@ class _BoardEffectPainter extends CustomPainter {
     if (cascade != null && phase.kind == DiscoveryMotionPhaseKind.powerSweep) {
       for (final power in cascade.activatedPowers) {
         final origin = center(power.index);
+        if (power.isCombination ||
+            power.direction == DiscoveryLinePowerKind.burst ||
+            power.direction == DiscoveryLinePowerKind.color) {
+          final sweep = Curves.easeOutCubic.transform(progress);
+          final color = power.direction == DiscoveryLinePowerKind.color
+              ? const Color(0xFFA3E8FF)
+              : const Color(0xFFFFDC85);
+          paint
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = extent * .055
+            ..color = color.withValues(alpha: .85 * pulse);
+          if (power.direction != DiscoveryLinePowerKind.color) {
+            canvas.drawCircle(
+              origin,
+              extent * (power.isCombination ? 2.6 : 1.5) * sweep,
+              paint,
+            );
+          }
+          for (final index in power.affectedIndices) {
+            final target = center(index);
+            if (power.direction == DiscoveryLinePowerKind.color) {
+              canvas.drawLine(
+                origin,
+                Offset.lerp(origin, target, sweep)!,
+                paint,
+              );
+            }
+            paint
+              ..style = PaintingStyle.fill
+              ..color = color.withValues(alpha: .28 * pulse);
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromCenter(
+                  center: target,
+                  width: extent * .86,
+                  height: extent * .86,
+                ),
+                const Radius.circular(6),
+              ),
+              paint,
+            );
+            paint
+              ..style = PaintingStyle.stroke
+              ..color = color.withValues(alpha: .85 * pulse);
+          }
+          paint.style = PaintingStyle.fill;
+          continue;
+        }
         final horizontal = power.direction == DiscoveryLinePowerKind.row;
         final start = horizontal ? Offset(0, origin.dy) : Offset(origin.dx, 0);
         final finish = horizontal
@@ -836,7 +907,7 @@ class _BoardEffectPainter extends CustomPainter {
           }
         }
       }
-      for (final hit in cascade.sealHits) {
+      for (final hit in [...cascade.sealHits, ...cascade.blockerHits]) {
         final origin = center(hit.index);
         paint
           ..style = PaintingStyle.stroke

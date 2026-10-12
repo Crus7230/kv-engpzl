@@ -6,11 +6,14 @@ import '../domain/stage_recurrence_models.dart';
 import 'regional_campaign.dart';
 import 'r1_authored_campaign.dart';
 
-/// Active7-region,42-chapter,420-slot campaign with25 authored R1 alpha stages.
+/// Active 7-region, 42-chapter, 420-slot campaign with 120 authored R1/R2 stages.
 ///
 /// The regional blueprint stays untouched. The authored overlay promotes only
-/// content whose AST/support and both phone reference fixtures are verified.
-final CampaignDefinition initialCampaign = buildR1Campaign(regionalCampaign);
+/// authored AST/support with self-checking phone reference fixtures. New v3
+/// mechanics still need the regression run documented in R1_PUZZLE_PROGRESSION_V3.
+final CampaignDefinition initialCampaign = buildRenewalCampaign(
+  regionalCampaign,
+);
 
 /// Development tutorial, kept outside [initialCampaign] so its forced path and
 /// progress never stand in for independent regional learning evidence.

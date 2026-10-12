@@ -6,6 +6,7 @@ import '../domain/discovery_engine.dart';
 import '../domain/discovery_hint_solver.dart';
 import '../domain/discovery_models.dart';
 import '../domain/discovery_piece_source.dart';
+import 'renewed_discovery_fixture.dart';
 
 typedef DiscoverySwapInstruction = ({
   DiscoveryPosition from,
@@ -77,6 +78,19 @@ class AuthoredDiscoveryFixture {
       );
     }
 
+    if (variant.fixtureId.endsWith('-physics3')) {
+      final renewed = RenewedDiscoveryFixture.create(
+        stage: stage,
+        variant: variant,
+        tokenIds: tokenIds,
+        tokens: tokens,
+        gemKeys: gemKeys,
+      );
+      return AuthoredDiscoveryFixture._(
+        board: renewed.board,
+        referencePath: renewed.referencePath,
+      );
+    }
     if (stage.boardMechanicPlan.advancedMechanicIds.isNotEmpty) {
       return _createAdvanced(stage, puzzle, variant, tokenIds, tokens);
     }
