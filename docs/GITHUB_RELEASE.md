@@ -1,5 +1,27 @@
 # GitHub 공개 APK 배포 기록
 
+## v0.1.7 랜덤 발굴·복합 목표·촘촘한 보드
+
+2026-10-13 00:27:12 KST에 `v0.1.7-r1-alpha`를 공개했다. 랜덤 발굴 v5, 풀이 블록·퍼즐 목표·정답식의 완료 조건, 일반 6×6·후반 7×7과 힌트 닫기를 포함한다. 이전 APK 릴리즈 7개·이미지/음원 팩 2개와 Git 이력을 보존했다. [설치·변경·검증 안내](RELEASE_NOTES_0_1_7.md)를 참고한다.
+
+- Release: https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.7-r1-alpha
+- APK: https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.7-r1-alpha/KVM-R1-0.1.7-alpha.apk
+- 릴리즈 ID `410754811`, `draft=false`, `prerelease=true`, 단일 APK 50,930,839 bytes.
+- SHA256 `521a46ab35f9f5d30718c135972b0f92d1b91e5aadf3be5f2aad9365954af62f`.
+- 버전 `0.1.7+8`, 패키지 `com.crus7230.kvm.renewal`, v0.1.6과 같은 개발용 인증서, APK v2 서명.
+- 저장 epoch `expedition-1`, 이미지 팩 `r1-media-v3`와 음원 팩 `audio-v1` 유지. 기존 보드 크기·규칙·진행은 복원하고 신규 스테이지 세션만 v5·확대 보드를 사용한다.
+- 다운로드형 빌드 입력 `build/logic-only-source/20261013-001727-537`, 정상 `lib/main.dart` release 빌드. 원본과 빌드 소스 202개 SHA256이 같고 APK 미디어 0개·manifest 2개 해시가 일치한다.
+
+최종 `flutter analyze --no-pub` 진단 0개, 전체 Flutter 테스트 620개 통과·공개 JSON 검사 1개 조건부 제외였다. 새 보드 밀도 테스트 12개에서 마지막 칸 표시·실제 교환·글자 100%/130%를 검사했다. 테스트용 SemanticsHandle 정리와 480×270·글자 130%의 상단 난이도 overflow를 수정한 뒤 전체 테스트를 다시 실행했다. 실제 Flutter 캡처 24장도 새 밀도 기준으로 갱신했으나 이전 웹 JPG·실행 서버는 갱신하지 않았다.
+
+배포 checkout에서 원본 소스·에셋·문서 입력 271개의 SHA256을 비교하고, 공개 설치용 README만 별도로 갱신했다. 커밋 `f6d034e64f5ea658cc6e7eeea1cfa90e548742aa` (`Release KVM 0.1.7 with random excavation goals and denser boards`)와 같은 커밋의 태그를 atomic push했다. APK·캐시·로컬 SDK 설정·서명 비밀 파일이나 인증 정보는 커밋하지 않았다. 상위 저장소와 전역 Git 인증 설정은 변경하지 않았다.
+
+GitHub CLI가 초안 생성 후 임시 `untagged` URL을 반환했고 초안의 태그 조회는 404였다. 릴리즈 목록에서 생성된 초안 ID·APK 이름을 확인해 중복 생성 없이 정확한 ID로 처리했다. 첨부 한 개·digest·크기·버전 표식을 검증한 뒤 공개했다. 로그인 없는 공개 API와 실제 APK 다운로드는 HTTP 200이며 파일 SHA256이 빌드 원본과 일치한다.
+
+게시 후 실제 공개 JSON으로 `flutter test --no-pub test/core/updates/public_release_verification_test.dart --reporter expanded`를 실행해 1개 통과했다. installedCode 7에서 0.1.7/code 8을 선택하고 code 8에서는 중복 안내하지 않으며 에셋 릴리즈를 제외한다. 증거 JSON은 `build/deployment/public-verification/releases-v0.1.7.json`, 검사 로그는 `build/verification/public-release-0.1.7-tests.log`다.
+
+설치 파일·체크섬·build-info는 `build/deployment/artifacts`에 보관했다. 원본·과거 APK·에셋을 삭제하지 않았다. 실제 폰 업데이트 설치·터치·저장 복원·랜덤 보드 생성 시간·프레임 성능은 사용자 검증이 필요하다. 게시 후 검증 기록은 릴리즈 태그·APK를 변경하지 않는다.
+
 ## v0.1.6 오디오·햅틱·모험 캐릭터
 
 2026-10-12 이미지 팩 `media-r1-v3`와 음원 팩 `media-audio-v1`을 먼저 공개한 뒤, 22:55:15 KST에 `v0.1.6-r1-alpha`를 공개했다. 기존 여섯 APK 릴리즈와 Git 이력은 보존했다. [변경·설치·검증 안내](RELEASE_NOTES_0_1_6.md)를 참고한다.
