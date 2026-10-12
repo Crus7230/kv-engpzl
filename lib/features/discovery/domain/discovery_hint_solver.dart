@@ -73,6 +73,18 @@ class DiscoveryBoardHintSolver {
           final targets = turn.newlyDiscoveredTargets.where(
             (target) => turn.state.requiredTargetIds.contains(target.id),
           );
+          if (state.objectives.any(
+            (goal) =>
+                (state.objectiveProgress[goal.id] ?? 0) < goal.goal &&
+                (turn.state.objectiveProgress[goal.id] ?? 0) >
+                    (state.objectiveProgress[goal.id] ?? 0),
+          )) {
+            return DiscoveryHintSuggestion(
+              from: path.first.from,
+              to: path.first.to,
+              route: List.unmodifiable(path),
+            );
+          }
           final needsPower =
               state.linePowerActivations < state.requiredLinePowerActivations ||
               (state.requiredPowerKind != null &&

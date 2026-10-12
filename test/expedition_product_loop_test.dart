@@ -7,8 +7,6 @@ import 'package:kvm/app/math_adventure_app.dart';
 import 'package:kvm/features/campaign/data/initial_campaign.dart';
 import 'package:kvm/features/campaign/data/r1_authored_campaign.dart';
 import 'package:kvm/features/companions/companions.dart';
-import 'package:kvm/features/discovery/data/discovery_runtime_catalog.dart';
-import 'package:kvm/features/discovery/domain/discovery_models.dart';
 import 'package:kvm/features/discovery/presentation/discovery_puzzle_screen.dart';
 import 'package:kvm/features/discovery/presentation/stage_session_controller.dart';
 import 'package:kvm/features/garden/presentation/garden_screens.dart';
@@ -50,13 +48,7 @@ StageSessionController _session(WidgetTester tester) =>
         as StageSessionController;
 
 void _excavate(StageSessionController model) {
-  final variant = model.stage.boardVariants.variantFor(
-    DiscoveryBoardConfig(rows: model.boardRows, columns: model.boardColumns),
-  );
-  for (final swap
-      in discoveryRuntimeCatalog.resolve(model.stage).referencePathFor!(
-        variant,
-      )) {
+  for (final swap in model.referencePath) {
     model.selectGem(swap.from.row * model.boardColumns + swap.from.column);
     model.selectGem(swap.to.row * model.boardColumns + swap.to.column);
   }

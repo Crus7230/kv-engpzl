@@ -32,7 +32,8 @@ CompanionRecruitment? nextUnviewedCompanionArrival(
   for (final recruitment in companionRecruitmentPlan) {
     if ((regionId == null || recruitment.regionId == regionId) &&
         save.unlockedCharacterIds.contains(recruitment.characterId) &&
-        save.playerCharacterId != recruitment.characterId &&
+        (save.starterCharacterId ?? save.playerCharacterId) !=
+            recruitment.characterId &&
         isCompanionRecruitmentEligible(recruitment, save.completedStageIds) &&
         !save.viewedStoryIds.contains(recruitment.arrivalStoryId)) {
       return recruitment;
@@ -45,6 +46,21 @@ class CompanionProgressService {
   const CompanionProgressService(this.repository);
   final ProgressRepository repository;
 
+  Future<SaveEnvelopeV1> selectPlayer(String characterId) => repository.update((
+    save,
+  ) {
+    if (!save.onboardingCompleted ||
+        companionProfileById(characterId) == null ||
+        !save.unlockedCharacterIds.contains(characterId)) {
+      throw StateError('Only rescued companions can become the active player.');
+    }
+    if (save.playerCharacterId == characterId) return save;
+    return save.copyWith(
+      playerCharacterId: characterId,
+      starterCharacterId: save.starterCharacterId ?? save.playerCharacterId,
+    );
+  });
+
   /// Optional additive repair for an active save that missed a guaranteed unlock.
   /// This never mutates receipts, scores, restoration or learning state.
   Future<SaveEnvelopeV1> reconcileEligibility() => repository.update((save) {
@@ -56,23 +72,21 @@ class CompanionProgressService {
     return save.copyWith(unlockedCharacterIds: ids);
   });
 
-  Future<SaveEnvelopeV1> markArrivalViewed(String characterId) =>
-      repository.update((save) {
-        final recruitment = companionRecruitmentById(characterId);
-        if (recruitment == null ||
-            !save.unlockedCharacterIds.contains(characterId) ||
-            save.playerCharacterId == characterId ||
-            !isCompanionRecruitmentEligible(
-              recruitment,
-              save.completedStageIds,
-            )) {
-          throw StateError('This companion arrival is not yet available.');
-        }
-        if (save.viewedStoryIds.contains(recruitment.arrivalStoryId)) {
-          return save;
-        }
-        return save.copyWith(
-          viewedStoryIds: {...save.viewedStoryIds, recruitment.arrivalStoryId},
-        );
-      });
+  Future<SaveEnvelopeV1> markArrivalViewed(
+    String characterId,
+  ) => repository.update((save) {
+    final recruitment = companionRecruitmentById(characterId);
+    if (recruitment == null ||
+        !save.unlockedCharacterIds.contains(characterId) ||
+        (save.starterCharacterId ?? save.playerCharacterId) == characterId ||
+        !isCompanionRecruitmentEligible(recruitment, save.completedStageIds)) {
+      throw StateError('This companion arrival is not yet available.');
+    }
+    if (save.viewedStoryIds.contains(recruitment.arrivalStoryId)) {
+      return save;
+    }
+    return save.copyWith(
+      viewedStoryIds: {...save.viewedStoryIds, recruitment.arrivalStoryId},
+    );
+  });
 }

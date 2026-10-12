@@ -11,11 +11,13 @@ class StartupUpdateGate extends StatefulWidget {
   const StartupUpdateGate({
     required this.service,
     required this.child,
+    this.onReady,
     super.key,
   });
 
   final AppUpdateService service;
   final Widget child;
+  final VoidCallback? onReady;
 
   @override
   State<StartupUpdateGate> createState() => _StartupUpdateGateState();
@@ -49,6 +51,7 @@ class _StartupUpdateGateState extends State<StartupUpdateGate> {
         _release = release;
         _checking = false;
       });
+    if (mounted && release == null) widget.onReady?.call();
   }
 
   Future<void> _update() async {
@@ -125,7 +128,7 @@ class _StartupUpdateGateState extends State<StartupUpdateGate> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '전체 APK · ${(release.bytes / 1024 / 1024).toStringAsFixed(1)} MiB · 모바일 데이터가 사용될 수 있어요.',
+                    '앱 APK · ${(release.bytes / 1024 / 1024).toStringAsFixed(1)} MiB · 모바일 데이터가 사용될 수 있어요. 에셋 팩은 별도로 보관합니다.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 12),
@@ -151,7 +154,10 @@ class _StartupUpdateGateState extends State<StartupUpdateGate> {
                       TextButton(
                         onPressed: _working
                             ? null
-                            : () => setState(() => _release = null),
+                            : () {
+                                setState(() => _release = null);
+                                widget.onReady?.call();
+                              },
                         child: const Text('나중에 · 계속하기'),
                       ),
                     ],

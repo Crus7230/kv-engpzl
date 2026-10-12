@@ -1,5 +1,25 @@
 # GitHub 공개 APK 배포 기록
 
+## v0.1.5 R2 탐험과 확대된 지도
+
+2026-10-12 `Crus7230/kv-engpzl`에 `v0.1.5-r1-alpha`를 공개했다. R1·R2 120개와 단계별 특수 블록/방해 요소, 확대된 월드맵 및 플로팅 추천 버튼을 포함한 전체 APK 한 개를 제공한다. [변경 안내](RELEASE_NOTES_0_1_5.md)와 [빌드 단계 기록](LOCAL_BUILD_0_1_5.md)을 참고한다.
+
+- Release: https://github.com/Crus7230/kv-engpzl/releases/tag/v0.1.5-r1-alpha
+- APK: https://github.com/Crus7230/kv-engpzl/releases/download/v0.1.5-r1-alpha/KVM-R1-0.1.5-alpha.apk
+- 릴리즈 ID: `410359396`, `draft=false`, `prerelease=true`, 공개 시각 2026-10-12 17:18 KST.
+- 버전 `0.1.5+6`, 패키지 `com.crus7230.kvm.renewal`, 65,847,614 bytes, SHA256 `693873d06b87a3ef038eb4dcd902a8f19cce0801778d427dc718a885b10f22a3`.
+- 정상 `lib/main.dart` release 빌드이며 검증 리본·가상 진행은 제외한다. v0.1.4와 동일한 개발용 인증서와 APK v2 서명, `r1-media-v3` 이미지 31개를 확인했다.
+
+배포 전용 checkout에서 작업 소스 입력 226개의 SHA256을 비교했고, 공개용 README의 다운로드·진행 유지·R2 진입 안내는 별도로 갱신했다. 서명 파일·APK·캐시·로컬 SDK 설정과 인증 정보를 소스에 넣지 않았다. 커밋 `d03764aa21bedc39e93e0313bf17b66598df3d74` (`Release KVM 0.1.5 with R2 exploration and expanded world map`)와 같은 커밋을 가리키는 알파 태그를 atomic push했다. 기존 다섯 릴리즈와 Git 이력은 보존했다. 상위 C:\grus.py Git은 변경하지 않았다.
+
+Git credential helper가 이전 GitHub CLI 설치 경로를 가리켜 첫 push가 실패했다. 전역 설정이나 저장된 인증을 변경하지 않고 push 명령에만 현재 CLI 경로를 적용해 완료했다. 실패한 첫 명령은 원격 main·태그·릴리즈를 변경하지 않았다.
+
+초안의 APK 첨부 개수·이름·크기·digest와 기계 판독 표식을 검증한 뒤 공개했다. 로그인 없는 공개 릴리즈 목록과 APK 다운로드는 HTTP 200이며 다운로드 최종 호스트는 `release-assets.githubusercontent.com`이다. 실제 다운로드의 크기·SHA256이 빌드 원본과 일치한다.
+
+실제 공개 JSON으로 승인된 `flutter test --no-pub test/core/updates/public_release_verification_test.dart --reporter expanded`를 실행했다. 1개 통과이며 installedCode 5에서 0.1.5/code 6을 선택하고 installedCode 6에서는 같은 버전 안내를 제외한다. 증거 JSON은 `build/deployment/public-verification/releases-v0.1.5.json`, 로그는 `build/verification/public-release-0.1.5-tests.log`다. APK를 다시 빌드하거나 전체 테스트를 다시 실행하지 않았다.
+
+v0.1.4의 `expedition-1` 진행과 미디어 팩을 유지하고 새 초기화를 추가하지 않았다. R2는 R1 C03 S10 이후 열린다. 실제 휴대폰 설치·업데이트·강제 종료 복원·성능은 사용자 설치 테스트가 필요하다. 이 문단은 게시 후 로컬 유지보수 기록이며 이미 게시한 태그·APK를 변경하지 않는다.
+
 ## v0.1.4 탐험 시작 기준
 
 캐릭터 선택과 필수 첫 문제, R1 탐험 지도·동료 탭·합류를 묶어 `0.1.4+5` 전체 APK를 빌드했다. 배포 대상은 `Crus7230/kv-engpzl`, 태그는 `v0.1.4-r1-alpha`, 파일은 `KVM-R1-0.1.4-alpha.apk` 하나다. 이전 릴리스와 Git 이력은 보존한다.

@@ -13,7 +13,8 @@ if (-not $outputRoot.StartsWith($allowedRoot, [StringComparison]::OrdinalIgnoreC
 if (Test-Path -LiteralPath $outputRoot) { throw 'Destination already exists; nothing was overwritten.' }
 
 $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'assets\asset_manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-foreach ($entry in $manifest.assets) {
+$audioManifest = Get-Content -LiteralPath (Join-Path $projectRoot 'assets\audio_manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+foreach ($entry in @($manifest.assets) + @($audioManifest.assets)) {
     $source = Join-Path $projectRoot $entry.path
     if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $entry.sha256) {
         throw ('Asset hash mismatch: ' + $entry.path)
@@ -40,12 +41,14 @@ foreach ($name in @('pubspec.lock', 'analysis_options.yaml', '.metadata')) {
 }
 New-Item -ItemType Directory -Path (Join-Path $outputRoot 'assets') | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'assets\asset_manifest.json') -Destination (Join-Path $outputRoot 'assets\asset_manifest.json')
+Copy-Item -LiteralPath (Join-Path $projectRoot 'assets\audio_manifest.json') -Destination (Join-Path $outputRoot 'assets\audio_manifest.json')
 # Generated build-profile rewrite; the checked-in pubspec and media are untouched.
 $pubspec = Get-Content -LiteralPath (Join-Path $projectRoot 'pubspec.yaml') -Raw -Encoding UTF8
-$logicPubspec = [regex]::Replace($pubspec, '(?m)^    - assets/(legacy|expedition)/\r?\n', '')
+$logicPubspec = [regex]::Replace($pubspec, '(?m)^    - assets/(legacy|expedition|audio)/\r?\n', '')
 if ($logicPubspec -eq $pubspec) { throw 'Expected legacy asset declaration was not found.' }
 [IO.File]::WriteAllText((Join-Path $outputRoot 'pubspec.yaml'), $logicPubspec, [Text.UTF8Encoding]::new($false))
 Write-Output ('Logic-only source: ' + $outputRoot)
 Write-Output ('Excluded media bytes: ' + (($manifest.assets | Measure-Object -Property bytes -Sum).Sum))
+Write-Output ('Excluded audio bytes: ' + (($audioManifest.assets | Measure-Object -Property bytes -Sum).Sum))
 Write-Output 'No APK was built. Build this directory with the same applicationId/signing key and a higher versionCode.'
-Write-Output 'For first installation or cleared app data, use the full APK, not a logic-only update.'
+Write-Output 'For first installation or cleared app data, publish both media ZIPs first; the app requests a one-time download.'

@@ -21,6 +21,7 @@ class DiscoveryBoardConfig {
   static const compactPhone = DiscoveryBoardConfig(rows: 5, columns: 5);
   static const standardPhone = DiscoveryBoardConfig();
   static const widePhone = DiscoveryBoardConfig(columns: 7);
+  static const densePhone = DiscoveryBoardConfig(rows: 7, columns: 7);
 
   final int rows;
   final int columns;
@@ -56,6 +57,7 @@ class DiscoveryPiece {
     required this.label,
     required this.matchKey,
     this.linePower,
+    this.carriedTarget,
   }) : assert(id != ''),
        assert(label != ''),
        assert(matchKey != '');
@@ -102,12 +104,26 @@ class DiscoveryPiece {
   final String matchKey;
   final DiscoveryLinePower? linePower;
 
+  /// A falling equation fragment rides a normal matchable gem. It is awarded
+  /// only when that gem is cleared, never merely when it enters the board.
+  final DiscoveryPiece? carriedTarget;
+
+  DiscoveryPiece withCarriedTarget(DiscoveryPiece target) => DiscoveryPiece(
+    id: id,
+    kind: kind,
+    label: label,
+    matchKey: matchKey,
+    linePower: linePower,
+    carriedTarget: target,
+  );
+
   DiscoveryPiece withLinePower(DiscoveryLinePower direction) => DiscoveryPiece(
     id: '$id-power',
     kind: kind,
     label: label,
     matchKey: matchKey,
     linePower: direction,
+    carriedTarget: carriedTarget,
   );
 
   bool get isMathToken => kind != DiscoveryPieceKind.gem;
@@ -119,10 +135,12 @@ class DiscoveryPiece {
       kind == other.kind &&
       label == other.label &&
       matchKey == other.matchKey &&
-      linePower == other.linePower;
+      linePower == other.linePower &&
+      carriedTarget == other.carriedTarget;
 
   @override
-  int get hashCode => Object.hash(id, kind, label, matchKey, linePower);
+  int get hashCode =>
+      Object.hash(id, kind, label, matchKey, linePower, carriedTarget);
 
   @override
   String toString() => '$label<$id>';
@@ -134,6 +152,7 @@ class DiscoveryCell {
     this.buriedTarget,
     int? sealLayers,
     this.blockerLayers = 0,
+    this.iceLayers = 0,
   }) : sealLayers = sealLayers ?? (buriedTarget == null ? 0 : 1);
 
   final DiscoveryPiece? piece;
@@ -144,11 +163,16 @@ class DiscoveryCell {
   /// Adjacent matches and direct power hits damage it once per cascade.
   final int blockerLayers;
 
+  /// Ice anchors the gem and its fragment. Adjacent matches or power hits
+  /// break one layer per cascade; the last layer awards the hidden fragment.
+  final int iceLayers;
+
   DiscoveryCell withPiece(DiscoveryPiece? value) => DiscoveryCell(
     piece: value,
     buriedTarget: buriedTarget,
     sealLayers: sealLayers,
     blockerLayers: blockerLayers,
+    iceLayers: iceLayers,
   );
 
   DiscoveryCell withoutBuriedTarget() =>
@@ -162,6 +186,7 @@ class DiscoveryBoard {
     Map<DiscoveryPosition, DiscoveryPiece> buriedTargets = const {},
     Map<DiscoveryPosition, int> sealLayers = const {},
     Map<DiscoveryPosition, int> blockerLayers = const {},
+    Map<DiscoveryPosition, int> iceLayers = const {},
   }) {
     final cells = <List<DiscoveryCell>>[
       for (var row = 0; row < rows.length; row += 1)
@@ -172,6 +197,7 @@ class DiscoveryBoard {
               buriedTarget: buriedTargets[DiscoveryPosition(row, column)],
               sealLayers: sealLayers[DiscoveryPosition(row, column)],
               blockerLayers: blockerLayers[DiscoveryPosition(row, column)] ?? 0,
+              iceLayers: iceLayers[DiscoveryPosition(row, column)] ?? 0,
             ),
         ],
     ];
@@ -205,6 +231,26 @@ class DiscoveryBoard {
 
     for (final row in cells) {
       for (final cell in row) {
+        if (cell.iceLayers < 0 ||
+            cell.iceLayers > 0 &&
+                (cell.piece == null ||
+                    cell.buriedTarget == null ||
+                    cell.blockerLayers > 0 ||
+                    cell.piece!.linePower != null ||
+                    cell.piece!.carriedTarget != null)) {
+          throw ArgumentError(
+            'Ice needs one hidden fragment and an ordinary gem.',
+          );
+        }
+        if (cell.piece?.carriedTarget case final target?) {
+          if (cell.piece!.kind != DiscoveryPieceKind.gem ||
+              !target.isMathToken ||
+              target.carriedTarget != null) {
+            throw ArgumentError(
+              'A fragment must ride a gem and cannot contain another fragment.',
+            );
+          }
+        }
         if (cell.blockerLayers < 0 ||
             cell.blockerLayers > 0 && cell.piece == null) {
           throw ArgumentError(
@@ -259,9 +305,11 @@ class DiscoveryBoard {
   bool canSwapAt(DiscoveryPosition position) =>
       contains(position) &&
       cellAt(position).blockerLayers == 0 &&
+      cellAt(position).iceLayers == 0 &&
       pieceAt(position) != null;
   String? matchKeyAt(DiscoveryPosition position) =>
       cellAt(position).blockerLayers > 0 ||
+          cellAt(position).iceLayers > 0 ||
           pieceAt(position)?.linePower == DiscoveryLinePower.color
       ? null
       : pieceAt(position)?.matchKey;
@@ -344,6 +392,40 @@ class DiscoveryBlockerHit {
   final int layersAfter;
 }
 
+enum DiscoveryObjectiveKind { color, ice, blockers, moves }
+
+class DiscoveryObjective {
+  const DiscoveryObjective({
+    required this.id,
+    required this.label,
+    required this.kind,
+    required this.goal,
+    this.matchKey,
+    this.rewardTarget,
+  });
+  final String id;
+  final String label;
+  final DiscoveryObjectiveKind kind;
+  final int goal;
+  final String? matchKey;
+
+  /// Optional fragment awarded when this objective is completed.
+  final DiscoveryPiece? rewardTarget;
+}
+
+class DiscoveryTargetDrop {
+  const DiscoveryTargetDrop({
+    required this.target,
+    this.afterMoves = 2,
+    this.column,
+    this.requiredObjectiveIds = const {},
+  });
+  final DiscoveryPiece target;
+  final int afterMoves;
+  final int? column;
+  final Set<String> requiredObjectiveIds;
+}
+
 class DiscoveryCascadeStep {
   DiscoveryCascadeStep({
     required this.index,
@@ -356,12 +438,14 @@ class DiscoveryCascadeStep {
     Iterable<DiscoveryPowerEvent> createdPowers = const [],
     Iterable<DiscoveryPowerEvent> activatedPowers = const [],
     Iterable<DiscoveryBlockerHit> blockerHits = const [],
+    Iterable<DiscoverySealHit> iceHits = const [],
   }) : clearedPieces = List.unmodifiable(clearedPieces),
        discoveredTargets = List.unmodifiable(discoveredTargets),
        sealHits = List.unmodifiable(sealHits),
        createdPowers = List.unmodifiable(createdPowers),
        activatedPowers = List.unmodifiable(activatedPowers),
-       blockerHits = List.unmodifiable(blockerHits);
+       blockerHits = List.unmodifiable(blockerHits),
+       iceHits = List.unmodifiable(iceHits);
 
   final int index;
   final List<DiscoveryClearedPiece> clearedPieces;
@@ -373,6 +457,7 @@ class DiscoveryCascadeStep {
   final List<DiscoveryPowerEvent> createdPowers;
   final List<DiscoveryPowerEvent> activatedPowers;
   final List<DiscoveryBlockerHit> blockerHits;
+  final List<DiscoverySealHit> iceHits;
 }
 
 enum DiscoverySwapStatus {
@@ -400,9 +485,19 @@ class DiscoveryGameState {
     this.requiredCombinationActivations = 0,
     this.blockersCleared = 0,
     this.requiredBlockerClears = 0,
+    Iterable<DiscoveryObjective> objectives = const [],
+    Map<String, int> objectiveProgress = const {},
+    Map<String, int> clearedByColor = const {},
+    Iterable<DiscoveryTargetDrop> pendingDrops = const [],
+    this.acceptedMoves = 0,
+    this.iceCleared = 0,
   }) : requiredTargetIds = Set.unmodifiable(requiredTargetIds),
        collectedTargets = List.unmodifiable(collectedTargets),
-       powerActivations = Map.unmodifiable(powerActivations);
+       powerActivations = Map.unmodifiable(powerActivations),
+       objectives = List.unmodifiable(objectives),
+       objectiveProgress = Map.unmodifiable(objectiveProgress),
+       clearedByColor = Map.unmodifiable(clearedByColor),
+       pendingDrops = List.unmodifiable(pendingDrops);
 
   final DiscoveryBoard board;
   final int movesRemaining;
@@ -420,6 +515,12 @@ class DiscoveryGameState {
   final int requiredCombinationActivations;
   final int blockersCleared;
   final int requiredBlockerClears;
+  final List<DiscoveryObjective> objectives;
+  final Map<String, int> objectiveProgress;
+  final Map<String, int> clearedByColor;
+  final List<DiscoveryTargetDrop> pendingDrops;
+  final int acceptedMoves;
+  final int iceCleared;
 
   bool get isCompleted =>
       requiredTargetIds.every(collectedTargetIds.contains) &&
@@ -427,7 +528,10 @@ class DiscoveryGameState {
       (requiredPowerKind == null ||
           (powerActivations[requiredPowerKind] ?? 0) >= 1) &&
       combinationActivations >= requiredCombinationActivations &&
-      blockersCleared >= requiredBlockerClears;
+      blockersCleared >= requiredBlockerClears &&
+      objectives.every(
+        (goal) => (objectiveProgress[goal.id] ?? 0) >= goal.goal,
+      );
 
   bool get isOutOfMoves => !isCompleted && movesRemaining == 0;
 

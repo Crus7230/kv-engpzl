@@ -46,6 +46,22 @@ abstract interface class DiscoveryCompletionHandler {
   void continueToResult();
 }
 
+abstract interface class DiscoveryObjectiveSource {
+  List<DiscoveryObjectiveStatus> get discoveryObjectives;
+}
+
+class DiscoveryObjectiveStatus {
+  const DiscoveryObjectiveStatus({
+    required this.label,
+    required this.current,
+    required this.goal,
+  });
+  final String label;
+  final int current;
+  final int goal;
+  bool get isCompleted => current >= goal;
+}
+
 enum DiscoveryGemKind { berry, ocean, citrus, grape, leaf, sun }
 
 enum DiscoveryLinePowerKind { row, column, burst, color }
@@ -58,6 +74,8 @@ class DiscoveryGemCell {
     this.sealLayers = 0,
     this.linePowerKind,
     this.blockerLayers = 0,
+    this.iceLayers = 0,
+    this.fragmentLabel,
   });
 
   final String id;
@@ -66,6 +84,8 @@ class DiscoveryGemCell {
   final int sealLayers;
   final DiscoveryLinePowerKind? linePowerKind;
   final int blockerLayers;
+  final int iceLayers;
+  final String? fragmentLabel;
 }
 
 enum DiscoverySealKind { number, operatorSymbol, parenthesis }

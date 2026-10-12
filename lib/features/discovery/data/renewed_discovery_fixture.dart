@@ -5,6 +5,7 @@ import '../domain/discovery_engine.dart';
 import '../domain/discovery_hint_solver.dart';
 import '../domain/discovery_models.dart';
 import '../domain/discovery_piece_source.dart';
+import 'discovery_excavation_profile.dart';
 
 typedef _Instruction = ({
   DiscoveryPosition from,
@@ -15,9 +16,16 @@ typedef _Instruction = ({
 /// v3 fixtures are self-checking at construction. This is not a substitute for
 /// executing the regression suite or calibrating with family/device play.
 class RenewedDiscoveryFixture {
-  const RenewedDiscoveryFixture(this.board, this.referencePath);
+  const RenewedDiscoveryFixture(
+    this.board,
+    this.referencePath, {
+    this.objectives = const [],
+    this.targetDrops = const [],
+  });
   final DiscoveryBoard board;
   final List<_Instruction> referencePath;
+  final List<DiscoveryObjective> objectives;
+  final List<DiscoveryTargetDrop> targetDrops;
 
   static RenewedDiscoveryFixture create({
     required StageDefinition stage,
@@ -25,11 +33,61 @@ class RenewedDiscoveryFixture {
     required List<String> tokenIds,
     required Map<String, EquationToken> tokens,
     required List<String> gemKeys,
+    DiscoveryExcavationProfile profile = const DiscoveryExcavationProfile(),
   }) {
     final rules = stage.boardMechanicPlan.bindings.map((b) => b.rule);
     final power = rules.whereType<LinePowerRule>().firstOrNull;
     final blocker = rules.whereType<AdjacentHitBlockerRule>().firstOrNull;
     final layers = rules.whereType<LayeredSealRule>().firstOrNull?.layers ?? 1;
+    DiscoveryPiece targetFor(String id) {
+      final token = tokens[id]!;
+      return switch (token.kind) {
+        EquationTokenKind.number => DiscoveryPiece.numberToken(
+          id: id,
+          label: token.label,
+        ),
+        EquationTokenKind.operator => DiscoveryPiece.operatorToken(
+          id: id,
+          label: token.label,
+        ),
+        _ => DiscoveryPiece.parenthesisToken(id: id, label: token.label),
+      };
+    }
+
+    final remainingIds = List<String>.of(tokenIds);
+    final reward = profile.colorGoals.isEmpty
+        ? null
+        : targetFor(remainingIds.removeLast());
+    final drops = <DiscoveryTargetDrop>[
+      if (profile.falling && remainingIds.length > (profile.ice ? 1 : 0))
+        DiscoveryTargetDrop(
+          target: targetFor(remainingIds.removeLast()),
+          afterMoves: 2,
+        ),
+    ];
+    final iceId = profile.ice && remainingIds.isNotEmpty
+        ? remainingIds.removeAt(0)
+        : null;
+    final objectives = <DiscoveryObjective>[
+      if (iceId != null)
+        const DiscoveryObjective(
+          id: 'ice',
+          label: '얼음 깨기',
+          kind: DiscoveryObjectiveKind.ice,
+          goal: 1,
+        ),
+      for (final entry in profile.colorGoals.entries)
+        DiscoveryObjective(
+          id: 'color-${entry.key}',
+          label: entry.key == 'B' ? '파란 보석' : '초록 보석',
+          kind: DiscoveryObjectiveKind.color,
+          goal: entry.value,
+          matchKey: entry.key,
+          rewardTarget: entry.key == profile.colorGoals.keys.first
+              ? reward
+              : null,
+        ),
+    ];
     final blockerPositions = [
       const DiscoveryPosition(1, 1),
       const DiscoveryPosition(3, 3),
@@ -37,7 +95,11 @@ class RenewedDiscoveryFixture {
     ];
     DiscoveryEngine engine(DiscoveryBoard board) => DiscoveryEngine(
       initialBoard: board,
-      requiredTargetIds: board.buriedTargets.map((p) => p.id),
+      requiredTargetIds: [
+        ...board.buriedTargets.map((p) => p.id),
+        ...drops.map((drop) => drop.target.id),
+        if (reward != null) reward.id,
+      ],
       moves: stage.moveLimit,
       enableLinePowers: power != null,
       enableBurstPowers: power?.enableBurst ?? false,
@@ -54,6 +116,8 @@ class RenewedDiscoveryFixture {
           power?.lesson == BoardPowerLesson.combination ? 1 : 0,
       requiredBlockerClears: blocker?.blockerCount ?? 0,
       refillSource: SeededGemPieceSource(seed: variant.seed, gemKeys: gemKeys),
+      objectives: objectives,
+      targetDrops: drops,
     );
     for (var attempt = 0; attempt < 64; attempt++) {
       final random = _FixtureRandom(variant.seed ^ (attempt * 0x45d9f3b));
@@ -134,6 +198,10 @@ class RenewedDiscoveryFixture {
         for (final p in blockerPositions.take(blocker?.blockerCount ?? 0))
           p: blocker!.durability,
       };
+      final icePosition = iceId == null
+          ? null
+          : DiscoveryPosition(2, variant.config.columns - 2);
+      final ice = {if (icePosition != null) icePosition: 1};
       final searchTargets = {
         for (var r = 0; r < variant.config.rows; r++)
           for (var c = 0; c < variant.config.columns; c++)
@@ -149,12 +217,14 @@ class RenewedDiscoveryFixture {
         buriedTargets: searchTargets,
         sealLayers: {for (final p in searchTargets.keys) p: 1000},
         blockerLayers: covers,
+        iceLayers: ice,
       );
       final path = <DiscoverySwapPair>[];
       final hitCounts = <DiscoveryPosition, int>{};
       final firstTurnHits = <DiscoveryPosition, int>{};
       final teachPartialLayer =
           layers == 2 &&
+          remainingIds.isNotEmpty &&
           (stage.boardMechanicPlan.role == BoardMechanicRole.introduce ||
               stage.boardMechanicPlan.learningSourceStageId != null &&
                   power == null &&
@@ -205,7 +275,22 @@ class RenewedDiscoveryFixture {
               turn.state.combinationActivations * 100000 +
               turn.state.blockersCleared * 20000 +
               counts.values.where((n) => n >= layers).length * 100 +
-              counts.values.fold<int>(0, (a, b) => a + b);
+              counts.values.fold<int>(0, (a, b) => a + b) +
+              turn.state.iceCleared * 200000 +
+              turn.state.collectedTargetIds
+                      .where((id) => tokenIds.contains(id))
+                      .length *
+                  300000 +
+              turn.state.objectives.fold<int>(
+                0,
+                (total, objective) =>
+                    total +
+                    (turn.state.objectiveProgress[objective.id] ?? 0).clamp(
+                          0,
+                          objective.goal,
+                        ) *
+                        4000,
+              );
           if (score > bestScore) {
             bestScore = score;
             best = move;
@@ -220,7 +305,12 @@ class RenewedDiscoveryFixture {
         }
         if (step == 0) firstTurnHits.addAll(hitCounts);
         final ready = hitCounts.entries
-            .where((e) => e.value >= layers && !covers.containsKey(e.key))
+            .where(
+              (e) =>
+                  e.value >= layers &&
+                  !covers.containsKey(e.key) &&
+                  e.key != icePosition,
+            )
             .map((e) => e.key)
             .toList();
         final state = bestTurn.state;
@@ -228,7 +318,14 @@ class RenewedDiscoveryFixture {
             .where((p) => firstTurnHits[p] == 1)
             .toList();
         if (teachPartialLayer && partialCandidates.isEmpty) continue;
-        if (ready.length < tokenIds.length ||
+        if (ready.length < remainingIds.length ||
+            iceId != null && state.iceCleared == 0 ||
+            drops.any(
+              (drop) => !state.collectedTargetIds.contains(drop.target.id),
+            ) ||
+            state.objectives.any(
+              (o) => (state.objectiveProgress[o.id] ?? 0) < o.goal,
+            ) ||
             state.linePowerActivations < state.requiredLinePowerActivations ||
             state.requiredPowerKind != null &&
                 (state.powerActivations[state.requiredPowerKind] ?? 0) < 1 ||
@@ -237,7 +334,7 @@ class RenewedDiscoveryFixture {
             state.blockersCleared < state.requiredBlockerClears)
           continue;
         final targets = <DiscoveryPosition, DiscoveryPiece>{};
-        for (final id in tokenIds) {
+        for (final id in remainingIds) {
           final position = teachPartialLayer && targets.isEmpty
               ? partialCandidates[random.next(partialCandidates.length)]
               : ready[random.next(ready.length)];
@@ -255,12 +352,14 @@ class RenewedDiscoveryFixture {
             _ => DiscoveryPiece.parenthesisToken(id: id, label: token.label),
           };
         }
+        if (icePosition != null) targets[icePosition] = targetFor(iceId!);
         final board = DiscoveryBoard.fromRows(
           rows,
           config: variant.config,
           buriedTargets: targets,
           sealLayers: {for (final p in targets.keys) p: layers},
           blockerLayers: covers,
+          iceLayers: ice,
         );
         final actual = engine(board);
         final instructions = <_Instruction>[];
@@ -279,6 +378,8 @@ class RenewedDiscoveryFixture {
           return RenewedDiscoveryFixture(
             board,
             List.unmodifiable(instructions),
+            objectives: List.unmodifiable(objectives),
+            targetDrops: List.unmodifiable(drops),
           );
       }
     }

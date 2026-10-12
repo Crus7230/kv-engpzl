@@ -15,12 +15,14 @@ class DiscoveryMotionCell {
     required this.sealKind,
     required this.sealLayers,
     this.blockerLayers = 0,
+    this.iceLayers = 0,
   });
 
   final DiscoveryGemCell? gem;
   final DiscoverySealKind? sealKind;
   final int sealLayers;
   final int blockerLayers;
+  final int iceLayers;
 }
 
 class DiscoveryMotionSealHit {

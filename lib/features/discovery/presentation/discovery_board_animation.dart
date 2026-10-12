@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/audio/audio_scope.dart';
+import '../../../core/audio/audio_settings.dart';
 import 'discovery_board_motion.dart';
 import 'discovery_puzzle_view_model.dart';
 
@@ -101,7 +103,7 @@ class DiscoveryAnimatedGemBoard extends StatefulWidget {
 }
 
 class _DiscoveryAnimatedGemBoardState extends State<DiscoveryAnimatedGemBoard>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller;
   int _seenRevision = 0;
   bool _disableAnimations = false;
@@ -110,12 +112,15 @@ class _DiscoveryAnimatedGemBoardState extends State<DiscoveryAnimatedGemBoard>
   int _durationMilliseconds = 0;
   final Set<String> _revealedIds = {};
   Object? _playbackOwner;
+  final Set<int> _soundedPhases = {};
+  bool _skipTurnSounds = false;
 
   bool get _playing => _phases.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(vsync: this)
       ..addListener(_revealArrivals)
       ..addStatusListener(_onStatus);
@@ -157,7 +162,22 @@ class _DiscoveryAnimatedGemBoardState extends State<DiscoveryAnimatedGemBoard>
     _seenRevision = source.boardMotionRevision;
     _cancel();
     final turn = source.boardTurnMotion;
-    if (turn == null || _disableAnimations || !mounted) return;
+    if (turn == null || !mounted) return;
+    _skipTurnSounds = false;
+    _soundedPhases.clear();
+    if (_disableAnimations) {
+      AudioScope.play(context, PuzzleSound.swap);
+      if (turn.cascades.isNotEmpty)
+        AudioScope.play(
+          context,
+          turn.cascades.any((cascade) => cascade.activatedPowers.isNotEmpty)
+              ? PuzzleSound.special
+              : PuzzleSound.pop,
+        );
+      if (turn.cascades.any((cascade) => cascade.discoveries.isNotEmpty))
+        AudioScope.maybeOf(context)?.haptic(PuzzleHaptic.fragment);
+      return;
+    }
     final timeline = discoveryMotionTimeline(turn, columns: widget.columns);
     _phases = timeline.phases;
     _discoveryWindows = timeline.discoveries;
@@ -167,20 +187,50 @@ class _DiscoveryAnimatedGemBoardState extends State<DiscoveryAnimatedGemBoard>
     widget.lock.begin(turn, _playbackOwner!);
     _controller.duration = Duration(milliseconds: _durationMilliseconds);
     _controller.forward(from: 0);
+    _soundPhases(0);
     setState(() {});
   }
 
   void _revealArrivals() {
     if (!_playing) return;
     final elapsed = _controller.value * _durationMilliseconds;
+    _soundPhases(elapsed);
     for (final window in _discoveryWindows) {
       if (elapsed < window.end.inMilliseconds) continue;
       final arrivals = <String>[
         for (final discovery in window.cascade.discoveries)
           if (_revealedIds.add(discovery.block.id)) discovery.block.id,
       ];
-      if (arrivals.isNotEmpty) widget.lock.reveal(arrivals, _playbackOwner!);
+      if (arrivals.isNotEmpty) {
+        widget.lock.reveal(arrivals, _playbackOwner!);
+        if (!_skipTurnSounds)
+          AudioScope.maybeOf(context)?.haptic(PuzzleHaptic.fragment);
+      }
     }
+  }
+
+  void _soundPhases(double elapsed) {
+    var start = 0;
+    PuzzleSound? cue;
+    for (var i = 0; i < _phases.length; i++) {
+      final phase = _phases[i];
+      if (elapsed >= start && _soundedPhases.add(i)) {
+        cue = switch (phase.kind) {
+          DiscoveryMotionPhaseKind.swap => PuzzleSound.swap,
+          DiscoveryMotionPhaseKind.powerSweep => PuzzleSound.special,
+          DiscoveryMotionPhaseKind.clear => PuzzleSound.pop,
+          _ => cue,
+        };
+      }
+      start += phase.duration.inMilliseconds;
+    }
+    // A skipped frame emits at most one cue, never a burst of stale sounds.
+    if (cue != null && !_skipTurnSounds) AudioScope.play(context, cue);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _skipTurnSounds = true;
   }
 
   void _onStatus(AnimationStatus status) {
@@ -203,6 +253,7 @@ class _DiscoveryAnimatedGemBoardState extends State<DiscoveryAnimatedGemBoard>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.viewModel.removeListener(_onModelChange);
     _cancel(deferNotification: true);
     _controller.dispose();
@@ -417,7 +468,7 @@ class _MotionFrame extends StatelessWidget {
                   ),
                 ),
             for (var index = 0; index < seals.length; index++)
-              if (seals[index].sealKind != null)
+              if (seals[index].sealKind != null && seals[index].iceLayers == 0)
                 Positioned(
                   left: point(index).dx,
                   top: point(index).dy,

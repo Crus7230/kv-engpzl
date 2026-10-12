@@ -34,6 +34,8 @@ class DiscoveryStageRuntime {
     this.requiredPowerKind,
     this.requiredCombinationActivations = 0,
     this.requiredBlockerClears = 0,
+    this.objectivesFor,
+    this.targetDropsFor,
   });
 
   final Puzzle puzzle;
@@ -49,6 +51,10 @@ class DiscoveryStageRuntime {
   final DiscoveryLinePower? requiredPowerKind;
   final int requiredCombinationActivations;
   final int requiredBlockerClears;
+  final List<DiscoveryObjective> Function(BoardLayoutVariant variant)?
+  objectivesFor;
+  final List<DiscoveryTargetDrop> Function(BoardLayoutVariant variant)?
+  targetDropsFor;
 
   /// Verification/manual-play route. Unlike [tutorialSteps], this never
   /// restricts swaps or supplies an unsolicited direct-path hint.
@@ -110,6 +116,15 @@ final discoveryRuntimeCatalog = DiscoveryRuntimeCatalog({
       stage.id: _authoredRuntime(stage, authoredPuzzlesByStageId[stage.id]!),
 });
 
+/// V4 delivery data is selected by its excavation fixture variant; v3 stays
+/// registered separately for exact saved-board replay.
+final excavationDiscoveryRuntimeCatalog = DiscoveryRuntimeCatalog({
+  verticalSliceStage.id: discoveryRuntimeCatalog.resolve(verticalSliceStage),
+  for (final stage in initialCampaign.stages)
+    if (authoredPuzzlesByStageId.containsKey(stage.id))
+      stage.id: _authoredRuntime(stage, authoredPuzzlesByStageId[stage.id]!),
+});
+
 /// Checkpoints without a rules version replay the original authored fixtures.
 final legacyDiscoveryRuntimeCatalog = DiscoveryRuntimeCatalog({
   verticalSliceStage.id: discoveryRuntimeCatalog.resolve(verticalSliceStage),
@@ -157,6 +172,8 @@ DiscoveryStageRuntime _authoredRuntime(StageDefinition stage, Puzzle puzzle) {
         power?.lesson == BoardPowerLesson.combination ? 1 : 0,
     requiredBlockerClears: blocker?.blockerCount ?? 0,
     buildBoard: (variant) => fixture(variant).board,
+    objectivesFor: (variant) => fixture(variant).objectives,
+    targetDropsFor: (variant) => fixture(variant).targetDrops,
     refillPieces: (_) => const [],
     referencePathFor: (variant) => fixture(variant).referencePath,
     suggestSwapFor: (variant, acceptedSwaps) =>
@@ -177,6 +194,8 @@ DiscoveryStageRuntime _authoredRuntime(StageDefinition stage, Puzzle puzzle) {
               requiredCombinationActivations:
                   power?.lesson == BoardPowerLesson.combination ? 1 : 0,
               requiredBlockerClears: blocker?.blockerCount ?? 0,
+              objectives: fixture(variant).objectives,
+              targetDrops: fixture(variant).targetDrops,
               refillSource: SeededGemPieceSource(
                 seed: variant.seed,
                 idPrefix: '${stage.id}-${variant.fixtureId}-refill',

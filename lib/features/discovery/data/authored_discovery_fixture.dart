@@ -7,6 +7,7 @@ import '../domain/discovery_hint_solver.dart';
 import '../domain/discovery_models.dart';
 import '../domain/discovery_piece_source.dart';
 import 'renewed_discovery_fixture.dart';
+import 'discovery_excavation_profile.dart';
 
 typedef DiscoverySwapInstruction = ({
   DiscoveryPosition from,
@@ -33,12 +34,16 @@ class AuthoredDiscoveryFixture {
   AuthoredDiscoveryFixture._({
     required this.board,
     required this.referencePath,
+    this.objectives = const [],
+    this.targetDrops = const [],
   });
 
   static const gemKeys = ['A', 'B', 'C', 'D', 'E'];
 
   final DiscoveryBoard board;
   final List<DiscoverySwapInstruction> referencePath;
+  final List<DiscoveryObjective> objectives;
+  final List<DiscoveryTargetDrop> targetDrops;
 
   factory AuthoredDiscoveryFixture.create({
     required StageDefinition stage,
@@ -46,8 +51,11 @@ class AuthoredDiscoveryFixture {
     required BoardLayoutVariant variant,
   }) {
     final config = variant.config;
-    if (!((config.rows == 5 && config.columns == 5) ||
-        (config.rows == 6 && config.columns == 6))) {
+    final excavation = variant.fixtureId.endsWith('-excavation4');
+    if (!(config.rows == config.columns &&
+        (config.rows == 5 ||
+            config.rows == 6 ||
+            excavation && config.rows == 7))) {
       throw ArgumentError('Authored R1 fixtures support only 5x5 and 6x6.');
     }
     if (stage.puzzleId != puzzle.id ||
@@ -78,17 +86,22 @@ class AuthoredDiscoveryFixture {
       );
     }
 
-    if (variant.fixtureId.endsWith('-physics3')) {
+    if (variant.fixtureId.endsWith('-physics3') || excavation) {
       final renewed = RenewedDiscoveryFixture.create(
         stage: stage,
         variant: variant,
         tokenIds: tokenIds,
         tokens: tokens,
         gemKeys: gemKeys,
+        profile: excavation
+            ? DiscoveryExcavationProfile.forStage(stage)
+            : const DiscoveryExcavationProfile(),
       );
       return AuthoredDiscoveryFixture._(
         board: renewed.board,
         referencePath: renewed.referencePath,
+        objectives: renewed.objectives,
+        targetDrops: renewed.targetDrops,
       );
     }
     if (stage.boardMechanicPlan.advancedMechanicIds.isNotEmpty) {

@@ -72,7 +72,7 @@ class WorldMapScreen extends StatelessWidget {
           ),
         IconButton(
           onPressed: onSettings,
-          tooltip: '접근성 및 저장 설정',
+                    tooltip: '음악·효과음 및 접근성 설정',
           icon: const Icon(Icons.tune_rounded, size: 22),
         ),
       ],

@@ -5,7 +5,6 @@ import 'package:kvm/app/math_adventure_app.dart';
 import 'package:kvm/features/campaign/data/initial_campaign.dart';
 import 'package:kvm/features/discovery/data/authored_discovery_fixture.dart';
 import 'package:kvm/features/discovery/data/discovery_runtime_catalog.dart';
-import 'package:kvm/features/discovery/domain/discovery_models.dart';
 import 'package:kvm/features/discovery/presentation/discovery_puzzle_screen.dart';
 import 'package:kvm/features/discovery/presentation/stage_session_controller.dart';
 import 'package:kvm/features/exploration/presentation/r1_expedition_screen.dart';
@@ -88,14 +87,7 @@ void main() {
       await tester.pumpAndSettle();
       final gateSession = _session(tester);
       final gateRuntime = discoveryRuntimeCatalog.resolve(gateSession.stage);
-      final gateVariant = gateSession.stage.boardVariants.variantFor(
-        DiscoveryBoardConfig(
-          rows: gateSession.boardRows,
-          columns: gateSession.boardColumns,
-        ),
-      );
-      for (final step in gateRuntime.referencePathFor!(gateVariant))
-        _swap(gateSession, step);
+      for (final step in gateSession.referencePath) _swap(gateSession, step);
       for (final token in gateRuntime.puzzle.tokens)
         gateSession.addBlockToAnswer(token.id);
       gateSession.checkAnswer();
@@ -134,14 +126,8 @@ void main() {
       await tester.tap(find.text('탐험 시작하기'));
       await tester.pumpAndSettle();
       final original = _session(tester);
-      final variant = original.stage.boardVariants.variantFor(
-        DiscoveryBoardConfig(
-          rows: original.boardRows,
-          columns: original.boardColumns,
-        ),
-      );
       final runtime = discoveryRuntimeCatalog.resolve(original.stage);
-      final path = runtime.referencePathFor!(variant);
+      final path = original.referencePath;
       _swap(original, path.first);
       original.addBlockToAnswer(runtime.puzzle.tokens.first.id);
       await original.checkpoint();
@@ -185,14 +171,7 @@ void main() {
       await tester.pumpAndSettle();
       final second = _session(tester);
       final secondRuntime = discoveryRuntimeCatalog.resolve(second.stage);
-      final secondVariant = second.stage.boardVariants.variantFor(
-        DiscoveryBoardConfig(
-          rows: second.boardRows,
-          columns: second.boardColumns,
-        ),
-      );
-      for (final step in secondRuntime.referencePathFor!(secondVariant))
-        _swap(second, step);
+      for (final step in second.referencePath) _swap(second, step);
       for (final token in secondRuntime.puzzle.tokens)
         second.addBlockToAnswer(token.id);
       second.checkAnswer();

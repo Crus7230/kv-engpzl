@@ -72,8 +72,8 @@ class AppUpdateRelease {
                   asset['state'] == 'uploaded',
             )
             .toList();
-        // Never choose a logic-only APK or an ambiguous asset set for a device
-        // that may not have seeded its media pack yet.
+        // Select only the single distributable APK. A download-ready build has
+        // a first-install media gate; legacy update-only artifacts use other names.
         if (matching.length != 1) continue;
         final asset = matching.single;
         final size = asset['size'];

@@ -16,10 +16,22 @@ class DiscoveryEngine {
     this.requiredPowerKind,
     this.requiredCombinationActivations = 0,
     this.requiredBlockerClears = 0,
+    Iterable<DiscoveryObjective> objectives = const [],
+    Iterable<DiscoveryTargetDrop> targetDrops = const [],
   }) : _board = initialBoard,
        _requiredTargetIds = Set.unmodifiable(requiredTargetIds),
        _movesRemaining = moves,
-       _refillSource = refillSource {
+       _refillSource = refillSource,
+       _objectives = List.unmodifiable(objectives),
+       _pendingDrops = [
+         for (final drop in targetDrops)
+           DiscoveryTargetDrop(
+             target: drop.target,
+             afterMoves: drop.afterMoves,
+             column: drop.column,
+             requiredObjectiveIds: Set.unmodifiable(drop.requiredObjectiveIds),
+           ),
+       ] {
     if (moves < 0) {
       throw ArgumentError.value(moves, 'moves', 'Must not be negative.');
     }
@@ -67,7 +79,52 @@ class DiscoveryEngine {
     _ensureUniqueVisibleIds(initialBoard);
 
     final buriedById = <String, DiscoveryPiece>{};
-    for (final target in initialBoard.buriedTargets) {
+    final objectiveIds = <String>{};
+    for (final objective in _objectives) {
+      if (objective.id.isEmpty ||
+          !objectiveIds.add(objective.id) ||
+          objective.goal <= 0 ||
+          objective.label.isEmpty ||
+          (objective.kind == DiscoveryObjectiveKind.color &&
+              (objective.matchKey == null || objective.matchKey!.isEmpty)) ||
+          (objective.rewardTarget != null &&
+              !objective.rewardTarget!.isMathToken)) {
+        throw ArgumentError('Invalid or duplicate discovery objective.');
+      }
+    }
+    for (final drop in _pendingDrops) {
+      if (!drop.target.isMathToken ||
+          drop.afterMoves < 1 ||
+          drop.column != null &&
+              (drop.column! < 0 || drop.column! >= initialBoard.columnCount) ||
+          !objectiveIds.containsAll(drop.requiredObjectiveIds)) {
+        throw ArgumentError('Invalid falling-fragment condition.');
+      }
+    }
+    final iceCount = initialBoard.positions
+        .where((p) => initialBoard.cellAt(p).iceLayers > 0)
+        .length;
+    final blockerCount = initialBoard.positions
+        .where((p) => initialBoard.cellAt(p).blockerLayers > 0)
+        .length;
+    if (_objectives.any(
+      (o) =>
+          o.kind == DiscoveryObjectiveKind.ice && o.goal > iceCount ||
+          o.kind == DiscoveryObjectiveKind.blockers && o.goal > blockerCount ||
+          o.kind == DiscoveryObjectiveKind.moves && o.goal > moves,
+    )) {
+      throw ArgumentError(
+        'Objective exceeds available ice, blockers or moves.',
+      );
+    }
+    for (final target in [
+      ...initialBoard.buriedTargets,
+      for (final piece in initialBoard.visiblePieces)
+        if (piece.carriedTarget != null) piece.carriedTarget!,
+      for (final drop in _pendingDrops) drop.target,
+      for (final objective in _objectives)
+        if (objective.rewardTarget != null) objective.rewardTarget!,
+    ]) {
       if (buriedById.containsKey(target.id)) {
         throw ArgumentError('Buried target ID ${target.id} is duplicated.');
       }
@@ -78,7 +135,7 @@ class DiscoveryEngine {
     );
     if (missingTargets.isNotEmpty) {
       throw ArgumentError(
-        'Required targets are not buried on the board: $missingTargets',
+        'Required targets have no delivery route: $missingTargets',
       );
     }
     if (_findMatches(initialBoard).isNotEmpty) {
@@ -105,6 +162,11 @@ class DiscoveryEngine {
   final Map<DiscoveryLinePower, int> _powerActivations = {};
   int _combinationActivations = 0;
   int _blockersCleared = 0;
+  final List<DiscoveryObjective> _objectives;
+  List<DiscoveryTargetDrop> _pendingDrops;
+  Map<String, int> _clearedByColor = {};
+  int _acceptedMoves = 0;
+  int _iceCleared = 0;
   DiscoveryGameState? _cachedState;
 
   DiscoveryGameState get state => _cachedState ??= _createState();
@@ -150,6 +212,10 @@ class DiscoveryEngine {
     );
     var nextCombinationActivations = _combinationActivations;
     var nextBlockersCleared = _blockersCleared;
+    var nextIceCleared = _iceCleared;
+    final nextColors = Map<String, int>.of(_clearedByColor);
+    final nextDrops = List<DiscoveryTargetDrop>.of(_pendingDrops);
+    final nextAcceptedMoves = _acceptedMoves + 1;
 
     while (matches.isNotEmpty) {
       if (cascadeIndex >= 100) {
@@ -200,6 +266,52 @@ class DiscoveryEngine {
       final clearedPieces = <DiscoveryClearedPiece>[];
       final discoveredTargets = <DiscoveredTarget>[];
       final sealHits = <DiscoverySealHit>[];
+      final iceHits = <DiscoverySealHit>[];
+      void collect(DiscoveryPosition position, DiscoveryPiece target) {
+        if (nextCollectedTargets.containsKey(target.id)) return;
+        discoveredTargets.add(
+          DiscoveredTarget(position: position, piece: target),
+        );
+        nextCollectedTargets[target.id] = target;
+        newlyDiscoveredTargets.add(target);
+      }
+
+      final icePositions = <DiscoveryPosition>{};
+      for (final p in matches) {
+        for (final neighbor in [
+          p,
+          DiscoveryPosition(p.row - 1, p.column),
+          DiscoveryPosition(p.row + 1, p.column),
+          DiscoveryPosition(p.row, p.column - 1),
+          DiscoveryPosition(p.row, p.column + 1),
+        ]) {
+          if (candidate.contains(neighbor) &&
+              candidate.cellAt(neighbor).iceLayers > 0) {
+            icePositions.add(neighbor);
+          }
+        }
+      }
+      for (final p in icePositions) {
+        final cell = candidate.cellAt(p);
+        final remaining = cell.iceLayers - 1;
+        cells[p.row][p.column] = DiscoveryCell(
+          piece: cell.piece,
+          buriedTarget: remaining == 0 ? null : cell.buriedTarget,
+          sealLayers: remaining == 0 ? 0 : cell.sealLayers,
+          iceLayers: remaining,
+        );
+        iceHits.add(
+          DiscoverySealHit(
+            position: p,
+            layersBefore: cell.iceLayers,
+            layersAfter: remaining,
+          ),
+        );
+        if (remaining == 0) {
+          nextIceCleared++;
+          collect(p, cell.buriedTarget!);
+        }
+      }
       final blockerHits = <DiscoveryBlockerHit>[];
       final blockerPositions = <DiscoveryPosition>{};
       for (final p in matches) {
@@ -239,7 +351,9 @@ class DiscoveryEngine {
       }
 
       for (final position in orderedMatches) {
-        if (candidate.cellAt(position).blockerLayers > 0) continue;
+        if (candidate.cellAt(position).blockerLayers > 0 ||
+            candidate.cellAt(position).iceLayers > 0)
+          continue;
         final cell = cells[position.row][position.column];
         final piece = cell.piece;
         if (piece == null) {
@@ -248,6 +362,10 @@ class DiscoveryEngine {
         clearedPieces.add(
           DiscoveryClearedPiece(position: position, piece: piece),
         );
+        if (piece.kind == DiscoveryPieceKind.gem) {
+          nextColors.update(piece.matchKey, (n) => n + 1, ifAbsent: () => 1);
+        }
+        if (piece.carriedTarget case final target?) collect(position, target);
         final target = cell.buriedTarget;
         final remainingLayers = target == null ? 0 : cell.sealLayers - 1;
         if (target != null) {
@@ -259,25 +377,46 @@ class DiscoveryEngine {
             ),
           );
           if (remainingLayers == 0) {
-            discoveredTargets.add(
-              DiscoveredTarget(position: position, piece: target),
-            );
-            if (!nextCollectedTargets.containsKey(target.id)) {
-              nextCollectedTargets[target.id] = target;
-              newlyDiscoveredTargets.add(target);
-            }
+            collect(position, target);
           }
         }
         cells[position.row][position.column] = DiscoveryCell(
-          piece: created[position],
+          // A created power has consumed the carrier's fragment already.
+          piece: created[position] == null
+              ? null
+              : DiscoveryPiece(
+                  id: created[position]!.id,
+                  kind: created[position]!.kind,
+                  label: created[position]!.label,
+                  matchKey: created[position]!.matchKey,
+                  linePower: created[position]!.linePower,
+                ),
           buriedTarget: remainingLayers > 0 ? target : null,
           sealLayers: remainingLayers,
         );
       }
 
+      final objectiveProgress = _progressFor(
+        nextColors,
+        nextIceCleared,
+        nextBlockersCleared,
+        nextAcceptedMoves,
+      );
+      for (final objective in _objectives) {
+        if (objective.rewardTarget != null &&
+            objectiveProgress[objective.id]! >= objective.goal) {
+          collect(orderedMatches.first, objective.rewardTarget!);
+        }
+      }
+
       final boardAfterClear = DiscoveryBoard.fromCells(cells);
       final boardAfterFall = _applyGravity(boardAfterClear);
-      final boardAfterRefill = _refill(boardAfterFall);
+      final boardAfterRefill = _refill(
+        boardAfterFall,
+        nextDrops,
+        nextAcceptedMoves,
+        objectiveProgress,
+      );
       cascades.add(
         DiscoveryCascadeStep(
           index: cascadeIndex,
@@ -296,6 +435,7 @@ class DiscoveryEngine {
           ],
           activatedPowers: activated,
           blockerHits: blockerHits,
+          iceHits: iceHits,
         ),
       );
       candidate = boardAfterRefill;
@@ -311,6 +451,10 @@ class DiscoveryEngine {
       ..addAll(nextPowerActivations);
     _combinationActivations = nextCombinationActivations;
     _blockersCleared = nextBlockersCleared;
+    _iceCleared = nextIceCleared;
+    _acceptedMoves = nextAcceptedMoves;
+    _clearedByColor = nextColors;
+    _pendingDrops = nextDrops;
     _collectedTargets
       ..clear()
       ..addAll(nextCollectedTargets);
@@ -345,7 +489,33 @@ class DiscoveryEngine {
     requiredCombinationActivations: requiredCombinationActivations,
     blockersCleared: _blockersCleared,
     requiredBlockerClears: requiredBlockerClears,
+    objectives: _objectives,
+    objectiveProgress: _progressFor(
+      _clearedByColor,
+      _iceCleared,
+      _blockersCleared,
+      _acceptedMoves,
+    ),
+    clearedByColor: _clearedByColor,
+    pendingDrops: _pendingDrops,
+    acceptedMoves: _acceptedMoves,
+    iceCleared: _iceCleared,
   );
+
+  Map<String, int> _progressFor(
+    Map<String, int> colors,
+    int ice,
+    int blockers,
+    int moves,
+  ) => {
+    for (final objective in _objectives)
+      objective.id: switch (objective.kind) {
+        DiscoveryObjectiveKind.color => colors[objective.matchKey] ?? 0,
+        DiscoveryObjectiveKind.ice => ice,
+        DiscoveryObjectiveKind.blockers => blockers,
+        DiscoveryObjectiveKind.moves => moves,
+      },
+  };
 
   DiscoveryBoard _swapPieces(
     DiscoveryBoard board,
@@ -415,7 +585,10 @@ class DiscoveryEngine {
     for (var column = 0; column < board.columnCount; column += 1) {
       var segmentBottom = board.rowCount - 1;
       for (var row = board.rowCount - 1; row >= -1; row--) {
-        if (row >= 0 && cells[row][column].blockerLayers == 0) continue;
+        if (row >= 0 &&
+            cells[row][column].blockerLayers == 0 &&
+            cells[row][column].iceLayers == 0)
+          continue;
         final falling = <DiscoveryPiece>[];
         for (var r = segmentBottom; r > row; r--) {
           final piece = cells[r][column].piece;
@@ -522,15 +695,44 @@ class DiscoveryEngine {
     }
   }
 
-  DiscoveryBoard _refill(DiscoveryBoard board) {
+  DiscoveryBoard _refill(
+    DiscoveryBoard board,
+    List<DiscoveryTargetDrop> pending,
+    int moves,
+    Map<String, int> progress,
+  ) {
     final cells = _mutableCells(board);
     for (var row = 0; row < board.rowCount; row += 1) {
       for (var column = 0; column < board.columnCount; column += 1) {
         if (cells[row][column].piece == null) {
           final position = DiscoveryPosition(row, column);
-          cells[row][column] = cells[row][column].withPiece(
-            _refillSource.nextPiece(position),
-          );
+          var piece = _refillSource.nextPiece(position);
+          // Only the top gravity segment receives incoming fragments. Ordinary
+          // refill below an anchored cover must not teleport a fragment through it.
+          final openToTop =
+              pending.isNotEmpty &&
+              [
+                for (var r = 0; r < row; r++) cells[r][column],
+              ].every((cell) => cell.blockerLayers == 0 && cell.iceLayers == 0);
+          final drop = openToTop
+              ? pending
+                    .where(
+                      (drop) =>
+                          moves >= drop.afterMoves &&
+                          (drop.column == null || drop.column == column) &&
+                          drop.requiredObjectiveIds.every(
+                            (id) =>
+                                (progress[id] ?? 0) >=
+                                _objectives.singleWhere((o) => o.id == id).goal,
+                          ),
+                    )
+                    .firstOrNull
+              : null;
+          if (drop != null) {
+            piece = piece.withCarriedTarget(drop.target);
+            pending.remove(drop);
+          }
+          cells[row][column] = cells[row][column].withPiece(piece);
         }
       }
     }

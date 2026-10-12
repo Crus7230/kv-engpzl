@@ -1,6 +1,11 @@
 {
   "manifestVersion": 1,
   "packId": "r1-media-v3",
+  "download": {
+    "url": "https://github.com/Crus7230/kv-engpzl/releases/download/media-r1-v3/KVM-r1-media-v3.zip",
+    "bytes": 15183325,
+    "sha256": "5ABD5C72714DC982A47EA89BC35DE849A26B3F38B16C06F4A98CD0F4DAB8F50A"
+  },
   "sourceRoot": "..",
   "policy": "Original assets are preserved. Legacy sprites are binary copies; expedition artwork is independently generated and versioned.",
   "assets": [

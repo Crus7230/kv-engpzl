@@ -43,11 +43,7 @@ StageSessionController _session(WidgetTester tester) =>
         as StageSessionController;
 
 void _solve(EngineDiscoveryPuzzleViewModel model) {
-  final variant = model.stage.boardVariants.variantFor(
-    DiscoveryBoardConfig(rows: model.boardRows, columns: model.boardColumns),
-  );
-  final runtime = discoveryRuntimeCatalog.resolve(model.stage);
-  for (final swap in runtime.referencePathFor!(variant)) {
+  for (final swap in model.referencePath) {
     model.selectGem(swap.from.row * model.boardColumns + swap.from.column);
     model.selectGem(swap.to.row * model.boardColumns + swap.to.column);
   }
@@ -296,16 +292,7 @@ void main() {
         var model = _session(tester);
         expect(model.isDailyReview, isTrue);
         expect(model.reviewTicketId, due ? 'r1-ui-review-ticket' : null);
-        final variant = model.stage.boardVariants.variantFor(
-          DiscoveryBoardConfig(
-            rows: model.boardRows,
-            columns: model.boardColumns,
-          ),
-        );
-        final firstSwap = discoveryRuntimeCatalog
-            .resolve(model.stage)
-            .referencePathFor!(variant)
-            .first;
+        final firstSwap = model.referencePath.first;
         model.selectGem(
           firstSwap.from.row * model.boardColumns + firstSwap.from.column,
         );
@@ -333,10 +320,7 @@ void main() {
         expect(model.attemptId, attemptId);
         expect(model.isDailyReview, isTrue);
         expect(model.reviewTicketId, due ? 'r1-ui-review-ticket' : null);
-        final remainingPath = discoveryRuntimeCatalog
-            .resolve(model.stage)
-            .referencePathFor!(variant)
-            .skip(1);
+        final remainingPath = model.referencePath.skip(1);
         for (final swap in remainingPath) {
           model.selectGem(
             swap.from.row * model.boardColumns + swap.from.column,
@@ -589,17 +573,8 @@ void main() {
               '${id}_${size.width.toInt()}x${size.height.toInt()}_text${(scale * 100).round()}';
           if (capture)
             await _capture(tester, boundary, 'advanced-start_$prefix');
-          final variant = model.stage.boardVariants.variantFor(
-            DiscoveryBoardConfig(
-              rows: model.boardRows,
-              columns: model.boardColumns,
-            ),
-          );
           var capturedPower = false;
-          for (final swap
-              in discoveryRuntimeCatalog.resolve(model.stage).referencePathFor!(
-                variant,
-              )) {
+          for (final swap in model.referencePath) {
             model.selectGem(
               swap.from.row * model.boardColumns + swap.from.column,
             );

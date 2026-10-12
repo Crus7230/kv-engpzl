@@ -39,21 +39,31 @@ void main() {
           completedStageIds: ['r01-c01-s10', 'r01-c03-s10', 'r01-c05-s10'],
         );
         String? replayed;
+        String? selectedPlayer;
         await tester.pumpWidget(
           _host(
             CompanionCollectionScreen(
               save: save,
               onBack: () {},
               onReplayArrival: (id) => replayed = id,
+              onSelectPlayer: (id) => selectedPlayer = id,
             ),
             scale,
           ),
         );
         await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('companion-CHAR_D')));
+        await tester.pumpAndSettle();
         expect(find.text('동료 도감'), findsOneWidget);
         expect(find.text('Delta'), findsWidgets);
         expect(find.text('ESFJ'), findsOneWidget);
         expect(tester.takeException(), isNull);
+        final changeAvatar = find.byKey(const Key('select-player-CHAR_D'));
+        await tester.ensureVisible(changeAvatar);
+        await tester.pumpAndSettle();
+        await tester.tap(changeAvatar);
+        expect(selectedPlayer, 'CHAR_D');
+        expect(save.playerCharacterId, 'CHAR_A'); // Only the parent commits.
         await tester.ensureVisible(find.text('첫 만남 다시 보기'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('첫 만남 다시 보기'));
@@ -74,6 +84,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('R2 C01 완료 후 구조'), findsOneWidget);
         expect(find.text('ISTJ'), findsNothing);
+        expect(find.byKey(const Key('select-player-CHAR_B')), findsNothing);
         expect(tester.takeException(), isNull);
       });
 

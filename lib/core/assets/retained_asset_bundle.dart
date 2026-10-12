@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+class MissingRetainedAssetsException implements Exception {
+  const MissingRetainedAssetsException();
+}
+
 /// Media has its own immutable version, independent from app/content versions.
 /// Android seeds it once from a full APK, then reuses it in logic-only updates.
 class RetainedAssetBundle extends CachingAssetBundle {
@@ -18,7 +22,10 @@ class RetainedAssetBundle extends CachingAssetBundle {
       (asset as Map)['path'] as String,
   };
 
-  static Future<AssetBundle> prepare({AssetBundle? fallback}) async {
+  static Future<AssetBundle> prepare({
+    AssetBundle? fallback,
+    bool download = false,
+  }) async {
     final source = fallback ?? rootBundle;
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android)
       return source;
@@ -31,10 +38,15 @@ class RetainedAssetBundle extends CachingAssetBundle {
         decoded['assets'] is! List) {
       throw const FormatException('Unsupported media manifest.');
     }
-    await channel.invokeMethod<void>('ensureInstalled', {
-      'packId': packId,
-      'assets': decoded['assets'],
-    });
+    final installed = await channel.invokeMethod<bool>(
+      download ? 'downloadPack' : 'ensureInstalled',
+      {
+        'packId': packId,
+        'assets': decoded['assets'],
+        'download': decoded['download'],
+      },
+    );
+    if (installed == false) throw const MissingRetainedAssetsException();
     return RetainedAssetBundle(fallback: source, manifest: decoded);
   }
 

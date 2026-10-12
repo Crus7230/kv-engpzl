@@ -1,0 +1,123 @@
+import 'package:flutter/material.dart';
+
+import 'audio_settings.dart';
+
+class AudioOptions extends StatelessWidget {
+  const AudioOptions({
+    required this.settings,
+    required this.onChanged,
+    required this.mediaAvailable,
+    this.onDownload,
+    this.downloading = false,
+    this.message,
+    super.key,
+  });
+  final AudioSettings settings;
+  final ValueChanged<AudioSettings> onChanged;
+  final bool mediaAvailable;
+  final VoidCallback? onDownload;
+  final bool downloading;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (!mediaAvailable) ...[
+        const Text('음원 팩이 없습니다. 다운로드하지 않아도 탐험과 저장은 가능합니다.'),
+        if (onDownload != null)
+          OutlinedButton.icon(
+            key: const Key('download-audio'),
+            onPressed: downloading ? null : onDownload,
+            icon: const Icon(Icons.download_rounded),
+            label: Text(
+              downloading ? '음원 다운로드·검증 중…' : '음원 받기 · 약 17MB, 최초 1회',
+            ),
+          ),
+        if (message != null)
+          Text(message!, style: const TextStyle(fontSize: 12)),
+      ],
+      SwitchListTile(
+        title: const Text('배경 음악'),
+        value: settings.musicEnabled,
+        onChanged: (value) => onChanged(settings.copyWith(musicEnabled: value)),
+      ),
+      _trackPicker(
+        '시작·튜토리얼 음악',
+        settings.introTrackId,
+        (id) => onChanged(settings.copyWith(introTrackId: id)),
+      ),
+      _trackPicker(
+        '탐험·퍼즐 음악',
+        settings.gameTrackId,
+        (id) => onChanged(settings.copyWith(gameTrackId: id)),
+      ),
+      const Text('음악 음량'),
+      Slider(
+        value: settings.musicVolume,
+        min: 0,
+        max: 1,
+        divisions: 20,
+        label: '${(settings.musicVolume * 100).round()}%',
+        onChanged: (value) => onChanged(settings.copyWith(musicVolume: value)),
+      ),
+      SwitchListTile(
+        title: const Text('퍼즐 효과음'),
+        value: settings.effectsEnabled,
+        onChanged: (value) =>
+            onChanged(settings.copyWith(effectsEnabled: value)),
+      ),
+      const Text('효과음 음량'),
+      Slider(
+        value: settings.effectsVolume,
+        min: 0,
+        max: 1,
+        divisions: 20,
+        label: '${(settings.effectsVolume * 100).round()}%',
+        onChanged: (value) =>
+            onChanged(settings.copyWith(effectsVolume: value)),
+      ),
+      const Text(
+        '다른 앱으로 이동하면 음악과 효과음이 멈춥니다. 복귀하면 음악을 이어서 재생합니다.',
+        style: TextStyle(fontSize: 12),
+      ),
+      SwitchListTile(
+        title: const Text('퍼즐 햅틱'),
+        subtitle: const Text('선택·매치·풀이 블록 획득·정답 완료'),
+        value: settings.hapticsEnabled,
+        onChanged: (value) =>
+            onChanged(settings.copyWith(hapticsEnabled: value)),
+      ),
+    ],
+  );
+
+  Widget _trackPicker(
+    String label,
+    String value,
+    ValueChanged<String> change,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label),
+      DropdownButton<String>(
+        key: Key('audio-track-$label'),
+        value: value,
+        isExpanded: true,
+        items: [
+          for (final track in audioTracks)
+            DropdownMenuItem(
+              value: track.id,
+              child: Text(
+                track.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        onChanged: (id) {
+          if (id != null) change(id);
+        },
+      ),
+    ],
+  );
+}

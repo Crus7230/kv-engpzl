@@ -12,13 +12,15 @@ class MainActivity : FlutterActivity() {
     private val expectedPackId = "r1-media-v3"
     private var installedPaths = emptySet<String>()
     private var updates: AppUpdateBridge? = null
+    private var gameAudio: GameAudioBridge? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         updates = AppUpdateBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        gameAudio = GameAudioBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "kvm/retained_assets")
             .setMethodCallHandler { call, result ->
-                if (call.method != "ensureInstalled" && call.method != "readAsset") {
+                if (call.method !in setOf("ensureInstalled", "downloadPack", "readAsset")) {
                     result.notImplemented()
                     return@setMethodCallHandler
                 }
@@ -26,11 +28,11 @@ class MainActivity : FlutterActivity() {
                     try {
                         check(call.argument<String>("packId") == expectedPackId)
                         val output: Any? = when (call.method) {
-                            "ensureInstalled" -> {
+                            "ensureInstalled", "downloadPack" -> {
                                 val entries = call.argument<List<Map<String, Any>>>("assets")
                                     ?: error("Missing media manifest")
-                                ensureInstalled(entries)
-                                null
+                                val metadata = call.argument<Map<String, Any>>("download")
+                                ensureInstalled(entries, call.method == "downloadPack", metadata)
                             }
                             else -> {
                                 val path = call.argument<String>("path") ?: error("Missing media path")
@@ -73,12 +75,12 @@ class MainActivity : FlutterActivity() {
         return hex.equals(entry["sha256"] as String, ignoreCase = true)
     }
 
-    private fun ensureInstalled(entries: List<Map<String, Any>>) {
+    private fun ensureInstalled(entries: List<Map<String, Any>>, allowDownload: Boolean, metadata: Map<String, Any>?): Boolean {
         check(entries.size == 31 && entries.map { it["path"] }.toSet().size == 31)
         val target = packDirectory()
         if (entries.all { matches(safeFile(target, it["path"] as String), it) }) {
             installedPaths = entries.map { it["path"] as String }.toSet()
-            return
+            return true
         }
         // Recover an interrupted rename before requiring media in the new APK.
         // Every recovered directory must match the complete expected manifest.
@@ -92,26 +94,40 @@ class MainActivity : FlutterActivity() {
         if (recoverable != null) {
             commitPack(recoverable, target)
             installedPaths = entries.map { it["path"] as String }.toSet()
-            return
+            return true
         }
+        if (!allowDownload && !entries.all {
+            try { assets.open("flutter_assets/${it["path"]}").use { }; true } catch (_: Exception) { false }
+        }) return false
         // A new candidate is verified before touching the existing pack.
         val staging = File(filesDir, "kvm_asset_packs/$expectedPackId-candidate-${System.nanoTime()}")
         check(staging.mkdirs())
         try {
-            for (entry in entries) {
-                val path = entry["path"] as String
-                val file = safeFile(staging, path)
-                check(file.parentFile!!.mkdirs() || file.parentFile!!.isDirectory)
-                assets.open("flutter_assets/$path").use { input ->
-                    file.outputStream().use { output -> input.copyTo(output) }
+            if (allowDownload) {
+                val downloadMetadata = metadata ?: error("Missing media download metadata")
+                check(downloadMetadata["url"] == "https://github.com/Crus7230/kv-engpzl/releases/download/media-r1-v3/KVM-r1-media-v3.zip")
+                RetainedPackDownloader.download(cacheDir, staging, entries, downloadMetadata, ::safeFile)
+            } else {
+                for (entry in entries) {
+                    val path = entry["path"] as String
+                    val file = safeFile(staging, path)
+                    check(file.parentFile!!.mkdirs() || file.parentFile!!.isDirectory)
+                    assets.open("flutter_assets/$path").use { input ->
+                        file.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    check(matches(file, entry)) { "Media hash mismatch" }
                 }
-                check(matches(file, entry)) { "Media hash mismatch" }
             }
+            check(entries.all { matches(safeFile(staging, it["path"] as String), it) })
             commitPack(staging, target)
             installedPaths = entries.map { it["path"] as String }.toSet()
+            return true
         } finally {
             // Only our validated, generated candidate directory is disposable.
-            if (staging.exists()) staging.deleteRecursively()
+            if (staging.exists() && !entries.all { matches(safeFile(staging, it["path"] as String), it) }) {
+                check(staging.canonicalPath.startsWith(target.parentFile!!.canonicalPath + File.separator))
+                staging.deleteRecursively()
+            }
         }
     }
 
@@ -129,7 +145,18 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onPause() {
+        gameAudio?.setForeground(false)
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        gameAudio?.setForeground(true)
+    }
+
     override fun onDestroy() {
+        gameAudio?.dispose()
         updates?.dispose()
         mediaWorker.shutdown()
         super.onDestroy()

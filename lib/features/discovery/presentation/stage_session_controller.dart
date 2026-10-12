@@ -18,10 +18,11 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
     super.runtimeCatalog,
     String? reviewTicketId,
     bool isDailyReview = false,
+    int newSessionRulesVersion = 3,
   }) : super(
          stage: stage,
          rulesVersion: savedSession == null
-             ? 3
+             ? newSessionRulesVersion
              : _savedRulesVersion(savedSession),
        ) {
     final savedTicket = savedSession?['reviewTicketId'];
@@ -60,7 +61,7 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
 
   static int _savedRulesVersion(Map<String, dynamic> session) {
     final version = session['rulesVersion'] ?? 1;
-    if (version is! int || (version != 1 && version != 3)) {
+    if (version is! int || (version != 1 && version != 3 && version != 4)) {
       throw const FormatException('Unknown puzzle rules version.');
     }
     return version;

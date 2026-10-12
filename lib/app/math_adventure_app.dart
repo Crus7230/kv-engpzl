@@ -4,6 +4,12 @@ import 'package:flutter/services.dart';
 import '../core/branding/garden_branding.dart';
 import '../core/theme/app_theme.dart';
 import '../core/assets/retained_asset_bundle.dart';
+import '../core/audio/audio_backend.dart';
+import '../core/audio/audio_controller.dart';
+import '../core/audio/audio_options.dart';
+import '../core/audio/audio_scope.dart';
+import '../core/audio/audio_settings.dart';
+import '../core/audio/puzzle_haptics.dart';
 import '../core/updates/app_update_service.dart';
 import '../core/updates/startup_update_gate.dart';
 import '../features/campaign/data/initial_campaign.dart';
@@ -11,6 +17,7 @@ import '../features/campaign/domain/campaign_models.dart';
 import '../features/campaign/data/legacy_region_catalog.dart';
 import '../features/discovery/domain/discovery_models.dart';
 import '../features/discovery/data/discovery_runtime_catalog.dart';
+import '../features/discovery/data/discovery_excavation_profile.dart';
 import '../features/garden/data/garden_catalog.dart';
 import '../features/garden/domain/garden_models.dart';
 import '../features/discovery/presentation/discovery_puzzle_screen.dart';
@@ -39,6 +46,7 @@ class MathAdventureApp extends StatefulWidget {
     this.assetBundle,
     this.now,
     this.updateService,
+    this.audioController,
     super.key,
   });
   final ProgressRepository? repository;
@@ -46,6 +54,7 @@ class MathAdventureApp extends StatefulWidget {
   final AssetBundle? assetBundle;
   final DateTime Function()? now;
   final AppUpdateService? updateService;
+  final AudioController? audioController;
   @override
   State<MathAdventureApp> createState() => _MathAdventureAppState();
 }
@@ -120,6 +129,10 @@ enum RenewalRoute {
 class _MathAdventureAppState extends State<MathAdventureApp>
     with WidgetsBindingObserver {
   late final ProgressRepository _repository;
+  late final AudioController _audio;
+  bool _startupReady = false;
+  bool _audioDecisionAsked = false;
+  bool _foreground = true;
   SaveEnvelopeV1? _save;
   Object? _loadError;
   String? _statusMessage;
@@ -171,6 +184,25 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _audio =
+        widget.audioController ??
+        AudioController(
+          createAudioBackend(),
+          onHaptic: playPuzzleHaptic,
+          onError: (error) {
+            assert(() {
+              debugPrint('Audio unavailable (${error.runtimeType}).');
+              return true;
+            }());
+          },
+          onChanged: () {
+            if (mounted) setState(() {});
+          },
+        );
+    unawaited(_audio.initialize());
     _repository =
         widget.repository ?? ProgressRepository(SharedPreferencesSaveStore());
     unawaited(_load());
@@ -198,6 +230,44 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       if (mounted) setState(() => _assetError = error);
     } finally {
       _preparingAssets = false;
+    }
+  }
+
+  Future<void> _downloadImageAssets(BuildContext context) async {
+    if (_preparingAssets) return;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('탐험 에셋 받기'),
+        content: const Text(
+          '배경·캐릭터 약 15MB를 최초 한 번만 받습니다. 모바일 데이터가 사용될 수 있습니다. 이후 코드 업데이트에서는 기기에 저장된 에셋을 재사용합니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('다운로드'),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true || !mounted || _preparingAssets) return;
+    setState(() => _preparingAssets = true);
+    try {
+      final bundle = await RetainedAssetBundle.prepare(download: true);
+      if (mounted)
+        setState(() {
+          _assetBundle = bundle;
+          _assetError = null;
+        });
+    } catch (_) {
+      if (mounted)
+        setState(() => _assetError = const MissingRetainedAssetsException());
+    } finally {
+      if (mounted) setState(() => _preparingAssets = false);
     }
   }
 
@@ -234,6 +304,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _audio.setForeground(_foreground);
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       unawaited(
@@ -309,7 +381,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   void _replayArrival(String id) {
     final arrival = companionRecruitmentById(id);
     if (arrival == null ||
-        _save!.playerCharacterId == id ||
+        (_save!.starterCharacterId ?? _save!.playerCharacterId) == id ||
         !_save!.unlockedCharacterIds.contains(id) ||
         !isCompanionRecruitmentEligible(arrival, _save!.completedStageIds)) {
       return;
@@ -358,6 +430,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
           return save;
         return save.copyWith(
           playerCharacterId: id,
+          starterCharacterId: id,
           unlockedCharacterIds: {...save.unlockedCharacterIds, id},
         );
       });
@@ -379,6 +452,23 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       _isDailyReview = false;
       _route = RenewalRoute.briefing;
     });
+  }
+
+  Future<void> _changePlayer(String id) async {
+    if (_busy || _needsOnboarding) return;
+    setState(() => _busy = true);
+    try {
+      final save = await CompanionProgressService(_repository).selectPlayer(id);
+      if (mounted)
+        setState(() {
+          _save = save;
+          _statusMessage = null;
+        });
+    } catch (error) {
+      _onSaveError(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _depart() async {
@@ -489,13 +579,16 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       final rows = saved?['rows'];
       final columns = saved?['columns'];
       final config = saved == null
-          ? media.size.width - media.padding.horizontal < 720 ||
-                    media.size.height - media.padding.vertical < 400
-                ? DiscoveryBoardConfig.compactPhone
-                : DiscoveryBoardConfig.standardPhone
+          ? DiscoveryExcavationProfile.boardFor(
+              stage,
+              media.size.width - media.padding.horizontal,
+              media.size.height - media.padding.vertical,
+            )
           : rows is int &&
                 columns is int &&
-                ((rows == 5 && columns == 5) || (rows == 6 && columns == 6))
+                ((rows == 5 && columns == 5) ||
+                    (rows == 6 && columns == 6) ||
+                    saved['rulesVersion'] == 4 && rows == 7 && columns == 7)
           ? DiscoveryBoardConfig(rows: rows, columns: columns)
           : throw const FormatException('Invalid saved board dimensions.');
       final session = StageSessionController(
@@ -505,6 +598,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         isDailyReview: _isDailyReview,
         boardConfig: config,
         savedSession: saved,
+        newSessionRulesVersion: 4,
         onContinue: () => unawaited(_complete()),
         onSaveError: _onSaveError,
       );
@@ -852,19 +946,84 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     }
   }
 
+  Future<void> _offerAudioDownload(BuildContext context) async {
+    // Preparation may finish after the frame that scheduled this prompt.
+    await _audio.initialize();
+    if (!mounted || !context.mounted || _audio.mediaAvailable) return;
+    final accept = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('탐험 음악을 받을까요?'),
+        content: const Text(
+          '음악과 효과음 약 17MB를 최초 한 번만 받습니다. 모바일 데이터가 사용될 수 있습니다. 받지 않아도 모든 스테이지를 진행할 수 있습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('음악 없이 시작'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('음원 설정 열기'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    try {
+      await _update(
+        (save) =>
+            save.copyWith(audio: save.audio.copyWith(downloadPromptSeen: true)),
+      );
+    } catch (error) {
+      _onSaveError(error);
+    }
+    if (accept == true && mounted && context.mounted) await _settings(context);
+  }
+
   Future<void> _settings(BuildContext context) async {
     var settings = _save!.accessibility;
-    await showDialog<void>(
+    var audio = _save!.audio;
+    var downloading = false;
+    String? audioMessage;
+    final apply = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, updateDialog) => AlertDialog(
-          title: const Text('편안하게 즐기기'),
+          title: const Text('음악·효과음 및 접근성'),
           content: SizedBox(
             width: 360,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  AudioOptions(
+                    settings: audio,
+                    onChanged: (value) => updateDialog(() => audio = value),
+                    mediaAvailable: _audio.mediaAvailable,
+                    downloading: downloading,
+                    message: audioMessage,
+                    onDownload: !_audio.supportsDownload
+                        ? null
+                        : () async {
+                            updateDialog(() {
+                              downloading = true;
+                              audioMessage = null;
+                            });
+                            try {
+                              await _audio.downloadAssets();
+                              audioMessage =
+                                  '음원을 저장했습니다. 다음 앱 업데이트에서는 다시 받지 않습니다.';
+                            } catch (_) {
+                              audioMessage =
+                                  '음원을 받지 못했습니다. 네트워크와 음원 배포 상태를 확인한 뒤 다시 시도해 주세요.';
+                            } finally {
+                              if (context.mounted)
+                                updateDialog(() => downloading = false);
+                            }
+                          },
+                  ),
+                  const SizedBox(height: 12),
                   SwitchListTile(
                     title: const Text('움직임 줄이기'),
                     value: settings.reducedMotion,
@@ -896,16 +1055,21 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             ),
           ),
           actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소'),
+            ),
             FilledButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(context, true),
               child: const Text('저장'),
             ),
           ],
         ),
       ),
     );
+    if (apply != true) return;
     try {
-      await _update((s) => s.copyWith(accessibility: settings));
+      await _update((s) => s.copyWith(accessibility: settings, audio: audio));
     } catch (error) {
       _onSaveError(error);
     }
@@ -919,36 +1083,68 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     builder: (context, child) {
       final media = MediaQuery.of(context);
       final settings = _save?.accessibility;
-      return MediaQuery(
-        data: media.copyWith(
-          textScaler: TextScaler.linear(
-            media.textScaler.scale(1) * (settings?.textScale ?? 1),
+      if (_save != null) {
+        _audio.configure(
+          _save!.audio,
+          _route == RenewalRoute.puzzle ||
+                  (_startupReady &&
+                      _assetBundle != null &&
+                      _route != RenewalRoute.onboarding)
+              ? AudioScene.adventure
+              : AudioScene.intro,
+        );
+        _audio.setForeground(_foreground);
+      }
+      return AudioScope(
+        controller: _audio,
+        child: Listener(
+          onPointerDown: (_) => _audio.unlock(),
+          behavior: HitTestBehavior.translucent,
+          child: MediaQuery(
+            data: media.copyWith(
+              textScaler: TextScaler.linear(
+                media.textScaler.scale(1) * (settings?.textScale ?? 1),
+              ),
+              disableAnimations:
+                  media.disableAnimations || (settings?.reducedMotion ?? false),
+              highContrast:
+                  media.highContrast || (settings?.colorAssist ?? false),
+            ),
+            child: DefaultAssetBundle(
+              bundle: _assetBundle ?? rootBundle,
+              child: child!,
+            ),
           ),
-          disableAnimations:
-              media.disableAnimations || (settings?.reducedMotion ?? false),
-          highContrast: media.highContrast || (settings?.colorAssist ?? false),
-        ),
-        child: DefaultAssetBundle(
-          bundle: _assetBundle ?? rootBundle,
-          child: child!,
         ),
       );
     },
     home: StartupUpdateGate(
       service: widget.updateService ?? const AndroidAppUpdateService(),
+      onReady: () {
+        if (mounted) setState(() => _startupReady = true);
+      },
       child: Builder(builder: _buildShell),
     ),
   );
 
   Widget _buildShell(BuildContext context) {
     if (_assetError != null) {
+      if (_preparingAssets)
+        return GardenLoadingScreen(
+          status: '탐험 에셋을 다운로드하고 검증하고 있어요',
+          reduceMotion: MediaQuery.disableAnimationsOf(context),
+        );
+      final downloadable = _assetError is MissingRetainedAssetsException;
       return _StartupIssueScreen(
-        title: '정원 에셋을 확인할 수 없어요',
-        detail:
-            '로직 전용 업데이트는 이전에 설치한 에셋 묶음이 필요합니다. '
-            '에셋 포함 전체 APK로 업데이트해 주세요. 진행 기록은 초기화하지 않았습니다.',
-        retryLabel: '다시 확인',
-        onRetry: _prepareAssets,
+        title: downloadable ? '배경·캐릭터 에셋이 필요합니다' : '정원 에셋을 확인할 수 없어요',
+        detail: downloadable
+            ? '최초 설치에서는 에셋을 한 번 받아야 합니다. 다운로드가 실패하면 네트워크·저장 공간·에셋 배포 상태를 확인하고 다시 시도해 주세요. 기존 진행 기록은 유지됩니다.'
+            : '로직 전용 업데이트는 이전에 설치한 에셋 묶음이 필요합니다. '
+                  '에셋 포함 전체 APK로 업데이트해 주세요. 진행 기록은 초기화하지 않았습니다.',
+        retryLabel: downloadable ? '에셋 받기 · 약 15MB' : '다시 확인',
+        onRetry: downloadable
+            ? () => unawaited(_downloadImageAssets(context))
+            : _prepareAssets,
       );
     }
     if (_loadError != null) {
@@ -971,6 +1167,17 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             : '지난 탐험 기록을 불러오고 있어요',
         reduceMotion: MediaQuery.disableAnimationsOf(context),
       );
+    }
+    if (_startupReady &&
+        _foreground &&
+        !_audioDecisionAsked &&
+        !save.audio.downloadPromptSeen &&
+        _audio.supportsDownload &&
+        !_audio.mediaAvailable) {
+      _audioDecisionAsked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && context.mounted) unawaited(_offerAudioDownload(context));
+      });
     }
     final daily = const DailyRouteService().build(save, _campaign, now: _now);
     final campaignStages = _campaign.stages
@@ -1009,6 +1216,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 errorMessage: _statusMessage,
                 onChoosePlayer: (id) => unawaited(_choosePlayer(id)),
                 onStartTutorial: _startTutorial,
+                onSettings: () => unawaited(_settings(context)),
                 onDepart: () => unawaited(_depart()),
               )
             : WorldMapScreen(
@@ -1208,6 +1416,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             save: save,
             onBack: () => setState(() => _route = _companionReturnRoute),
             onReplayArrival: _replayArrival,
+            onSelectPlayer: (id) => unawaited(_changePlayer(id)),
+            saving: _busy,
           ),
         ),
       if (_route == RenewalRoute.companionArrival && _arrival != null)
@@ -1307,6 +1517,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     WidgetsBinding.instance.removeObserver(this);
     _restTimer?.cancel();
     _session?.dispose();
+    if (widget.audioController == null) unawaited(_audio.dispose());
     super.dispose();
   }
 }

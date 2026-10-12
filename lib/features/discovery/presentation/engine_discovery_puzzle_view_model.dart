@@ -14,6 +14,7 @@ import '../../puzzle/domain/puzzle.dart';
 import '../../puzzle/domain/puzzle_learning_support.dart';
 import '../../puzzle/domain/sentence_math_problem.dart';
 import '../data/discovery_runtime_catalog.dart';
+import '../data/discovery_excavation_profile.dart';
 import '../domain/discovery_engine.dart';
 import '../domain/discovery_models.dart';
 import '../domain/discovery_piece_source.dart';
@@ -33,7 +34,10 @@ StageDefinition _prototypePlayableStage() {
 }
 
 class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
-    implements DiscoveryPuzzleViewModel, DiscoveryBoardMotionSource {
+    implements
+        DiscoveryPuzzleViewModel,
+        DiscoveryBoardMotionSource,
+        DiscoveryObjectiveSource {
   EngineDiscoveryPuzzleViewModel({
     required DiscoveryBoardConfig boardConfig,
     StageDefinition? stage,
@@ -43,13 +47,15 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
        _stage = rulesVersion == 1 && stage != null
            ? r1LegacyStagesById[stage.id] ?? stage
            : stage ?? _prototypePlayableStage() {
-    if (rulesVersion != 1 && rulesVersion != 3) {
+    if (rulesVersion != 1 && rulesVersion != 3 && rulesVersion != 4) {
       throw const FormatException('Unknown puzzle rules version.');
     }
     _runtime =
         (runtimeCatalog ??
                 (rulesVersion == 1
                     ? legacyDiscoveryRuntimeCatalog
+                    : rulesVersion == 4
+                    ? excavationDiscoveryRuntimeCatalog
                     : discoveryRuntimeCatalog))
             .resolve(_stage);
     _validateSupportedStage();
@@ -100,6 +106,33 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   DiscoveryBoardTurnMotion? get boardTurnMotion => _boardTurnMotion;
 
   StageDefinition get stage => _stage;
+
+  /// Diagnostic route for fixture verification; it never restricts player input.
+  List<DiscoveryTutorialStep> get referencePath =>
+      _runtime.referencePathFor?.call(_boardVariant) ?? _runtime.tutorialSteps;
+  @override
+  List<DiscoveryObjectiveStatus> get discoveryObjectives => [
+    for (final goal in _engine.state.objectives)
+      DiscoveryObjectiveStatus(
+        label: goal.label,
+        current: (_engine.state.objectiveProgress[goal.id] ?? 0).clamp(
+          0,
+          goal.goal,
+        ),
+        goal: goal.goal,
+      ),
+    if (_runtime.targetDropsFor?.call(_boardVariant).isNotEmpty == true)
+      DiscoveryObjectiveStatus(
+        label: '낙하 조각 획득',
+        current: _runtime.targetDropsFor!(_boardVariant)
+            .where(
+              (drop) =>
+                  _engine.state.collectedTargetIds.contains(drop.target.id),
+            )
+            .length,
+        goal: _runtime.targetDropsFor!(_boardVariant).length,
+      ),
+  ];
   Set<String> get misconceptionIds => Set.unmodifiable(_misconceptionIds);
   StageAttemptMetrics get attemptMetrics => StageAttemptMetrics(
     completed: _isAnswerCorrect,
@@ -143,6 +176,15 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
 
   Map<String, dynamic> _boardSnapshot() => {
     'movesRemaining': movesLeft,
+    if (rulesVersion == 4) ...{
+      'acceptedMoves': _engine.state.acceptedMoves,
+      'clearedByColor': _engine.state.clearedByColor,
+      'objectiveProgress': _engine.state.objectiveProgress,
+      'iceCleared': _engine.state.iceCleared,
+      'pendingDrops': _engine.state.pendingDrops
+          .map((drop) => drop.target.id)
+          .toList(),
+    },
     if (rulesVersion != 1) ...{
       'powerActivations': {
         for (final kind in DiscoveryLinePower.values)
@@ -164,6 +206,9 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
               'targetId': cell.buriedTarget?.id,
               if (cell.sealLayers > 1) 'sealLayers': cell.sealLayers,
               if (cell.blockerLayers > 0) 'blockerLayers': cell.blockerLayers,
+              if (cell.iceLayers > 0) 'iceLayers': cell.iceLayers,
+              if (cell.piece!.carriedTarget != null)
+                'carriedTargetId': cell.piece!.carriedTarget!.id,
               if (cell.piece!.linePower != null)
                 'linePower': cell.piece!.linePower!.name,
             },
@@ -301,7 +346,8 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   @override
   String get difficultyLabel =>
       '수학 ${_stage.mathDifficulty.tier.index} · '
-      '퍼즐 ${_stage.matchDifficulty.tier.index}';
+      '퍼즐 ${_stage.matchDifficulty.tier.index}'
+      '${rulesVersion == 4 && DiscoveryExcavationProfile.forStage(_stage).isActive ? ' · 복합 목표' : ''}';
 
   @override
   String get concept => _stage.conceptLabel;
@@ -384,6 +430,15 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       return;
     }
 
+    if (_boardCells[index].iceLayers > 0) {
+      _selectedCellIndex = null;
+      _setFeedback(
+        '얼음 옆에서 매치하거나 특수 블록으로 타격하면 숨은 풀이 조각을 얻어요.',
+        DiscoveryFeedbackTone.neutral,
+      );
+      notifyListeners();
+      return;
+    }
     if (_boardCells[index].blockerLayers > 0) {
       _selectedCellIndex = null;
       _setFeedback(
@@ -693,6 +748,9 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
   }
 
   BoardLayoutVariant _resolveBoardVariant() {
+    if (rulesVersion == 4 && _stage.id != verticalSliceStage.id) {
+      return DiscoveryExcavationProfile.variantFor(_stage, _boardConfig);
+    }
     if (!_stage.boardVariants.supports(_boardConfig)) {
       throw ArgumentError.value(
         '${_boardConfig.rows}x${_boardConfig.columns}',
@@ -797,6 +855,8 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       requiredPowerKind: _runtime.requiredPowerKind,
       requiredCombinationActivations: _runtime.requiredCombinationActivations,
       requiredBlockerClears: _runtime.requiredBlockerClears,
+      objectives: _runtime.objectivesFor?.call(_boardVariant) ?? const [],
+      targetDrops: _runtime.targetDropsFor?.call(_boardVariant) ?? const [],
       refillSource: QueuedPieceSource(
         pieces: _runtime.refillPieces(_boardVariant),
         fallback: SeededGemPieceSource(
@@ -850,11 +910,13 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       gem: beforeCells[toIndex].gem,
       sealKind: beforeCells[fromIndex].sealKind,
       sealLayers: beforeCells[fromIndex].sealLayers,
+      iceLayers: beforeCells[fromIndex].iceLayers,
     );
     swappedCells[toIndex] = DiscoveryMotionCell(
       gem: beforeCells[fromIndex].gem,
       sealKind: beforeCells[toIndex].sealKind,
       sealLayers: beforeCells[toIndex].sealLayers,
+      iceLayers: beforeCells[toIndex].iceLayers,
     );
     int indexFor(DiscoveryPosition position) =>
         position.row * boardColumns + position.column;
@@ -886,7 +948,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
             afterFall: _motionCells(step.boardAfterFall),
             afterRefill: _motionCells(step.boardAfterRefill),
             sealHits: [
-              for (final hit in step.sealHits)
+              for (final hit in [...step.sealHits, ...step.iceHits])
                 DiscoveryMotionSealHit(
                   index: indexFor(hit.position),
                   layersBefore: hit.layersBefore,
@@ -924,6 +986,7 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
         sealKind: _sealKind(board.cellAt(position).buriedTarget?.kind),
         sealLayers: board.cellAt(position).sealLayers,
         blockerLayers: board.cellAt(position).blockerLayers,
+        iceLayers: board.cellAt(position).iceLayers,
       ),
   ];
 
@@ -979,6 +1042,8 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
       kind: _gemKind(piece.matchKey),
       sealLayers: cell.sealLayers,
       blockerLayers: cell.blockerLayers,
+      iceLayers: cell.iceLayers,
+      fragmentLabel: piece.carriedTarget?.label,
       linePowerKind: piece.linePower == null
           ? null
           : _presentedPower(piece.linePower!),
@@ -1061,6 +1126,20 @@ class EngineDiscoveryPuzzleViewModel extends ChangeNotifier
     }
     if (_engine.state.isCompleted) return '필요한 블록을 모두 찾았어요. 오른쪽에서 식을 완성하세요.';
     final state = _engine.state;
+    final unmetObjective = state.objectives
+        .where((o) => (state.objectiveProgress[o.id] ?? 0) < o.goal)
+        .firstOrNull;
+    if (unmetObjective != null) {
+      return unmetObjective.kind == DiscoveryObjectiveKind.ice
+          ? '얼음 옆에서 매치해 숨은 풀이 조각을 꺼내세요.'
+          : '${unmetObjective.label} ${unmetObjective.goal}개 목표를 채워 풀이 조각을 얻으세요.';
+    }
+    if (state.pendingDrops.isNotEmpty) {
+      return '유효한 교환을 ${state.pendingDrops.first.afterMoves}회 진행하면 풀이 조각이 위에서 내려와요. 조각이 실린 보석을 제거하세요.';
+    }
+    if (state.board.visiblePieces.any((piece) => piece.carriedTarget != null)) {
+      return '숫자·기호가 실린 보석을 매치하거나 특수 블록으로 제거해 조각을 획득하세요.';
+    }
     if (_runtime.requiredPowerKind != null &&
         (state.powerActivations[_runtime.requiredPowerKind] ?? 0) == 0) {
       return switch (_runtime.requiredPowerKind!) {

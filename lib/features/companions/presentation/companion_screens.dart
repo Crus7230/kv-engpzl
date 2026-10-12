@@ -102,11 +102,15 @@ class CompanionCollectionScreen extends StatefulWidget {
     required this.save,
     required this.onBack,
     this.onReplayArrival,
+    this.onSelectPlayer,
+    this.saving = false,
     super.key,
   });
   final SaveEnvelopeV1 save;
   final VoidCallback onBack;
   final ValueChanged<String>? onReplayArrival;
+  final ValueChanged<String>? onSelectPlayer;
+  final bool saving;
 
   @override
   State<CompanionCollectionScreen> createState() =>
@@ -121,6 +125,7 @@ class _CompanionCollectionScreenState extends State<CompanionCollectionScreen> {
   void initState() {
     super.initState();
     _selectedId =
+        widget.save.playerCharacterId ??
         companionRecruitmentPlan
             .where(
               (entry) =>
@@ -270,7 +275,9 @@ class _CompanionCollectionScreenState extends State<CompanionCollectionScreen> {
                         isPlayer: profile.id == widget.save.playerCharacterId,
                         canReplay:
                             owned &&
-                            profile.id != widget.save.playerCharacterId &&
+                            profile.id !=
+                                (widget.save.starterCharacterId ??
+                                    widget.save.playerCharacterId) &&
                             isCompanionRecruitmentEligible(
                               recruitment,
                               widget.save.completedStageIds,
@@ -278,6 +285,13 @@ class _CompanionCollectionScreenState extends State<CompanionCollectionScreen> {
                         onReplay: widget.onReplayArrival == null
                             ? null
                             : () => widget.onReplayArrival!(profile.id),
+                        onSelectPlayer:
+                            owned &&
+                                widget.save.onboardingCompleted &&
+                                !widget.saving &&
+                                widget.onSelectPlayer != null
+                            ? () => widget.onSelectPlayer!(profile.id)
+                            : null,
                       ),
                     ),
                   ],
@@ -299,6 +313,7 @@ class _ProfilePanel extends StatelessWidget {
     required this.isPlayer,
     required this.canReplay,
     this.onReplay,
+    this.onSelectPlayer,
   });
   final CompanionProfile profile;
   final CompanionRecruitment recruitment;
@@ -306,6 +321,7 @@ class _ProfilePanel extends StatelessWidget {
   final bool isPlayer;
   final bool canReplay;
   final VoidCallback? onReplay;
+  final VoidCallback? onSelectPlayer;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -390,6 +406,13 @@ class _ProfilePanel extends StatelessWidget {
                       _ProfileFact('좋아하는 수학 분야', profile.favoriteMathField),
                       _ProfileFact('좋아하는 숫자', profile.favoriteNumber),
                       const SizedBox(height: 4),
+                      if (!isPlayer && onSelectPlayer != null)
+                        FilledButton.icon(
+                          key: Key('select-player-${profile.id}'),
+                          onPressed: onSelectPlayer,
+                          icon: const Icon(Icons.person_outline, size: 16),
+                          label: const Text('이 동료로 탐험하기'),
+                        ),
                       Text(
                         '기존 앱의 캐릭터 정보 계승 · 탐험 역할은 Renewal 이야기',
                         style: TextStyle(

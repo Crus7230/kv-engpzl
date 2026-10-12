@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/audio/audio_scope.dart';
+import '../../../core/audio/audio_settings.dart';
 import '../../campaign/domain/campaign_models.dart';
 import '../domain/discovery_models.dart';
 import 'discovery_board_animation.dart';
@@ -958,6 +960,13 @@ class _DiscoveryBoardPanel extends StatelessWidget {
               ),
             ),
             SizedBox(height: shortHeight ? 1 : 2),
+            if (viewModel is DiscoveryObjectiveSource &&
+                (viewModel as DiscoveryObjectiveSource)
+                    .discoveryObjectives
+                    .isNotEmpty)
+              _DiscoveryObjectiveStrip(
+                source: viewModel as DiscoveryObjectiveSource,
+              ),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -985,6 +994,61 @@ class _DiscoveryBoardPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DiscoveryObjectiveStrip extends StatelessWidget {
+  const _DiscoveryObjectiveStrip({required this.source});
+  final DiscoveryObjectiveSource source;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final goals = source.discoveryObjectives;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 2),
+        child: Wrap(
+          spacing: 3,
+          runSpacing: 2,
+          children: [
+            for (final goal in goals)
+              SizedBox(
+                width: (constraints.maxWidth - 3) / 2,
+                child: Semantics(
+                  label:
+                      '${goal.label}, ${goal.current}/${goal.goal}, ${goal.isCompleted ? '완료' : '진행 중'}',
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: goal.isCompleted
+                          ? const Color(0xFF225B49)
+                          : const Color(0xFF252342),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 3,
+                        vertical: 2,
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '${goal.isCompleted ? '✓ ' : ''}${goal.label} ${goal.current}/${goal.goal}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class _GemGrid extends StatelessWidget {
@@ -1049,6 +1113,8 @@ class _GemGrid extends StatelessWidget {
                 final selection = viewModel.selectedCellIndex;
                 if (selection != null) viewModel.selectGem(selection);
                 viewModel.selectGem(boardIndex);
+                if (viewModel.selectedCellIndex == boardIndex)
+                  AudioScope.play(context, PuzzleSound.select);
                 viewModel.selectGem(
                   nextRow * viewModel.boardColumns + nextColumn,
                 );
@@ -1059,7 +1125,11 @@ class _GemGrid extends StatelessWidget {
                 column: boardIndex % viewModel.boardColumns + 1,
                 selected: viewModel.selectedCellIndex == boardIndex,
                 onPressed: () {
-                  if (!motionLock.busy) viewModel.selectGem(boardIndex);
+                  if (!motionLock.busy) {
+                    viewModel.selectGem(boardIndex);
+                    if (viewModel.selectedCellIndex == boardIndex)
+                      AudioScope.play(context, PuzzleSound.select);
+                  }
                 },
               ),
             );
@@ -1124,7 +1194,7 @@ class _GemButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = _gemStyle(cell.kind);
     final colorAssist = MediaQuery.highContrastOf(context);
-    final sealKind = cell.sealKind;
+    final sealKind = cell.iceLayers > 0 ? null : cell.sealKind;
     final sealLabel = switch (sealKind) {
       DiscoverySealKind.number => '숫자 봉인',
       DiscoverySealKind.operatorSymbol => '연산자 봉인',
@@ -1137,6 +1207,8 @@ class _GemButton extends StatelessWidget {
       label:
           '$row행 $column열, ${style.name} 보석${sealLabel == null ? '' : ', $sealLabel 있음'}'
           '${cell.sealLayers > 1 ? ', ${cell.sealLayers}층 봉인' : ''}'
+          '${cell.iceLayers > 0 ? ', 얼음 ${cell.iceLayers}층 속 풀이 조각, 인접 매치나 특수 타격으로 획득' : ''}'
+          '${cell.fragmentLabel == null ? '' : ', 낙하 풀이 조각 ${cell.fragmentLabel}, 이 보석을 제거하면 획득'}'
           '${switch (cell.linePowerKind) {
             DiscoveryLinePowerKind.row => ', 가로 직선 파워',
             DiscoveryLinePowerKind.column => ', 세로 직선 파워',
@@ -1235,6 +1307,41 @@ class _GemButton extends StatelessWidget {
                             ),
                           ),
                         ),
+                      if (cell.fragmentLabel != null)
+                        Positioned.fill(
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF5CB),
+                                border: Border.all(
+                                  color: const Color(0xFFFFC957),
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                cell.fragmentLabel!,
+                                style: TextStyle(
+                                  color: const Color(0xFF30234E),
+                                  fontSize: iconSize * .8,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (cell.iceLayers > 0)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _IceTilePainter(layers: cell.iceLayers),
+                            ),
+                          ),
+                        ),
                       if (cell.blockerLayers > 0)
                         Positioned.fill(
                           child: DecoratedBox(
@@ -1255,7 +1362,7 @@ class _GemButton extends StatelessWidget {
                             ),
                           ),
                         ),
-                      if (cell.sealLayers > 1)
+                      if (cell.sealLayers > 1 && cell.iceLayers == 0)
                         Positioned(
                           left: 2,
                           bottom: 2,
@@ -1356,6 +1463,68 @@ class _GemButton extends StatelessWidget {
       ),
     };
   }
+}
+
+class _IceTilePainter extends CustomPainter {
+  const _IceTilePainter({required this.layers});
+  final int layers;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shape = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(6),
+    );
+    canvas.drawRRect(
+      shape,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xDDEAFBFF), Color(0xCC65BEEB), Color(0xEBA5DCFA)],
+        ).createShader(Offset.zero & size),
+    );
+    canvas.drawRRect(
+      shape.deflate(1),
+      Paint()
+        ..color = const Color(0xFFDAF7FF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+    final crack = Path()
+      ..moveTo(size.width * .15, 0)
+      ..lineTo(size.width * .4, size.height * .38)
+      ..lineTo(size.width * .25, size.height * .62)
+      ..lineTo(size.width * .55, size.height)
+      ..moveTo(size.width * .4, size.height * .38)
+      ..lineTo(size.width * .78, size.height * .24)
+      ..lineTo(size.width, size.height * .48);
+    canvas.drawPath(
+      crack,
+      Paint()
+        ..color = const Color(0xCCFFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = layers > 1 ? 1 : 2,
+    );
+    final text = TextPainter(
+      text: const TextSpan(
+        text: '?',
+        style: TextStyle(
+          color: Color(0xFF195B86),
+          fontSize: 17,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    text.paint(
+      canvas,
+      Offset((size.width - text.width) / 2, (size.height - text.height) / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_IceTilePainter oldDelegate) =>
+      layers != oldDelegate.layers;
 }
 
 class _GemStyle {
@@ -1587,7 +1756,10 @@ class _DiscoveredBlockRow extends StatelessWidget {
               size: slotSize,
               semanticAction: '식에 추가',
               onPressed: () {
-                if (!motionLock.busy) viewModel.addBlockToAnswer(block.id);
+                if (!motionLock.busy) {
+                  AudioScope.play(context, PuzzleSound.select);
+                  viewModel.addBlockToAnswer(block.id);
+                }
               },
             );
           }),
@@ -1634,8 +1806,10 @@ class _AnswerBlockRow extends StatelessWidget {
                 semanticAction: '보관함으로 돌려보내기',
                 selected: true,
                 onPressed: () {
-                  if (!motionLock.busy)
+                  if (!motionLock.busy) {
+                    AudioScope.play(context, PuzzleSound.select);
                     viewModel.removeBlockFromAnswer(block.id);
+                  }
                 },
               );
             }),
@@ -1975,7 +2149,13 @@ class _WorkspaceActions extends StatelessWidget {
                               .continueToResult
                         : () => _showLearningReviewDialog(context, viewModel)
                   : viewModel.canCheckAnswer
-                  ? viewModel.checkAnswer
+                  ? () {
+                      viewModel.checkAnswer();
+                      if (viewModel.isAnswerCorrect)
+                        AudioScope.maybeOf(
+                          context,
+                        )?.haptic(PuzzleHaptic.success);
+                    }
                   : null,
               icon: Icon(
                 viewModel.isAnswerCorrect

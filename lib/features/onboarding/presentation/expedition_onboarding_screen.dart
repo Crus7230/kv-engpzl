@@ -20,6 +20,7 @@ class ExpeditionOnboardingScreen extends StatefulWidget {
     required this.onDepart,
     this.saving = false,
     this.errorMessage,
+    this.onSettings,
     super.key,
   });
 
@@ -29,6 +30,7 @@ class ExpeditionOnboardingScreen extends StatefulWidget {
   final VoidCallback onDepart;
   final bool saving;
   final String? errorMessage;
+  final VoidCallback? onSettings;
 
   @override
   State<ExpeditionOnboardingScreen> createState() =>
@@ -97,6 +99,13 @@ class _ExpeditionOnboardingScreenState
                     height: 40,
                     child: Row(
                       children: [
+                        if (widget.onSettings != null)
+                          IconButton(
+                            onPressed: widget.onSettings,
+                            tooltip: '음악·효과음 및 접근성 설정',
+                            color: _paper,
+                            icon: const Icon(Icons.settings_outlined),
+                          ),
                         Expanded(
                           child: Text(
                             title,

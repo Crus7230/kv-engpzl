@@ -94,6 +94,30 @@ void main() {
   });
 
   test(
+    'missing embedded media prompts download but never fetches automatically',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(RetainedAssetBundle.channel, (call) async {
+            calls.add(call);
+            return call.method == 'downloadPack';
+          });
+      await expectLater(
+        RetainedAssetBundle.prepare(fallback: _Bundle()),
+        throwsA(isA<MissingRetainedAssetsException>()),
+      );
+      expect(calls.single.method, 'ensureInstalled');
+      final installed = await RetainedAssetBundle.prepare(
+        fallback: _Bundle(),
+        download: true,
+      );
+      expect(calls.last.method, 'downloadPack');
+      expect(installed, isA<RetainedAssetBundle>());
+    },
+  );
+
+  test(
     'a different pack manifest fails before invoking the native bridge',
     () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;

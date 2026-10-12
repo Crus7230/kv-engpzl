@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../../../core/audio/audio_settings.dart';
+
 import '../../campaign/domain/campaign_models.dart';
 import '../../campaign/domain/learning_models.dart';
 import '../../campaign/domain/stage_recurrence_models.dart';
@@ -152,6 +154,7 @@ class SaveEnvelopeV1 {
     Iterable<String> unlockedCharacterIds = const [],
     Iterable<String> viewedStoryIds = const [],
     this.playerCharacterId,
+    this.starterCharacterId,
     this.onboardingCompleted = false,
     Map<String, int> bestStars = const {},
     Map<String, int> dailyActions = const {},
@@ -163,6 +166,7 @@ class SaveEnvelopeV1 {
     Map<String, dynamic>? activeSession,
     Map<String, CompletionReceipt> rewardLedger = const {},
     AccessibilitySettings? accessibility,
+    AudioSettings? audio,
   }) : completedStageIds = Set.unmodifiable(completedStageIds),
        unlockedStageIds = Set.unmodifiable(unlockedStageIds),
        restoredNodeIds = Set.unmodifiable(restoredNodeIds),
@@ -177,6 +181,7 @@ class SaveEnvelopeV1 {
        masteryStates = Map.unmodifiable(masteryStates),
        activeSession = activeSession == null ? null : _freezeMap(activeSession),
        rewardLedger = Map.unmodifiable(rewardLedger),
+       audio = audio ?? AudioSettings(),
        accessibility = accessibility ?? AccessibilitySettings() {
     validate();
   }
@@ -193,6 +198,9 @@ class SaveEnvelopeV1 {
 
   /// Chosen player avatar is separate from companions rescued on expeditions.
   final String? playerCharacterId;
+
+  /// Original onboarding avatar is immutable even when the active avatar changes.
+  final String? starterCharacterId;
   final bool onboardingCompleted;
   final Map<String, int> bestStars;
   final Map<String, int> dailyActions;
@@ -204,6 +212,7 @@ class SaveEnvelopeV1 {
   final Map<String, dynamic>? activeSession;
   final Map<String, CompletionReceipt> rewardLedger;
   final AccessibilitySettings accessibility;
+  final AudioSettings audio;
   factory SaveEnvelopeV1.initial() => SaveEnvelopeV1(
     unlockedStageIds: const ['prototype-bundle-add', 'r01-c01-s01'],
   );
@@ -216,6 +225,7 @@ class SaveEnvelopeV1 {
     Iterable<String>? unlockedCharacterIds,
     Iterable<String>? viewedStoryIds,
     String? playerCharacterId,
+    String? starterCharacterId,
     bool? onboardingCompleted,
     Map<String, int>? bestStars,
     Map<String, int>? dailyActions,
@@ -228,6 +238,7 @@ class SaveEnvelopeV1 {
     bool clearActiveSession = false,
     Map<String, CompletionReceipt>? rewardLedger,
     AccessibilitySettings? accessibility,
+    AudioSettings? audio,
   }) => SaveEnvelopeV1(
     generation: generation ?? this.generation,
     contentVersion: contentVersion ?? this.contentVersion,
@@ -237,6 +248,7 @@ class SaveEnvelopeV1 {
     unlockedCharacterIds: unlockedCharacterIds ?? this.unlockedCharacterIds,
     viewedStoryIds: viewedStoryIds ?? this.viewedStoryIds,
     playerCharacterId: playerCharacterId ?? this.playerCharacterId,
+    starterCharacterId: starterCharacterId ?? this.starterCharacterId,
     onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
     bestStars: bestStars ?? this.bestStars,
     dailyActions: dailyActions ?? this.dailyActions,
@@ -250,10 +262,13 @@ class SaveEnvelopeV1 {
         : activeSession ?? this.activeSession,
     rewardLedger: rewardLedger ?? this.rewardLedger,
     accessibility: accessibility ?? this.accessibility,
+    audio: audio ?? this.audio,
   );
   void validate() {
     if (playerCharacterId != null)
       _nonEmpty(playerCharacterId!, 'playerCharacterId');
+    if (starterCharacterId != null)
+      _nonEmpty(starterCharacterId!, 'starterCharacterId');
     if (generation < 0 || contentVersion < 1)
       throw const FormatException('Invalid save version or generation.');
     if (contentVersion > supportedContentVersion)
@@ -314,6 +329,7 @@ class SaveEnvelopeV1 {
     'unlockedCharacterIds': unlockedCharacterIds.toList(),
     'viewedStoryIds': viewedStoryIds.toList(),
     'playerCharacterId': playerCharacterId,
+    'starterCharacterId': starterCharacterId,
     'onboardingCompleted': onboardingCompleted,
     'bestStars': bestStars,
     'dailyActions': dailyActions,
@@ -331,6 +347,7 @@ class SaveEnvelopeV1 {
       (key, value) => MapEntry(key, value.toJson()),
     ),
     'accessibility': accessibility.toJson(),
+    'audio': audio.toJson(),
   };
   factory SaveEnvelopeV1.fromJson(Map<String, dynamic> json) {
     final version = _integer(json, 'schemaVersion');
@@ -358,6 +375,9 @@ class SaveEnvelopeV1 {
       playerCharacterId: json.containsKey('playerCharacterId')
           ? _optionalString(json, 'playerCharacterId')
           : null,
+      starterCharacterId: json.containsKey('starterCharacterId')
+          ? _optionalString(json, 'starterCharacterId')
+          : _optionalString(json, 'playerCharacterId'),
       onboardingCompleted: json.containsKey('onboardingCompleted')
           ? _boolean(json, 'onboardingCompleted')
           : false,
@@ -391,6 +411,9 @@ class SaveEnvelopeV1 {
       ).map((k, v) => MapEntry(k, CompletionReceipt.fromJson(_map(v)))),
       accessibility: AccessibilitySettings.fromJson(
         _map(json['accessibility']),
+      ),
+      audio: AudioSettings.fromJson(
+        _map(json['audio'] ?? const <String, dynamic>{}),
       ),
     );
   }
