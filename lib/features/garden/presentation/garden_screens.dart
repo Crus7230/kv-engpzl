@@ -30,6 +30,8 @@ class WorldMapScreen extends StatelessWidget {
     },
     this.onReview,
     this.onRestore,
+    this.onTraces,
+    this.tracesDetail,
     this.statusMessage,
     this.reviewDetail,
     this.explorationDetail,
@@ -45,6 +47,8 @@ class WorldMapScreen extends StatelessWidget {
   final VoidCallback? onExplore;
   final VoidCallback? onReview;
   final VoidCallback? onRestore;
+  final VoidCallback? onTraces;
+  final String? tracesDetail;
   final ValueChanged<String> onSelectRegion;
   final VoidCallback onSettings;
   final String? statusMessage;
@@ -155,12 +159,14 @@ class WorldMapScreen extends StatelessWidget {
                                 title: onCompanions == null
                                     ? '정원 돌보기'
                                     : '탐험의 흔적',
-                                detail: onRestore != null
-                                    ? onCompanions == null
-                                          ? '화단에 새 모습을 골라요'
-                                          : '이정표와 쉼터에 흔적 남기기'
-                                    : '이번 주 ${math.min(weeklyActions, 5)}/5번의 발걸음',
-                                onTap: onRestore,
+                                detail:
+                                    tracesDetail ??
+                                    (onRestore != null
+                                        ? onCompanions == null
+                                              ? '화단에 새 모습을 골라요'
+                                              : '이정표와 쉼터에 흔적 남기기'
+                                        : '이번 주 ${math.min(weeklyActions, 5)}/5번의 발걸음'),
+                                onTap: onTraces ?? onRestore,
                               ),
                             ),
                           ],

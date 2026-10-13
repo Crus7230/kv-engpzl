@@ -79,6 +79,14 @@ Future<void> main() async {
   audio.configure(audio.settings, AudioScene.intro);
   await audio.flush();
   check(backend.music.length == requests, 'Rebuild must not restart a track');
+  audio.configure(audio.settings, AudioScene.adventure);
+  await audio.flush();
+  check(
+    backend.music.last.$1 == 'assets/audio/bgm01.mp3',
+    'Default switches from intro to adventure music',
+  );
+  audio.configure(audio.settings, AudioScene.intro);
+  await audio.flush();
   audio.setForeground(false);
   audio.setForeground(true);
   await audio.flush();
@@ -102,7 +110,7 @@ Future<void> main() async {
   );
   check(backend.music.last.$3 == false, 'Background music inactive');
   audio.configure(
-    audio.settings.copyWith(gameTrackId: 'bgm02'),
+    audio.settings.copyWith(musicTrackId: 'bgm02'),
     AudioScene.adventure,
   );
   await audio.flush();
@@ -115,6 +123,14 @@ Future<void> main() async {
   check(
     backend.music.last.$1 == 'assets/audio/bgm02.mp3' && backend.music.last.$3,
     'Resume desired scene',
+  );
+  final explicitRequests = backend.music.length;
+  audio.configure(audio.settings, AudioScene.intro);
+  await audio.flush();
+  check(
+    backend.music.length == explicitRequests &&
+        backend.music.last.$1 == 'assets/audio/bgm02.mp3',
+    'One selected track covers intro and adventure without restarting',
   );
   audio.configure(
     audio.settings.copyWith(musicEnabled: false, effectsEnabled: false),
@@ -133,8 +149,8 @@ Future<void> main() async {
   final feedbackCount = haptics.length;
   audio.haptic(PuzzleHaptic.success);
   check(haptics.length == feedbackCount, 'Haptic option');
-  audio.configure(AudioSettings(gameTrackId: 'bgm01'), AudioScene.adventure);
-  audio.configure(AudioSettings(gameTrackId: 'bgm03'), AudioScene.adventure);
+  audio.configure(AudioSettings(musicTrackId: 'bgm01'), AudioScene.adventure);
+  audio.configure(AudioSettings(musicTrackId: 'bgm03'), AudioScene.adventure);
   await audio.flush();
   check(backend.music.last.$1 == 'assets/audio/bgm03.mp3', 'Latest scene wins');
   await audio.dispose();
@@ -185,6 +201,44 @@ Future<void> main() async {
     migrated.starterCharacterId == 'CHAR_A' && migrated.audio.musicEnabled,
     'Additive audio/starter migration',
   );
+  for (final (intro, adventure, expected) in [
+    ('intro', 'bgm01', AudioSettings.defaultMusicTrackId),
+    ('intro', 'bgm03', 'bgm03'),
+    ('bgm02', 'bgm01', 'bgm02'),
+    ('bgm02', 'bgm03', 'bgm03'),
+  ]) {
+    final oldAudio = {
+      'introTrackId': intro,
+      'gameTrackId': adventure,
+      'musicVolume': .2,
+      'musicEnabled': false,
+      'hapticsEnabled': false,
+      'downloadPromptSeen': true,
+    };
+    final updated = AudioSettings.fromJson(oldAudio);
+    check(
+      updated.musicTrackId == expected &&
+          updated.musicVolume == .2 &&
+          !updated.musicEnabled &&
+          !updated.hapticsEnabled &&
+          updated.downloadPromptSeen,
+      'Legacy audio migration preserves selection, mute and download status',
+    );
+    check(
+      AudioSettings.fromJson(updated.toJson()).musicTrackId == expected,
+      'Unified audio selection round trips',
+    );
+  }
+  final migratedSave = SaveEnvelopeV1.fromJson({
+    ...original.toJson(),
+    'audio': {'introTrackId': 'intro', 'gameTrackId': 'bgm03'},
+  });
+  check(
+    migratedSave.audio.musicTrackId == 'bgm03' &&
+        jsonEncode(migratedSave.copyWith(audio: original.audio).toJson()) ==
+            jsonEncode(original.toJson()),
+    'Audio-only migration preserves every campaign and active-puzzle field',
+  );
   final store = MemoryKeyValueSaveStore();
   final repo = ProgressRepository(store, initialFactory: () => migrated);
   final service = CompanionProgressService(repo);
@@ -233,7 +287,7 @@ Future<void> main() async {
     'Changing player never revokes companions',
   );
   final savedAudio = AudioSettings(
-    gameTrackId: 'bgm03',
+    musicTrackId: 'bgm03',
     downloadPromptSeen: true,
     hapticsEnabled: false,
     musicVolume: .2,
@@ -242,13 +296,13 @@ Future<void> main() async {
   final restored = await ProgressRepository(store).load();
   check(
     restored.playerCharacterId == 'CHAR_A' &&
-        restored.audio.gameTrackId == 'bgm03' &&
+        restored.audio.musicTrackId == 'bgm03' &&
         !restored.audio.hapticsEnabled &&
         restored.audio.downloadPromptSeen &&
         restored.activeSession!['draft'] == '4+',
     'Restart restores audio, avatar and interrupted puzzle',
   );
   stdout.writeln(
-    'PASS: audio scenes/lifecycle/mute/haptics/download, additive saves, rescued adventure-avatar selection and story continuity.',
+    'PASS: unified music/legacy preference migration, scenes/lifecycle/mute/haptics/download, additive saves, rescued adventure-avatar selection and story continuity.',
   );
 }

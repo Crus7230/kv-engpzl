@@ -43,14 +43,13 @@ class AudioOptions extends StatelessWidget {
         onChanged: (value) => onChanged(settings.copyWith(musicEnabled: value)),
       ),
       _trackPicker(
-        '시작·튜토리얼 음악',
-        settings.introTrackId,
-        (id) => onChanged(settings.copyWith(introTrackId: id)),
+        '음악 선택',
+        settings.musicTrackId,
+        (id) => onChanged(settings.copyWith(musicTrackId: id)),
       ),
-      _trackPicker(
-        '탐험·퍼즐 음악',
-        settings.gameTrackId,
-        (id) => onChanged(settings.copyWith(gameTrackId: id)),
+      const Text(
+        '기본은 시작 시 인트로곡, 탐험 시 BGM을 재생합니다. 곡을 직접 고르면 인트로와 탐험에서 같은 곡을 재생합니다.',
+        style: TextStyle(fontSize: 12),
       ),
       const Text('음악 음량'),
       Slider(
@@ -104,6 +103,14 @@ class AudioOptions extends StatelessWidget {
         value: value,
         isExpanded: true,
         items: [
+          const DropdownMenuItem(
+            value: AudioSettings.defaultMusicTrackId,
+            child: Text(
+              '기본 · 인트로 → 탐험 BGM',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           for (final track in audioTracks)
             DropdownMenuItem(
               value: track.id,

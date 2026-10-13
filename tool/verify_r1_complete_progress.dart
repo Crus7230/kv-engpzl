@@ -14,6 +14,11 @@ Future<void> main() async {
   final store = MemoryKeyValueSaveStore();
   var repository = ProgressRepository(store);
   final region = initialCampaign.regions.first;
+  final regionalRoute = CampaignDefinition.regional(
+    id: '${initialCampaign.id}-r1-verification',
+    version: initialCampaign.version,
+    regions: [region],
+  );
   final orderedStages = region.stages.toList();
   final garden = gardenDefinitionByRegionId(region.id)!;
   _expect(region.stages.length == 60, 'R1 has 60 stable stage IDs');
@@ -31,7 +36,18 @@ Future<void> main() async {
       initialCampaign,
       now: now,
     );
-    final stage = route.explorationStage;
+    // R2's main route opens at C03 S10, before R1's optional C04/C05/C06.
+    // This verifier follows the region screen's R1 route, not the global
+    // daily recommendation. Validate both without changing app routing.
+    _expect(
+      route.explorationStage != null,
+      'global recommendation remains open',
+    );
+    final stage = const CampaignAccessPolicy().nextUncompletedStage(
+      regionalRoute,
+      before.unlockedStageIds,
+      before.completedStageIds,
+    );
     _expect(stage != null, 'no dead end before stage ${index + 1}');
     _expect(
       stage!.id == orderedStages[index].id,

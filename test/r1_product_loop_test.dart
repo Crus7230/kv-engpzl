@@ -17,6 +17,7 @@ import 'package:kvm/features/discovery/presentation/discovery_puzzle_screen.dart
 import 'package:kvm/features/discovery/presentation/engine_discovery_puzzle_view_model.dart';
 import 'package:kvm/features/discovery/presentation/stage_session_controller.dart';
 import 'package:kvm/features/garden/presentation/garden_screens.dart';
+import 'package:kvm/features/garden/presentation/adventure_collection_screens.dart';
 import 'package:kvm/features/garden/data/garden_catalog.dart';
 import 'package:kvm/features/exploration/data/r1_expedition_catalog.dart';
 import 'package:kvm/features/progress/progress.dart';
@@ -280,6 +281,9 @@ void main() {
         }
         await tester.tap(find.text('기억의 씨앗'));
         await tester.pumpAndSettle();
+        expect(find.byType(MemorySeedsScreen), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('memory-seed-play')));
+        await tester.pumpAndSettle();
         expect(
           tester
               .widget<StageBriefingScreen>(find.byType(StageBriefingScreen))
@@ -353,7 +357,10 @@ void main() {
           );
           expect(skill.pendingReviewTickets.single.stageOffset, 6);
         }
-        await tester.tap(find.text('다음 탐험 안내'));
+        await tester.tap(find.text('기억의 씨앗 확인하기'));
+        await tester.pumpAndSettle();
+        expect(find.byType(MemorySeedsScreen), findsOneWidget);
+        await tester.tap(find.text('다음 탐험으로'));
         await tester.pumpAndSettle();
         expect(
           tester

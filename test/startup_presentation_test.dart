@@ -7,8 +7,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kvm/app/math_adventure_app.dart';
 import 'package:kvm/core/branding/garden_branding.dart';
 import 'package:kvm/core/assets/retained_asset_bundle.dart';
+import 'package:kvm/core/audio/audio_controller.dart';
+import 'package:kvm/core/audio/audio_settings.dart';
 import 'package:kvm/features/garden/presentation/garden_screens.dart';
 import 'package:kvm/features/progress/progress.dart';
+
+// Use the same package URI as the app. The standalone Dart verifier imports
+// relative URIs, which would create a second AudioBackend type in this suite.
+class _StartupAudioBackend implements AudioBackend {
+  final music = <(String?, double, bool)>[];
+  @override
+  bool get mediaAvailable => true;
+  @override
+  bool get supportsDownload => false;
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<void> downloadAssets() async {}
+  @override
+  Future<void> setMusic({
+    required String? assetPath,
+    required double volume,
+    required bool active,
+  }) async {
+    music.add((assetPath, volume, active));
+  }
+
+  @override
+  Future<void> playEffect(PuzzleSound sound, double volume) async {}
+  @override
+  void unlock() {}
+  @override
+  Future<void> suspend() async {}
+  @override
+  Future<void> dispose() async {}
+}
 
 class _StartupStore extends MemoryKeyValueSaveStore {
   Completer<void>? gate;
@@ -59,21 +92,57 @@ Future<void> _boot(WidgetTester tester, _StartupStore store) async {
 }
 
 void main() {
-  testWidgets('branded loading finishes immediately when real load completes', (
+  testWidgets('saved music plays in intro and continues without a restart', (
+    tester,
+  ) async {
+    _viewport(tester);
+    final backend = _StartupAudioBackend();
+    final audio = AudioController(backend);
+    await tester.pumpWidget(
+      MathAdventureApp(
+        repository: ProgressRepository(
+          MemoryKeyValueSaveStore(),
+          initialFactory: () => _existingPlayer().copyWith(
+            audio: AudioSettings(musicTrackId: 'bgm03'),
+          ),
+        ),
+        assetBundle: rootBundle,
+        audioController: audio,
+      ),
+    );
+    await tester.pump();
+    await audio.flush();
+    expect(find.byType(AdventureIntroScreen), findsOneWidget);
+    expect(find.byType(WorldMapScreen), findsNothing);
+    expect(backend.music.last.$1, 'assets/audio/bgm03.mp3');
+    final requests = backend.music.length;
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byType(AdventureIntroScreen), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    await audio.flush();
+    expect(find.byType(WorldMapScreen), findsOneWidget);
+    expect(backend.music.length, requests);
+    expect(audio.scene, AudioScene.adventure);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('intro waits for real preparation without losing the save', (
     tester,
   ) async {
     final store = _StartupStore()..gate = Completer<void>();
     await _boot(tester, store);
     await tester.pump();
-    expect(find.byType(GardenLoadingScreen), findsOneWidget);
+    expect(find.byType(AdventureIntroScreen), findsOneWidget);
     expect(find.text('지난 탐험 기록을 불러오고 있어요'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
-    expect(find.byType(GardenLoadingScreen), findsOneWidget);
+    expect(find.byType(AdventureIntroScreen), findsOneWidget);
     expect(tester.takeException(), isNull);
     store.gate!.complete();
     await tester.pumpAndSettle();
     expect(find.byType(WorldMapScreen), findsOneWidget);
-    expect(find.byType(GardenLoadingScreen), findsNothing);
+    expect(find.byType(AdventureIntroScreen), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -87,7 +156,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('저장된 정원을 열 수 없어요'), findsOneWidget);
     expect(find.textContaining('더 새로운 앱'), findsOneWidget);
-    expect(find.byType(GardenLoadingScreen), findsNothing);
+    expect(find.byType(AdventureIntroScreen), findsNothing);
     expect(store.writes, 0);
     expect(tester.takeException(), isNull);
 
@@ -96,7 +165,7 @@ void main() {
     await tester.ensureVisible(find.text('다시 열기'));
     await tester.tap(find.text('다시 열기'));
     await tester.pump();
-    expect(find.byType(GardenLoadingScreen), findsOneWidget);
+    expect(find.byType(AdventureIntroScreen), findsOneWidget);
     expect(find.text('저장된 정원을 열 수 없어요'), findsNothing);
     expect(store.writes, 0);
     store.gate!.complete();
@@ -146,7 +215,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('정원 에셋을 확인할 수 없어요'), findsOneWidget);
-      expect(find.byType(GardenLoadingScreen), findsNothing);
+      expect(find.byType(AdventureIntroScreen), findsNothing);
       expect(store.writes, 0);
       expect(tester.takeException(), isNull);
 
@@ -154,7 +223,7 @@ void main() {
       await tester.ensureVisible(find.text('다시 확인'));
       await tester.tap(find.text('다시 확인'));
       await tester.pump();
-      expect(find.byType(GardenLoadingScreen), findsOneWidget);
+      expect(find.byType(AdventureIntroScreen), findsOneWidget);
       expect(find.text('정원 에셋을 확인할 수 없어요'), findsNothing);
       assetGate.complete();
       store.gate!.complete();

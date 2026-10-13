@@ -11,6 +11,7 @@ import 'package:kvm/features/discovery/presentation/stage_session_controller.dar
 import 'package:kvm/features/garden/data/garden_catalog.dart';
 import 'package:kvm/features/garden/domain/garden_models.dart';
 import 'package:kvm/features/garden/presentation/garden_screens.dart';
+import 'package:kvm/features/garden/presentation/adventure_collection_screens.dart';
 import 'package:kvm/features/companions/presentation/companion_screens.dart';
 import 'package:kvm/features/exploration/data/r1_expedition_catalog.dart';
 import 'package:kvm/features/progress/progress.dart';
@@ -314,6 +315,11 @@ void main() {
       // The next day's review is a real replay, not a falsely advertised new
       // stage. It must complete without duplicating garden restoration rewards.
       await _tap(tester, find.text('기억의 씨앗'), 'next-day review');
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('memory-seed-play')),
+        'wake seed',
+      );
       await _tap(tester, find.text('탐험 시작하기'), 'review start');
       final review = _session(tester);
       expect(review.isDailyReview, isTrue);
@@ -332,7 +338,7 @@ void main() {
       expect(afterReview.dailyReviewActions['2026-10-12'], 1);
       reviewResult.onBack();
       await tester.pumpAndSettle();
-      expect(find.byType(CampaignRegionGardenScreen), findsOneWidget);
+      expect(find.byType(MemorySeedsScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();

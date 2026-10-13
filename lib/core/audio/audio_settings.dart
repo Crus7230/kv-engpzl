@@ -8,16 +8,15 @@ class AudioSettings {
     this.downloadPromptSeen = false,
     this.musicVolume = .45,
     this.effectsVolume = .65,
-    this.introTrackId = 'intro',
-    this.gameTrackId = 'bgm01',
+    this.musicTrackId = defaultMusicTrackId,
   }) {
     for (final volume in [musicVolume, effectsVolume]) {
       if (!volume.isFinite || volume < 0 || volume > 1) {
         throw ArgumentError.value(volume, 'volume');
       }
     }
-    if (!audioTracks.any((track) => track.id == introTrackId) ||
-        !audioTracks.any((track) => track.id == gameTrackId)) {
+    if (musicTrackId != defaultMusicTrackId &&
+        !audioTracks.any((track) => track.id == musicTrackId)) {
       throw const FormatException('Unknown audio track.');
     }
   }
@@ -28,8 +27,17 @@ class AudioSettings {
   final bool downloadPromptSeen;
   final double musicVolume;
   final double effectsVolume;
-  final String introTrackId;
-  final String gameTrackId;
+  static const defaultMusicTrackId = 'default';
+
+  /// Default follows the scene. An explicit selection plays everywhere,
+  /// including the cold-start intro, without restarting on a scene change.
+  final String musicTrackId;
+
+  String trackFor(AudioScene scene) => musicTrackId == defaultMusicTrackId
+      ? scene == AudioScene.intro
+            ? 'intro'
+            : 'bgm01'
+      : musicTrackId;
 
   AudioSettings copyWith({
     bool? musicEnabled,
@@ -38,8 +46,7 @@ class AudioSettings {
     bool? downloadPromptSeen,
     double? musicVolume,
     double? effectsVolume,
-    String? introTrackId,
-    String? gameTrackId,
+    String? musicTrackId,
   }) => AudioSettings(
     musicEnabled: musicEnabled ?? this.musicEnabled,
     effectsEnabled: effectsEnabled ?? this.effectsEnabled,
@@ -47,8 +54,7 @@ class AudioSettings {
     downloadPromptSeen: downloadPromptSeen ?? this.downloadPromptSeen,
     musicVolume: musicVolume ?? this.musicVolume,
     effectsVolume: effectsVolume ?? this.effectsVolume,
-    introTrackId: introTrackId ?? this.introTrackId,
-    gameTrackId: gameTrackId ?? this.gameTrackId,
+    musicTrackId: musicTrackId ?? this.musicTrackId,
   );
 
   Map<String, Object?> toJson() => {
@@ -58,8 +64,11 @@ class AudioSettings {
     'downloadPromptSeen': downloadPromptSeen,
     'musicVolume': musicVolume,
     'effectsVolume': effectsVolume,
-    'introTrackId': introTrackId,
-    'gameTrackId': gameTrackId,
+    'musicTrackId': musicTrackId,
+    // Retain compatible fields for existing save readers. They are derived
+    // from the single setting, not independently configurable preferences.
+    'introTrackId': trackFor(AudioScene.intro),
+    'gameTrackId': trackFor(AudioScene.adventure),
   };
 
   factory AudioSettings.fromJson(Map<String, dynamic> json) => AudioSettings(
@@ -69,9 +78,24 @@ class AudioSettings {
     downloadPromptSeen: json['downloadPromptSeen'] as bool? ?? false,
     musicVolume: (json['musicVolume'] as num?)?.toDouble() ?? .45,
     effectsVolume: (json['effectsVolume'] as num?)?.toDouble() ?? .65,
-    introTrackId: json['introTrackId'] as String? ?? 'intro',
-    gameTrackId: json['gameTrackId'] as String? ?? 'bgm01',
+    musicTrackId: _readMusicTrack(json),
   );
+
+  static String _readMusicTrack(Map<String, dynamic> json) {
+    final unified = json['musicTrackId'] as String?;
+    if (unified != null) return unified;
+    // Preserve an existing custom adventure track first. A custom intro track
+    // is retained if the adventure selection was still the old default.
+    final adventure = json['gameTrackId'] as String? ?? 'bgm01';
+    final intro = json['introTrackId'] as String? ?? 'intro';
+    if (!audioTracks.any((track) => track.id == adventure) ||
+        !audioTracks.any((track) => track.id == intro)) {
+      throw const FormatException('Unknown legacy audio track.');
+    }
+    if (adventure != 'bgm01') return adventure;
+    if (intro != 'intro') return intro;
+    return defaultMusicTrackId;
+  }
 }
 
 class AudioTrack {

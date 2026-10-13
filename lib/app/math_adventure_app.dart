@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/branding/garden_branding.dart';
 import '../core/theme/app_theme.dart';
+import '../core/layout/landscape_game_viewport.dart';
 import '../core/assets/retained_asset_bundle.dart';
 import '../core/audio/audio_backend.dart';
 import '../core/audio/audio_controller.dart';
@@ -24,6 +25,8 @@ import '../features/garden/domain/garden_models.dart';
 import '../features/discovery/presentation/discovery_puzzle_screen.dart';
 import '../features/discovery/presentation/stage_session_controller.dart';
 import '../features/garden/presentation/garden_screens.dart';
+import '../features/garden/presentation/adventure_collection_screens.dart';
+import '../features/progress/domain/adventure_collection_service.dart';
 import '../features/companions/companions.dart';
 import '../features/exploration/data/r1_expedition_catalog.dart';
 import '../features/onboarding/presentation/expedition_onboarding_screen.dart';
@@ -125,6 +128,8 @@ enum RenewalRoute {
   onboarding,
   companions,
   companionArrival,
+  memorySeeds,
+  expeditionTraces,
 }
 
 class _MathAdventureAppState extends State<MathAdventureApp>
@@ -154,6 +159,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   CompanionRecruitment? _arrival;
   bool _arrivalReplay = false;
   RenewalRoute _companionReturnRoute = RenewalRoute.worldMap;
+  RenewalRoute _restorationReturnRoute = RenewalRoute.regionGarden;
   CampaignDefinition get _campaign => widget.campaign ?? initialCampaign;
   bool get _usesPrototype => identical(_campaign, prototypeCampaign);
   bool get _needsOnboarding => !_usesPrototype && !_save!.onboardingCompleted;
@@ -367,19 +373,38 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             : RenewalRoute.regionGarden;
         _arrivalReplay = false;
       });
-    } else if (_route == RenewalRoute.regionGarden) {
+    } else if (_route == RenewalRoute.regionGarden ||
+        _route == RenewalRoute.memorySeeds ||
+        _route == RenewalRoute.expeditionTraces) {
       setState(() => _route = RenewalRoute.worldMap);
+    } else if (_route == RenewalRoute.restoration) {
+      if (_restorationReturnRoute == RenewalRoute.regionGarden) {
+        _returnToExpedition();
+      } else {
+        setState(() => _route = _restorationReturnRoute);
+      }
     } else if (_route != RenewalRoute.worldMap &&
         _route != RenewalRoute.onboarding) {
+      _returnFromStage();
+    }
+  }
+
+  void _returnFromStage() {
+    if (!_usesPrototype && !_needsOnboarding && _isDailyReview) {
+      setState(() => _route = RenewalRoute.memorySeeds);
+    } else {
       _returnToExpedition();
     }
   }
 
   void _showCompanions() => setState(() {
     _arrivalReplay = false;
-    _companionReturnRoute = _route == RenewalRoute.worldMap
-        ? RenewalRoute.worldMap
-        : RenewalRoute.regionGarden;
+    _companionReturnRoute = switch (_route) {
+      RenewalRoute.worldMap ||
+      RenewalRoute.memorySeeds ||
+      RenewalRoute.expeditionTraces => _route,
+      _ => RenewalRoute.regionGarden,
+    };
     _route = RenewalRoute.companions;
   });
 
@@ -669,6 +694,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         _save = save;
         _route = _needsOnboarding
             ? RenewalRoute.onboarding
+            : _isDailyReview && !_usesPrototype
+            ? RenewalRoute.memorySeeds
             : RenewalRoute.regionGarden;
         _session = null;
       });
@@ -888,6 +915,11 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   }
 
   void _showRestoration([String? preferred]) => setState(() {
+    _restorationReturnRoute = _route == RenewalRoute.expeditionTraces
+        ? RenewalRoute.expeditionTraces
+        : _route == RenewalRoute.result && _isDailyReview && !_usesPrototype
+        ? RenewalRoute.memorySeeds
+        : RenewalRoute.regionGarden;
     _restorationNodeId =
         preferred ??
         _earnedNodeIds
@@ -946,7 +978,13 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         );
       });
       if (!_save!.restoredNodeIds.contains(nodeId)) return;
-      if (mounted) _returnToExpedition();
+      if (mounted) {
+        if (_restorationReturnRoute == RenewalRoute.regionGarden) {
+          _returnToExpedition();
+        } else {
+          setState(() => _route = _restorationReturnRoute);
+        }
+      }
     } catch (error) {
       _onSaveError(error);
     } finally {
@@ -1094,10 +1132,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       if (_save != null) {
         _audio.configure(
           _save!.audio,
-          _route == RenewalRoute.puzzle ||
-                  (_startupReady &&
-                      _assetBundle != null &&
-                      _route != RenewalRoute.onboarding)
+          _startupReady && _assetBundle != null
               ? AudioScene.adventure
               : AudioScene.intro,
         );
@@ -1118,9 +1153,11 @@ class _MathAdventureAppState extends State<MathAdventureApp>
               highContrast:
                   media.highContrast || (settings?.colorAssist ?? false),
             ),
-            child: DefaultAssetBundle(
-              bundle: _assetBundle ?? rootBundle,
-              child: child!,
+            child: LandscapeGameViewport(
+              child: DefaultAssetBundle(
+                bundle: _assetBundle ?? rootBundle,
+                child: child!,
+              ),
             ),
           ),
         ),
@@ -1128,6 +1165,20 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     },
     home: StartupUpdateGate(
       service: widget.updateService ?? const AndroidAppUpdateService(),
+      minimumIntroDuration: const Duration(milliseconds: 2400),
+      preparationReady:
+          (_save != null && _assetBundle != null) ||
+          _loadError != null ||
+          _assetError != null,
+      introBuilder: (context, checking) => AdventureIntroScreen(
+        status: checking
+            ? 'GitHub의 새 버전을 확인하고 있어요'
+            : _save == null
+            ? '지난 탐험 기록을 불러오고 있어요'
+            : _assetBundle == null
+            ? '배경과 캐릭터를 확인하고 있어요'
+            : '탐험을 출발할 준비가 되었어요',
+      ),
       onReady: () {
         if (mounted) setState(() => _startupReady = true);
       },
@@ -1138,10 +1189,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
   Widget _buildShell(BuildContext context) {
     if (_assetError != null) {
       if (_preparingAssets)
-        return GardenLoadingScreen(
-          status: '탐험 에셋을 다운로드하고 검증하고 있어요',
-          reduceMotion: MediaQuery.disableAnimationsOf(context),
-        );
+        return const AdventureIntroScreen(status: '탐험 에셋을 다운로드하고 검증하고 있어요');
       final downloadable = _assetError is MissingRetainedAssetsException;
       return _StartupIssueScreen(
         title: downloadable ? '배경·캐릭터 에셋이 필요합니다' : '정원 에셋을 확인할 수 없어요',
@@ -1167,13 +1215,12 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     }
     final save = _save;
     if (save == null || _assetBundle == null) {
-      return GardenLoadingScreen(
+      return AdventureIntroScreen(
         status: _assetBundle == null
             ? save == null
                   ? '정원 기록과 배경을 준비하고 있어요'
                   : '배경과 캐릭터를 확인하고 있어요'
             : '지난 탐험 기록을 불러오고 있어요',
-        reduceMotion: MediaQuery.disableAnimationsOf(context),
       );
     }
     if (_startupReady &&
@@ -1210,6 +1257,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     final showRegionFoundation =
         !_needsOnboarding &&
         _route != RenewalRoute.worldMap &&
+        _route != RenewalRoute.memorySeeds &&
+        _route != RenewalRoute.expeditionTraces &&
         (_route != RenewalRoute.companions ||
             _companionReturnRoute == RenewalRoute.regionGarden);
     final pages = <Page<void>>[
@@ -1217,120 +1266,194 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         key: ValueKey(
           _needsOnboarding ? RenewalRoute.onboarding : RenewalRoute.worldMap,
         ),
-        child: _needsOnboarding
-            ? ExpeditionOnboardingScreen(
-                save: save,
-                saving: _busy,
-                errorMessage: _statusMessage,
-                onChoosePlayer: (id) => unawaited(_choosePlayer(id)),
-                onStartTutorial: _startTutorial,
-                onSettings: () => unawaited(_settings(context)),
-                onDepart: () => unawaited(_depart()),
-              )
-            : WorldMapScreen(
-                availableRegionIds: _usesPrototype
-                    ? const {'region-01-calculation'}
-                    : availableRegions,
-                unlockedRegionIds: unlockedRegions,
-                restoredNodeIds: save.restoredNodeIds,
-                totalStars: save.bestStars.values.fold(0, (a, b) => a + b),
-                weeklyActions: _weeklyActions(save),
-                onExplore:
-                    daily.explorationStage == null && save.activeSession == null
-                    ? null
-                    : () {
-                        final activeId = save.activeSession?['stageId'];
-                        final next =
-                            _findStage(activeId is String ? activeId : null) ??
-                            daily.explorationStage;
-                        if (next == null) return;
-                        _regionId = _regionForStage(next);
-                        _showBriefing();
-                      },
-                onReview: daily.reviewStage == null
-                    ? null
-                    : () => unawaited(
-                        _openStage(
-                          context,
-                          daily.reviewStage!,
-                          reviewTicketId:
-                              daily.reviewKind == DailyReviewKind.dueReview
-                              ? daily.reviewTicket?.id
-                              : null,
-                          isReview: true,
+        // Retained navigator pages must not keep tooltip overlays alive after
+        // their anchors become offstage, especially when a foldable resizes.
+        child: TooltipVisibility(
+          visible: _needsOnboarding
+              ? _route == RenewalRoute.onboarding
+              : _route == RenewalRoute.worldMap,
+          child: _needsOnboarding
+              ? ExpeditionOnboardingScreen(
+                  save: save,
+                  saving: _busy,
+                  errorMessage: _statusMessage,
+                  onChoosePlayer: (id) => unawaited(_choosePlayer(id)),
+                  onStartTutorial: _startTutorial,
+                  onSettings: () => unawaited(_settings(context)),
+                  onDepart: () => unawaited(_depart()),
+                )
+              : WorldMapScreen(
+                  availableRegionIds: _usesPrototype
+                      ? const {'region-01-calculation'}
+                      : availableRegions,
+                  unlockedRegionIds: unlockedRegions,
+                  restoredNodeIds: save.restoredNodeIds,
+                  totalStars: save.bestStars.values.fold(0, (a, b) => a + b),
+                  weeklyActions: _weeklyActions(save),
+                  onExplore:
+                      daily.explorationStage == null &&
+                          save.activeSession == null
+                      ? null
+                      : () {
+                          final activeId = save.activeSession?['stageId'];
+                          final next =
+                              _findStage(
+                                activeId is String ? activeId : null,
+                              ) ??
+                              daily.explorationStage;
+                          if (next == null) return;
+                          _regionId = _regionForStage(next);
+                          _showBriefing();
+                        },
+                  onReview: _usesPrototype
+                      ? null
+                      : () => setState(() => _route = RenewalRoute.memorySeeds),
+                  reviewDetail: _usesPrototype
+                      ? null
+                      : daily.reviewCompletedToday
+                      ? '오늘의 복습 완료'
+                      : daily.reviewStage == null
+                      ? '첫 탐험 뒤 내일부터 복습해요'
+                      : daily.reviewKind == DailyReviewKind.dueReview
+                      ? '돌아온 개념 · 기억 꺼내기'
+                      : '하루 한 개 · 가볍게 다시 풀기',
+                  explorationDetail: _usesPrototype
+                      ? null
+                      : save.activeSession != null
+                      ? '저장된 탐험 이어가기'
+                      : daily.explorationStage == null
+                      ? daily.completedRegionIds.contains(
+                              'region-01-calculation',
+                            )
+                            ? '탐험 완료 · 다음 지역 업데이트 예정'
+                            : '새 묶음 준비 중 · 복습은 계속'
+                      : '${daily.explorationStage!.chapterId.toUpperCase()} S${daily.explorationStage!.number.toString().padLeft(2, '0')}',
+                  onRestore: _canRestore
+                      ? () {
+                          _showRestoration(daily.pendingRestorationNodeId);
+                        }
+                      : null,
+                  onTraces: _usesPrototype
+                      ? null
+                      : () => setState(
+                          () => _route = RenewalRoute.expeditionTraces,
                         ),
-                      ),
-                reviewDetail: _usesPrototype
-                    ? null
-                    : daily.reviewCompletedToday
-                    ? '오늘의 복습 완료'
-                    : daily.reviewStage == null
-                    ? '첫 탐험 뒤 내일부터 복습해요'
-                    : daily.reviewKind == DailyReviewKind.dueReview
-                    ? '돌아온 개념 · 기억 꺼내기'
-                    : '하루 한 개 · 가볍게 다시 풀기',
-                explorationDetail: _usesPrototype
-                    ? null
-                    : save.activeSession != null
-                    ? '저장된 탐험 이어가기'
-                    : daily.explorationStage == null
-                    ? daily.completedRegionIds.contains('region-01-calculation')
-                          ? '탐험 완료 · 다음 지역 업데이트 예정'
-                          : '새 묶음 준비 중 · 복습은 계속'
-                    : '${daily.explorationStage!.chapterId.toUpperCase()} S${daily.explorationStage!.number.toString().padLeft(2, '0')}',
-                onRestore: _canRestore
-                    ? () {
-                        _showRestoration(daily.pendingRestorationNodeId);
-                      }
-                    : null,
-                onSelectRegion: _showRegion,
-                onSettings: () => unawaited(_settings(context)),
-                onCompanions: _usesPrototype ? null : _showCompanions,
-                statusMessage: _statusMessage,
-              ),
+                  tracesDetail: _usesPrototype
+                      ? null
+                      : '발견한 이정표 · 챕터 도장 · 모험 배지',
+                  onSelectRegion: _showRegion,
+                  onSettings: () => unawaited(_settings(context)),
+                  onCompanions: _usesPrototype ? null : _showCompanions,
+                  statusMessage: _statusMessage,
+                ),
+        ),
       ),
+      if (_route == RenewalRoute.memorySeeds)
+        MaterialPage(
+          key: const ValueKey(RenewalRoute.memorySeeds),
+          child: MemorySeedsScreen(
+            collection: const AdventureCollectionService().memorySeeds(
+              save,
+              _campaign,
+              now: _now,
+            ),
+            initialSkillId: _isDailyReview
+                ? _stage.learningPlan.primarySkillId
+                : null,
+            onBack: () => setState(() => _route = RenewalRoute.worldMap),
+            onReview: save.activeSession?['isDailyReview'] == true
+                ? _showBriefing
+                : daily.reviewStage == null
+                ? null
+                : () => unawaited(
+                    _openStage(
+                      context,
+                      daily.reviewStage!,
+                      reviewTicketId:
+                          daily.reviewKind == DailyReviewKind.dueReview
+                          ? daily.reviewTicket?.id
+                          : null,
+                      isReview: true,
+                    ),
+                  ),
+            onExplore:
+                daily.explorationStage == null && save.activeSession == null
+                ? null
+                : () {
+                    final activeId = save.activeSession?['stageId'];
+                    final next =
+                        _findStage(activeId is String ? activeId : null) ??
+                        daily.explorationStage;
+                    if (next == null) return;
+                    _regionId = _regionForStage(next);
+                    _showBriefing();
+                  },
+          ),
+        ),
+      if (_route == RenewalRoute.expeditionTraces)
+        MaterialPage(
+          key: const ValueKey(RenewalRoute.expeditionTraces),
+          child: ExpeditionTracesScreen(
+            journal: const AdventureCollectionService().journal(
+              save,
+              _campaign,
+              gardenDefinitions,
+              now: _now,
+            ),
+            onBack: () => setState(() => _route = RenewalRoute.worldMap),
+            onRegion: _showRegion,
+            onRestore: _showRestoration,
+            onCompanions: _showCompanions,
+          ),
+        ),
       if (showRegionFoundation)
         MaterialPage(
           key: const ValueKey(RenewalRoute.regionGarden),
-          child: !_usesPrototype && availableRegions.contains(_regionId)
-              ? CampaignRegionGardenScreen(
-                  regionNumber: expeditionRegionNumber(_regionId),
-                  stages: campaignStages,
-                  completedStageIds: save.completedStageIds,
-                  unlockedStageIds: save.unlockedStageIds,
-                  restoredNodeIds: save.restoredNodeIds,
-                  decorationChoices: save.decorationChoices,
-                  nextStageId: _regionalNextStage?.id,
-                  unlockedCharacterIds: save.unlockedCharacterIds,
-                  playerCharacterId: save.playerCharacterId,
-                  onCompanions: _showCompanions,
-                  canEnterStage: _canEnterStage,
-                  onStories: () => unawaited(_viewCharacterStories(context)),
-                  onBack: () => setState(() => _route = RenewalRoute.worldMap),
-                  onPlay:
-                      _regionalNextStage == null && save.activeSession == null
-                      ? null
-                      : _showBriefing,
-                  onSelectStage: (id) =>
-                      unawaited(_openStage(context, _campaign.stageById(id)!)),
-                  onRestore: () => unawaited(_chooseRestorationNode(context)),
-                  canRestore: _earnedRegionNodeIds.isNotEmpty,
-                  hasActiveSession: save.activeSession != null,
-                )
-              : RegionGardenScreen(
-                  regionId: _regionId,
-                  restoredNodeIds: save.restoredNodeIds,
-                  decorationChoices: save.decorationChoices,
-                  onBack: () => setState(() => _route = RenewalRoute.worldMap),
-                  onPlay: _showBriefing,
-                  onRestore: () =>
-                      _showRestoration(daily.pendingRestorationNodeId),
-                  canRestore: _canRestore,
-                  hasActiveSession: save.activeSession != null,
-                  demoCompleted: save.completedStageIds.contains(
-                    verticalSliceStage.id,
+          child: TooltipVisibility(
+            visible: _route == RenewalRoute.regionGarden,
+            child: !_usesPrototype && availableRegions.contains(_regionId)
+                ? CampaignRegionGardenScreen(
+                    regionNumber: expeditionRegionNumber(_regionId),
+                    stages: campaignStages,
+                    completedStageIds: save.completedStageIds,
+                    unlockedStageIds: save.unlockedStageIds,
+                    restoredNodeIds: save.restoredNodeIds,
+                    decorationChoices: save.decorationChoices,
+                    nextStageId: _regionalNextStage?.id,
+                    unlockedCharacterIds: save.unlockedCharacterIds,
+                    playerCharacterId: save.playerCharacterId,
+                    onCompanions: _showCompanions,
+                    canEnterStage: _canEnterStage,
+                    onStories: () => unawaited(_viewCharacterStories(context)),
+                    onBack: () =>
+                        setState(() => _route = RenewalRoute.worldMap),
+                    onPlay:
+                        _regionalNextStage == null && save.activeSession == null
+                        ? null
+                        : _showBriefing,
+                    onSelectStage: (id) => unawaited(
+                      _openStage(context, _campaign.stageById(id)!),
+                    ),
+                    onRestore: () => unawaited(_chooseRestorationNode(context)),
+                    canRestore: _earnedRegionNodeIds.isNotEmpty,
+                    hasActiveSession: save.activeSession != null,
+                  )
+                : RegionGardenScreen(
+                    regionId: _regionId,
+                    restoredNodeIds: save.restoredNodeIds,
+                    decorationChoices: save.decorationChoices,
+                    onBack: () =>
+                        setState(() => _route = RenewalRoute.worldMap),
+                    onPlay: _showBriefing,
+                    onRestore: () =>
+                        _showRestoration(daily.pendingRestorationNodeId),
+                    canRestore: _canRestore,
+                    hasActiveSession: save.activeSession != null,
+                    demoCompleted: save.completedStageIds.contains(
+                      verticalSliceStage.id,
+                    ),
                   ),
-                ),
+          ),
         ),
       if (_route == RenewalRoute.briefing)
         MaterialPage(
@@ -1347,7 +1470,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 ? _stage
                 : DiscoveryChallengeProfile.stageFor(_stage),
             isReview: _isDailyReview || _stage.chapterId.endsWith('-c04'),
-            onBack: _returnToExpedition,
+            onBack: _returnFromStage,
             onStart: () => unawaited(_start(context)),
             resume: save.activeSession != null,
           ),
@@ -1377,6 +1500,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 ? '모험 출발하기'
                 : _receipt!.unlockedRestorationNodeIds.isNotEmpty
                 ? '탐험의 흔적 남기기'
+                : _isDailyReview
+                ? '기억의 씨앗 확인하기'
                 : _nextAfterResult(daily) == null
                 ? '탐험 지도로 돌아가기'
                 : '다음 탐험 안내',
@@ -1387,6 +1512,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 unawaited(_depart());
               } else if (_receipt!.unlockedRestorationNodeIds.isNotEmpty)
                 _showRestoration(_receipt!.unlockedRestorationNodeIds.first);
+              else if (_isDailyReview && !_usesPrototype)
+                _returnFromStage();
               else if (!_usesPrototype &&
                   nextUnviewedCompanionArrival(save, regionId: _regionId) !=
                       null)
@@ -1396,7 +1523,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
               else
                 _returnToExpedition();
             },
-            onBack: _returnToExpedition,
+            onBack: _returnFromStage,
           ),
         ),
       if (_route == RenewalRoute.restoration)

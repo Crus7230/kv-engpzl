@@ -116,9 +116,7 @@ class AudioController {
     _tail = _tail
         .then((_) async {
           if (_disposed) return;
-          final id = _scene == AudioScene.intro
-              ? _settings.introTrackId
-              : _settings.gameTrackId;
+          final id = _settings.trackFor(_scene);
           final path = _settings.musicEnabled
               ? audioTracks.firstWhere((track) => track.id == id).assetPath
               : null;

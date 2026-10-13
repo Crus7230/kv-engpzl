@@ -12,18 +12,28 @@ class StartupUpdateGate extends StatefulWidget {
     required this.service,
     required this.child,
     this.onReady,
+    this.minimumIntroDuration = Duration.zero,
+    this.preparationReady = true,
+    this.introBuilder,
     super.key,
   });
 
   final AppUpdateService service;
   final Widget child;
   final VoidCallback? onReady;
+  final Duration minimumIntroDuration;
+  final bool preparationReady;
+  final Widget Function(BuildContext context, bool checking)? introBuilder;
 
   @override
   State<StartupUpdateGate> createState() => _StartupUpdateGateState();
 }
 
-class _StartupUpdateGateState extends State<StartupUpdateGate> {
+class _StartupUpdateGateState extends State<StartupUpdateGate>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _introClock;
+  bool _introElapsed = false;
+  bool _readyNotified = false;
   bool _checking = true;
   bool _working = false;
   bool _downloaded = false;
@@ -34,7 +44,45 @@ class _StartupUpdateGateState extends State<StartupUpdateGate> {
   @override
   void initState() {
     super.initState();
+    _introElapsed = widget.minimumIntroDuration == Duration.zero;
+    _introClock =
+        AnimationController(vsync: this, duration: widget.minimumIntroDuration)
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed && mounted) {
+              setState(() => _introElapsed = true);
+              _notifyReady();
+            }
+          });
+    // A finite clock keeps the intro on screen while preparation runs. It
+    // does not animate scenery, so reduced-motion users get the same hold.
+    if (!_introElapsed) _introClock.forward();
     unawaited(_check());
+  }
+
+  @override
+  void didUpdateWidget(StartupUpdateGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _notifyReady();
+  }
+
+  @override
+  void dispose() {
+    _introClock.dispose();
+    super.dispose();
+  }
+
+  void _notifyReady() {
+    if (_readyNotified ||
+        _checking ||
+        !_introElapsed ||
+        !widget.preparationReady ||
+        _release != null) {
+      return;
+    }
+    _readyNotified = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onReady?.call();
+    });
   }
 
   Future<void> _check() async {
@@ -51,7 +99,7 @@ class _StartupUpdateGateState extends State<StartupUpdateGate> {
         _release = release;
         _checking = false;
       });
-    if (mounted && release == null) widget.onReady?.call();
+    if (mounted) _notifyReady();
   }
 
   Future<void> _update() async {
@@ -99,11 +147,15 @@ class _StartupUpdateGateState extends State<StartupUpdateGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_checking)
-      return GardenLoadingScreen(
-        status: 'GitHub의 새 버전을 확인하고 있어요',
-        reduceMotion: MediaQuery.disableAnimationsOf(context),
-      );
+    if (_checking ||
+        !_introElapsed ||
+        (_release == null && !widget.preparationReady)) {
+      return widget.introBuilder?.call(context, _checking) ??
+          GardenLoadingScreen(
+            status: _checking ? 'GitHub의 새 버전을 확인하고 있어요' : '탐험을 준비하고 있어요',
+            reduceMotion: MediaQuery.disableAnimationsOf(context),
+          );
+    }
     final release = _release;
     if (release == null) return widget.child;
     return Scaffold(
@@ -156,7 +208,7 @@ class _StartupUpdateGateState extends State<StartupUpdateGate> {
                             ? null
                             : () {
                                 setState(() => _release = null);
-                                widget.onReady?.call();
+                                _notifyReady();
                               },
                         child: const Text('나중에 · 계속하기'),
                       ),

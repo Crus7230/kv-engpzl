@@ -6,6 +6,14 @@
   let disposed = false;
   const pools = new Map();
   const soundIds = ['select', 'swap', 'pop', 'special'];
+  // Opt-in localhost diagnostics for actual decoded media playback. Normal
+  // app sessions remain silent; this does not expose saves or user data.
+  const diagnostics = window.location &&
+    ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
+    new URLSearchParams(window.location.search).get('audioDebug') === '1';
+  const report = (event, value) => {
+    if (diagnostics) console.debug(`[kvm-audio] ${event} ${JSON.stringify(value)}`);
+  };
   const assetUrl = p => new URL(`assets/${p}`, document.baseURI).href;
   const pauseAll = () => {
     music?.pause();
@@ -42,7 +50,26 @@
         if (music) { music.removeAttribute('src'); music.load(); }
         path = nextPath;
         music = path ? new Audio(assetUrl(path)) : null;
-        if (music) { music.loop = true; music.preload = 'auto'; }
+        if (music) {
+          music.loop = true; music.preload = 'auto';
+          if (diagnostics) {
+            const player = music, selectedPath = path;
+            let advanced = false;
+            const state = () => ({path: selectedPath, position: player.currentTime,
+              duration: player.duration, loop: player.loop, paused: player.paused});
+            player.addEventListener('playing', () => report('playing', state()));
+            player.addEventListener('pause', () => report('paused', state()));
+            player.addEventListener('error', () => report('error', {
+              path: selectedPath, code: player.error?.code,
+            }));
+            player.addEventListener('timeupdate', () => {
+              if (!advanced && player.currentTime >= 1 && !player.paused) {
+                advanced = true;
+                report('advancing', state());
+              }
+            });
+          }
+        }
       }
       if (music) music.volume = Math.max(0, Math.min(1, volume));
       if (!active || document.hidden) pauseAll(); else resume();

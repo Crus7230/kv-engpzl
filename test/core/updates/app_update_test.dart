@@ -81,7 +81,13 @@ class _FakeUpdater implements AppUpdateService {
   }
 }
 
-Future<void> _mount(WidgetTester tester, _FakeUpdater service) async {
+Future<void> _mount(
+  WidgetTester tester,
+  _FakeUpdater service, {
+  Duration minimumIntroDuration = Duration.zero,
+  bool preparationReady = true,
+  VoidCallback? onReady,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(680, 300);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -97,6 +103,9 @@ Future<void> _mount(WidgetTester tester, _FakeUpdater service) async {
       ),
       home: StartupUpdateGate(
         service: service,
+        minimumIntroDuration: minimumIntroDuration,
+        preparationReady: preparationReady,
+        onReady: onReady,
         child: const Scaffold(body: Text('game')),
       ),
     ),
@@ -105,6 +114,54 @@ Future<void> _mount(WidgetTester tester, _FakeUpdater service) async {
 }
 
 void main() {
+  testWidgets('intro holds while real preparation runs and notifies once', (
+    tester,
+  ) async {
+    final service = _FakeUpdater()..failCheck = true;
+    var readyCount = 0;
+    await _mount(
+      tester,
+      service,
+      minimumIntroDuration: const Duration(milliseconds: 2400),
+      preparationReady: false,
+      onReady: () => readyCount++,
+    );
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('game'), findsNothing);
+    expect(readyCount, 0);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('game'), findsNothing);
+    await _mount(
+      tester,
+      service,
+      minimumIntroDuration: const Duration(milliseconds: 2400),
+      onReady: () => readyCount++,
+    );
+    expect(find.text('game'), findsOneWidget);
+    expect(readyCount, 1);
+    await tester.pumpAndSettle();
+    expect(service.checks, 1);
+    expect(readyCount, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('disposing during the intro never fires a late ready callback', (
+    tester,
+  ) async {
+    final service = _FakeUpdater()..failCheck = true;
+    var readyCount = 0;
+    await _mount(
+      tester,
+      service,
+      minimumIntroDuration: const Duration(milliseconds: 2400),
+      onReady: () => readyCount++,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 3));
+    expect(readyCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'selects highest published compatible alpha code, not tag lexicography',
     () {
@@ -268,7 +325,7 @@ void main() {
           updateService: updater,
         ),
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('새 버전 0.1.4'), findsOneWidget);
       await tester.tap(find.text('나중에 · 계속하기'));
       await tester.pumpAndSettle();
