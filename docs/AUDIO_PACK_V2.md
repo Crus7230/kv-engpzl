@@ -39,4 +39,8 @@
 - `node tool/verify_web_audio.cjs`: 루프·같은 재생 객체 유지·백그라운드 정지·음소거·효과음·폐기 회귀 계약 통과. 가짜 Audio 기반 검사이며 실제 청취는 아니다.
 - `tool/prepare_logic_only_source.ps1`: 생성 입력에서 이미지 15,617,620 bytes와 음원 29,948,641 bytes를 제외하고 manifest를 유지했다. APK는 생성하지 않았다.
 
-공개 다운로드 검증은 게시 후 추가한다. 실제 Android 다운로드·청취와 새 곡 UI는 다음 APK 및 실기기에서 별도 확인해야 한다. Flutter 분석·테스트·빌드는 이번 요청에서 실행하지 않았다. 다음 APK 작업에서 `flutter analyze`, `flutter test`, `flutter build apk --release --no-pub -t lib/main.dart`를 승인 후 실행해야 한다.
+- 2026-10-13 20:51:27 KST에 `media-audio-v2`를 공개했다. Release ID `411617541`, 초안 아님·알파 사전 릴리즈이며 ZIP 하나만 게시했다. APK 업데이트 표식은 넣지 않았다.
+- 로그인 없는 공개 API와 실제 ZIP 다운로드의 크기·SHA256이 manifest 및 로컬 ZIP과 일치했다. 기존 릴리즈 11개와 각 asset ID·파일명·크기·digest가 보존됐다.
+- 팩 및 앱 연결 소스 커밋은 `25d5a79c3f8cc77136ed6c3f493409c89b9a9436`이며 `media-audio-v2` 태그가 같은 커밋을 가리킨다.
+
+실제 Android 다운로드·청취와 새 곡 UI는 다음 APK 및 실기기에서 별도 확인해야 한다. Flutter 분석·테스트·빌드는 이번 요청에서 실행하지 않았다. 다음 APK 작업에서 `flutter analyze`, `flutter test`, `flutter build apk --release --no-pub -t lib/main.dart`를 승인 후 실행해야 한다.

@@ -35,7 +35,7 @@ APK의 크기·SHA256과 검증 결과는 [v0.1.8 릴리즈 기록](docs/RELEASE
 
 ## 추가 음원 팩 audio-v2
 
-새 `Glass Horizon`, `Highest Point of the Swing`, `Painted Ponies Turning`을 포함해 음악 7곡·효과음 4개, 약 29.9MB의 `audio-v2`를 별도 팩으로 준비했습니다. 기존 원본·audio-v1·진행 기록은 유지합니다. **위 공개 APK 0.1.8은 audio-v1을 계속 사용하며, 새 곡은 다음 APK에서 선택할 수 있습니다.** 이번 팩 작업에서는 APK를 빌드하거나 버전을 올리지 않습니다. [구성·배포·검증 기록](docs/AUDIO_PACK_V2.md)을 참고하세요.
+새 `Glass Horizon`, `Highest Point of the Swing`, `Painted Ponies Turning`을 포함해 음악 7곡·효과음 4개, 약 29.9MB의 [audio-v2](https://github.com/Crus7230/kv-engpzl/releases/tag/media-audio-v2)를 별도 팩으로 공개했습니다. 익명 다운로드 해시와 기존 릴리즈 11개 보존을 확인했으며 원본·audio-v1·진행 기록은 유지합니다. **위 공개 APK 0.1.8은 audio-v1을 계속 사용하며, 새 곡은 다음 APK에서 선택할 수 있습니다.** 이번 팩 작업에서는 APK를 빌드하거나 버전을 올리지 않았습니다. [구성·배포·검증 기록](docs/AUDIO_PACK_V2.md)을 참고하세요.
 
 ## v0.1.8 변경 사항
 
