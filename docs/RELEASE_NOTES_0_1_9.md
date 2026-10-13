@@ -22,12 +22,12 @@
 
 이미지 팩 `r1-media-v3`는 그대로 재사용합니다. 효과음·햅틱·선택한 모험 캐릭터, 기존 퍼즐과 수학 문제·지도·인트로·기억꽃·탐험 여권을 유지합니다. 새 런타임 의존성은 추가하지 않습니다.
 
-[음원 팩과 원본 검증 기록](AUDIO_PACK_V2.md) · [음원 팩 릴리즈](https://github.com/Crus7230/kv-engpzl/releases/tag/media-audio-v2)
+[음원 팩과 원본 검증 기록](https://github.com/Crus7230/kv-engpzl/blob/main/docs/AUDIO_PACK_V2.md) · [음원 팩 릴리즈](https://github.com/Crus7230/kv-engpzl/releases/tag/media-audio-v2)
 
 ## 검증과 한계
 
 - `flutter analyze --no-pub`: 이슈 0개.
-- `flutter test --no-pub --reporter expanded`: 665개 통과, 공개 릴리즈 JSON 검사 1개 조건부 제외. 해당 검사는 게시 후 실제 공개 JSON으로 별도 실행합니다.
+- `flutter test --no-pub --reporter expanded`: 665개 통과, 공개 릴리즈 JSON 검사 1개 조건부 제외. 게시 후 실제 익명 공개 JSON으로 해당 검사도 별도 실행해 1개 통과했습니다. code 9에서 0.1.9/code 10을 선택하고 code 10에서는 같은 버전을 제외합니다.
 - 새 곡 3개의 설정 선택, 11개 파일의 audio-v2 manifest 전달, 명시적 다운로드·재시도, 다운로드 중 중복 버튼 방지와 설치 후 버튼 숨김을 Flutter 테스트로 확인했습니다.
 - 기존 음악 선택·음소거·장면 전환·저장 복원, R1 60개 연속 진행·R1→R2와 보상 중복 방지를 회귀 검증했습니다.
 - 이미지 31개·음원 11개의 원본 및 ZIP 크기·SHA256을 확인했고 공개 이미지/음원 팩의 asset 크기·digest도 manifest와 일치합니다.
@@ -45,4 +45,6 @@ SHA256:
 6e049fe00dfd2a691357e4a10cd8f9f04788feb6a7fa8d4468423b677395cd8d
 ```
 
-공개 다운로드·업데이트 인식 검증은 게시 후 기록합니다. 실제 Android 설치·다운로드·청취·햅틱·프레임 성능은 사용자 기기에서 별도 확인해야 합니다.
+2026-10-13 21:20:44 KST에 `v0.1.9-r1-alpha`를 공개했습니다. Release ID는 `411642393`, 공개 알파 상태이며 단일 APK 첨부·크기·digest와 로그인 없는 실제 APK 다운로드의 SHA256 일치를 확인했습니다. 이전 APK 릴리즈 9개와 이미지·음원 팩 3개, 총 12개 릴리즈와 각 파일을 보존했습니다. 릴리즈 소스 커밋은 `1132b47897bb61beef5f3eb477a9ebb9feaaf63e`이며 태그가 같은 커밋을 가리킵니다.
+
+실제 Android 설치·다운로드·청취·햅틱·프레임 성능은 사용자 기기에서 별도 확인해야 합니다. 자동 검증은 실제 기기 청취나 사람 플레이에 의한 난도 보정·학습 효과 증명이 아닙니다.

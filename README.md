@@ -33,6 +33,8 @@ v0.1.3 이상은 시작 로딩 중 이번 업데이트를 안내할 수 있습�
 
 APK의 크기·SHA256과 검증 결과는 [v0.1.9 릴리즈 기록](docs/RELEASE_NOTES_0_1_9.md)을 확인하세요.
 
+v0.1.9는 분석 이슈 0개, 전체 테스트 665개와 게시 후 공개 업데이트 인식 검사 1개를 통과했습니다. APK v2 서명·기존 인증서·217개 빌드 입력 일치·미디어 미포함을 확인했습니다. 로그인 없는 APK 다운로드의 크기·SHA256도 원본과 같으며 이전 릴리즈 12개와 파일을 보존했습니다. 실제 휴대폰의 설치·다운로드·청취·햅틱은 미검증입니다.
+
 ## 추가 음원 팩 audio-v2
 
 새 `Glass Horizon`, `Highest Point of the Swing`, `Painted Ponies Turning`을 포함해 음악 7곡·효과음 4개, 약 29.9MB의 [audio-v2](https://github.com/Crus7230/kv-engpzl/releases/tag/media-audio-v2)를 별도 팩으로 공개했습니다. 원본·audio-v1·진행 기록은 유지합니다. **위 APK 0.1.9부터 설정에서 audio-v2를 받아 새 곡을 선택할 수 있습니다.** APK 0.1.8까지는 audio-v1을 사용하므로 먼저 앱을 업데이트해야 합니다. 같은 팩을 쓰는 다음 코드 업데이트에서는 음원을 재다운로드하지 않습니다. [음원 기록](docs/AUDIO_PACK_V2.md)과 [앱 업데이트 안내](docs/RELEASE_NOTES_0_1_9.md)를 참고하세요.

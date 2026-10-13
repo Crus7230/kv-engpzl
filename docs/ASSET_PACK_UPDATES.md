@@ -72,7 +72,7 @@ flutter build apk --release --no-pub -t lib/main.dart
 | `r1-media-v3` | `KVM-r1-media-v3.zip` | 15,183,325 | `filesDir/kvm_asset_packs/r1-media-v3` |
 | `audio-v2` | `KVM-audio-v2.zip` | 29,864,615 | `filesDir/kvm_asset_packs/audio-v2` |
 
-현재 소스의 로컬 배포 산출물은 `build/asset-pack/r1-media-v3/KVM-r1-media-v3.zip`, `build/audio-pack/audio-v2/KVM-audio-v2.zip`이다. 2026-10-12에 [이미지 팩](https://github.com/Crus7230/kv-engpzl/releases/tag/media-r1-v3)과 [이전 음원 팩 audio-v1](https://github.com/Crus7230/kv-engpzl/releases/tag/media-audio-v1)을 공개하고 공개 다운로드 해시를 확인했다. v0.1.8까지의 공개 APK는 여전히 audio-v1을 사용한다. 새 3곡을 포함한 audio-v2 소스와 배포 경계는 [audio-v2 기록](AUDIO_PACK_V2.md)을 기준으로 한다. 기존 팩과 릴리즈는 보존하며 같은 pack ID를 덮어쓰지 않는다. 에셋 릴리즈는 APK 버전 태그 패턴과 달라 앱 업데이트 후보로 선택되지 않는다.
+현재 소스의 로컬 배포 산출물은 `build/asset-pack/r1-media-v3/KVM-r1-media-v3.zip`, `build/audio-pack/audio-v2/KVM-audio-v2.zip`이다. 2026-10-12에 [이미지 팩](https://github.com/Crus7230/kv-engpzl/releases/tag/media-r1-v3)과 [이전 음원 팩 audio-v1](https://github.com/Crus7230/kv-engpzl/releases/tag/media-audio-v1)을 공개하고 공개 다운로드 해시를 확인했다. v0.1.8까지는 audio-v1, v0.1.9부터는 audio-v2를 사용한다. 기존 audio-v1 사용자는 v0.1.9 앱 업데이트 후 설정에서 새 팩 약 30MB를 받아야 음악·효과음을 재생한다. 기존 팩은 삭제하지 않는다. 새 3곡을 포함한 audio-v2 소스와 배포 경계는 [audio-v2 기록](AUDIO_PACK_V2.md)과 [v0.1.9 설치 안내](RELEASE_NOTES_0_1_9.md)를 기준으로 한다. 기존 팩과 릴리즈는 보존하며 같은 pack ID를 덮어쓰지 않는다. 에셋 릴리즈는 APK 버전 태그 패턴과 달라 앱 업데이트 후보로 선택되지 않는다.
 
 - 이미지 ZIP SHA256: `5ABD5C72714DC982A47EA89BC35DE849A26B3F38B16C06F4A98CD0F4DAB8F50A`
 - 현재 audio-v2 ZIP SHA256: `9A7200A5FDEB9A0B4A1FA37F70E5A77BD94D61FC025F4FA5CD98AF608BF9A750`
