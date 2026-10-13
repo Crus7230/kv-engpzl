@@ -7,7 +7,7 @@ Android에서 앱 코드, 배경·캐릭터 팩, 음악·효과음 팩을 분리
 | 종류 | 에셋 포함 | 설치 조건 |
 | --- | --- | --- |
 | 다운로드형 APK / 로직 업데이트 | manifest만 포함 | 신규 설치는 이미지 팩 최초 다운로드가 필요하며 음원은 선택 다운로드. 기존 검증된 팩은 재사용 |
-| 전체 오프라인 APK | PNG 31개, 음원 8개와 manifest | 다운로드 없이 시작할 수 있는 대체 설치 방식 |
+| 전체 오프라인 APK | PNG 31개, 음원 11개와 manifest | 다운로드 없이 시작할 수 있는 대체 설치 방식 |
 | 음원 다운로드형 APK | PNG 31개와 manifest | 이미지는 포함하고 음원만 선택 다운로드하는 대체 방식 |
 | Web | 일반 bundle | 현재와 같이 이미지 포함 web 배포 |
 
@@ -35,7 +35,7 @@ Android 앱 전용 파일은 일반 APK 업데이트에서 재사용할 수 있�
 
 ## 로직 전용 빌드 입력 생성
 
-`tool/prepare_logic_only_source.ps1`은 `build/logic-only-source` 아래 새 디렉터리에 소스를 복사한다. 원본 파일, 원본 pubspec과 이미지에는 손대지 않는다. Flutter 및 Gradle 캐시, 빌드 산출물, keystore, `key.properties`와 `local.properties`는 복사하지 않는다. 생성본 pubspec에서는 `assets/legacy/`, `assets/expedition/`, `assets/audio/`를 제외하고 두 manifest를 유지한다. 따라서 APK에 음악 17MB가 매번 포함되지 않는다. 신규 설치에서도 이미지 다운로드 화면을 통해 시작할 수 있지만 두 ZIP을 먼저 공개해야 한다.
+`tool/prepare_logic_only_source.ps1`은 `build/logic-only-source` 아래 새 디렉터리에 소스를 복사한다. 원본 파일, 원본 pubspec과 이미지에는 손대지 않는다. Flutter 및 Gradle 캐시, 빌드 산출물, keystore, `key.properties`와 `local.properties`는 복사하지 않는다. 생성본 pubspec에서는 `assets/legacy/`, `assets/expedition/`, `assets/audio/`를 제외하고 두 manifest를 유지한다. 따라서 APK에 음원 약 30MB가 매번 포함되지 않는다. 신규 설치에서도 이미지 다운로드 화면을 통해 시작할 수 있지만 두 ZIP을 먼저 공개해야 한다.
 
 ```powershell
 cd "C:\grus.py\pythonProject\Grus Project\KVM\2026Renewal"
@@ -70,12 +70,13 @@ flutter build apk --release --no-pub -t lib/main.dart
 | 팩 | 파일 | ZIP bytes | 앱 전용 설치 위치 |
 | --- | --- | --- | --- |
 | `r1-media-v3` | `KVM-r1-media-v3.zip` | 15,183,325 | `filesDir/kvm_asset_packs/r1-media-v3` |
-| `audio-v1` | `KVM-audio-v1.zip` | 17,132,394 | `filesDir/kvm_asset_packs/audio-v1` |
+| `audio-v2` | `KVM-audio-v2.zip` | 29,864,615 | `filesDir/kvm_asset_packs/audio-v2` |
 
-로컬 배포 산출물은 `build/asset-pack/r1-media-v3/KVM-r1-media-v3.zip`, `build/audio-pack/audio-v1/KVM-audio-v1.zip`이다. 2026-10-12에 [이미지 팩](https://github.com/Crus7230/kv-engpzl/releases/tag/media-r1-v3)과 [음원 팩](https://github.com/Crus7230/kv-engpzl/releases/tag/media-audio-v1)을 APK보다 먼저 공개했다. 각 릴리즈의 단일 ZIP, 공개 API의 크기·digest, 로그인 없는 다운로드의 SHA256이 manifest와 일치했다. 에셋 릴리즈는 APK 버전 태그 패턴과 달라 앱 업데이트 후보로 선택되지 않는다. ZIP을 다시 만들면 ZIP 자체 해시가 달라질 수 있으므로 같은 pack ID를 덮어쓰지 않는다.
+현재 소스의 로컬 배포 산출물은 `build/asset-pack/r1-media-v3/KVM-r1-media-v3.zip`, `build/audio-pack/audio-v2/KVM-audio-v2.zip`이다. 2026-10-12에 [이미지 팩](https://github.com/Crus7230/kv-engpzl/releases/tag/media-r1-v3)과 [이전 음원 팩 audio-v1](https://github.com/Crus7230/kv-engpzl/releases/tag/media-audio-v1)을 공개하고 공개 다운로드 해시를 확인했다. v0.1.8까지의 공개 APK는 여전히 audio-v1을 사용한다. 새 3곡을 포함한 audio-v2 소스와 배포 경계는 [audio-v2 기록](AUDIO_PACK_V2.md)을 기준으로 한다. 기존 팩과 릴리즈는 보존하며 같은 pack ID를 덮어쓰지 않는다. 에셋 릴리즈는 APK 버전 태그 패턴과 달라 앱 업데이트 후보로 선택되지 않는다.
 
 - 이미지 ZIP SHA256: `5ABD5C72714DC982A47EA89BC35DE849A26B3F38B16C06F4A98CD0F4DAB8F50A`
-- 음원 ZIP SHA256: `9F2A0BC6F7F35B2DE76BA006385391987C3E764BDE24914E54C5617EABA4EB2E`
+- 현재 audio-v2 ZIP SHA256: `9A7200A5FDEB9A0B4A1FA37F70E5A77BD94D61FC025F4FA5CD98AF608BF9A750`
+- 보존된 audio-v1 ZIP SHA256: `9F2A0BC6F7F35B2DE76BA006385391987C3E764BDE24914E54C5617EABA4EB2E`
 
 `RetainedPackDownloader`는 고정 GitHub HTTPS 경로, 허용 redirect host, 다운로드 크기와 ZIP SHA256을 검증한다. 압축을 풀 때 등록된 경로·중복·각 파일 크기·SHA256을 검증하며 활성 팩을 바로 덮어쓰지 않는다. 검증된 candidate만 교체하고 이전 팩을 보존한다. 실패한 임시 다운로드와 불완전 candidate만 정리한다. 사용자 저장과 BGM 원본은 건드리지 않는다.
 
@@ -83,9 +84,9 @@ flutter build apk --release --no-pub -t lib/main.dart
 
 ## 음악·효과음·햅틱과 모험 캐릭터
 
-음악 원본은 `C:\grus.py\pythonProject\Grus Project\BGM`의 MP3 4개를 바이너리 복사했다. 인트로 기본곡은 `Before the Great Dawn`, 탐험·퍼즐 기본곡은 `Yellow Plastic Swings`이며 나머지 2곡을 포함해 설정에서 변경할 수 있다. MP3를 변경하거나 레퍼런스 게임의 효과음을 추출하지 않았다. 자체 PCM 효과음 4개는 `tool/generate_puzzle_sounds.dart`로 생성했다. 공개 배포 전 사용자 제공 음원의 배포 권한도 확인해야 한다.
+음악 원본은 `C:\grus.py\pythonProject\Grus Project\BGM`의 MP3 7개를 바이너리 복사했다. 인트로 기본곡은 `Before the Great Dawn`, 탐험·퍼즐 기본곡은 `Yellow Plastic Swings`이며 설정에서 총 7곡을 선택하도록 소스를 확장했다. 새 곡은 `Glass Horizon`, `Highest Point of the Swing`, `Painted Ponies Turning`이다. 새 곡 선택은 audio-v2를 사용하는 다음 APK에 포함해야 하며 기존 v0.1.8 APK가 자동으로 목록을 바꾸지는 않는다. MP3를 변경하거나 레퍼런스 게임의 효과음을 추출하지 않았다. 자체 PCM 효과음 4개는 `tool/generate_puzzle_sounds.dart`로 생성했다. 사용자 제공 음원의 공개 배포 권한은 사용자 관리 대상이다.
 
-`AudioController`는 음악·효과음·햅틱 ON/OFF, 각각의 음량 및 인트로/게임 곡을 저장한다. Android는 `MediaPlayer` loop와 `SoundPool`, Web은 HTML Audio를 사용한다. `inactive/hidden/paused/detached`에서는 음악·효과음을 중단하고 `resumed`에서만 이어 재생한다. Android Activity와 audio focus, Web visibility도 별도로 정지한다. 브라우저는 자동 재생을 막을 수 있어 첫 터치 뒤 음악을 시작한다. 음악과 효과음을 모두 끈 경우 audio focus를 요청하지 않는다.
+`AudioController`는 음악·효과음·햅틱 ON/OFF, 각각의 음량 및 통합 음악 선택을 저장한다. 기본은 장면에 따라 인트로/탐험 곡을 바꾸며 직접 선택한 곡은 두 장면에서 이어 재생한다. Android는 `MediaPlayer` loop와 `SoundPool`, Web은 HTML Audio를 사용한다. `inactive/hidden/paused/detached`에서는 음악·효과음을 중단하고 `resumed`에서만 이어 재생한다. Android Activity와 audio focus, Web visibility도 별도로 정지한다. 브라우저는 자동 재생을 막을 수 있어 첫 터치 뒤 음악을 시작한다. 음악과 효과음을 모두 끈 경우 audio focus를 요청하지 않는다.
 
 선택은 selection 햅틱, 교환·매치는 light, 풀이 블록 획득은 medium, 정답은 heavy 햅틱으로 구분한다. 효과음·햅틱은 모션 타임라인에서 발생하며 복원·화면 재생성·백그라운드 복귀로 재생하지 않는다. 짧은 동일 이벤트를 제한하고, 햅틱은 음원 다운로드 여부와 독립적이다. 실제 진동 강도와 지원 여부는 폰에 따라 다르며 Web에서는 햅틱을 사용하지 않는다.
 

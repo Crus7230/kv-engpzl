@@ -15,6 +15,7 @@ object RetainedPackDownloader {
         val initialUrl = metadata["url"] as String
         check(initialUrl in setOf(
             "https://github.com/Crus7230/kv-engpzl/releases/download/media-audio-v1/KVM-audio-v1.zip",
+            "https://github.com/Crus7230/kv-engpzl/releases/download/media-audio-v2/KVM-audio-v2.zip",
             "https://github.com/Crus7230/kv-engpzl/releases/download/media-r1-v3/KVM-r1-media-v3.zip",
         ))
         check((metadata["bytes"] as Number).toLong() in 1..32_000_000)

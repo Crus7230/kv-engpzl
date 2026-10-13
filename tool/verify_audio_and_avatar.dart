@@ -13,6 +13,41 @@ void check(bool condition, String description) {
   if (!condition) throw StateError(description);
 }
 
+void verifyAudioCatalog() {
+  final manifest =
+      jsonDecode(File('assets/audio_manifest.json').readAsStringSync())
+          as Map<String, dynamic>;
+  final entries = (manifest['assets'] as List).cast<Map<String, dynamic>>();
+  final musicPaths = entries
+      .map((entry) => entry['path'] as String)
+      .where((path) => path.endsWith('.mp3'))
+      .toSet();
+  check(
+    manifest['manifestVersion'] == 1 &&
+        manifest['packId'] == 'audio-v2' &&
+        entries.length == 11 &&
+        entries.map((entry) => entry['path']).toSet().length == 11 &&
+        audioTracks.length == 7 &&
+        audioTracks.map((track) => track.id).toSet().length == 7 &&
+        musicPaths.length == 7 &&
+        audioTracks.every((track) => musicPaths.contains(track.assetPath)),
+    'Seven unique selectable songs exactly match the audio-v2 manifest',
+  );
+  final download = manifest['download'] as Map<String, dynamic>;
+  check(
+    download['url'] ==
+            'https://github.com/Crus7230/kv-engpzl/releases/download/'
+                'media-audio-v2/KVM-audio-v2.zip' &&
+        (download['bytes'] as int) <= 32000000,
+    'Audio-v2 uses its own immutable release URL within the native size limit',
+  );
+  check(
+    audioTracks.take(4).map((track) => track.id).join(',') ==
+        'intro,bgm01,bgm02,bgm03',
+    'Existing song IDs and default selections remain stable',
+  );
+}
+
 class RecordingAudioBackend implements AudioBackend {
   RecordingAudioBackend({this.available = true});
   bool available;
@@ -59,6 +94,7 @@ class RecordingAudioBackend implements AudioBackend {
 }
 
 Future<void> main() async {
+  verifyAudioCatalog();
   final backend = RecordingAudioBackend();
   final haptics = <PuzzleHaptic>[];
   final audio = AudioController(
@@ -153,6 +189,22 @@ Future<void> main() async {
   audio.configure(AudioSettings(musicTrackId: 'bgm03'), AudioScene.adventure);
   await audio.flush();
   check(backend.music.last.$1 == 'assets/audio/bgm03.mp3', 'Latest scene wins');
+  for (final track in audioTracks.skip(4)) {
+    final settings = AudioSettings(musicTrackId: track.id, musicVolume: .2);
+    audio.configure(settings, AudioScene.intro);
+    await audio.flush();
+    check(
+      backend.music.last.$1 == track.assetPath,
+      'New song selection plays during intro',
+    );
+    final selectedRequests = backend.music.length;
+    audio.configure(settings, AudioScene.adventure);
+    await audio.flush();
+    check(
+      backend.music.length == selectedRequests,
+      'Selected new song continues from intro to adventure without restarting',
+    );
+  }
   await audio.dispose();
   audio.play(PuzzleSound.pop);
   audio.setForeground(true);
@@ -302,7 +354,23 @@ Future<void> main() async {
         restored.activeSession!['draft'] == '4+',
     'Restart restores audio, avatar and interrupted puzzle',
   );
+  for (final track in audioTracks.skip(4)) {
+    final selected = original.copyWith(
+      audio: AudioSettings(musicTrackId: track.id, downloadPromptSeen: true),
+    );
+    final reloaded = SaveEnvelopeV1.fromJson(
+      jsonDecode(jsonEncode(selected.toJson())) as Map<String, dynamic>,
+    );
+    check(
+      reloaded.audio.musicTrackId == track.id &&
+          reloaded.audio.trackFor(AudioScene.intro) == track.id &&
+          reloaded.audio.trackFor(AudioScene.adventure) == track.id &&
+          jsonEncode(reloaded.copyWith(audio: original.audio).toJson()) ==
+              jsonEncode(original.toJson()),
+      'Each new song round trips without changing campaign or puzzle progress',
+    );
+  }
   stdout.writeln(
-    'PASS: unified music/legacy preference migration, scenes/lifecycle/mute/haptics/download, additive saves, rescued adventure-avatar selection and story continuity.',
+    'PASS: audio-v2 seven-song catalog and new selections, unified music/legacy preference migration, scenes/lifecycle/mute/haptics/download, additive saves, rescued adventure-avatar selection and story continuity.',
   );
 }

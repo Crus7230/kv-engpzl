@@ -1,18 +1,21 @@
 {
   "manifestVersion": 1,
-  "packId": "audio-v1",
+  "packId": "audio-v2",
   "sourceRoot": ".",
   "policy": "Music originals are preserved; sound effects are independently synthesized PCM. Audio never changes expedition progress.",
   "download": {
-    "url": "https://github.com/Crus7230/kv-engpzl/releases/download/media-audio-v1/KVM-audio-v1.zip",
-    "bytes": 17132394,
-    "sha256": "9F2A0BC6F7F35B2DE76BA006385391987C3E764BDE24914E54C5617EABA4EB2E"
+    "url": "https://github.com/Crus7230/kv-engpzl/releases/download/media-audio-v2/KVM-audio-v2.zip",
+    "bytes": 29864615,
+    "sha256": "9A7200A5FDEB9A0B4A1FA37F70E5A77BD94D61FC025F4FA5CD98AF608BF9A750"
   },
   "assets": [
     {"path":"assets/audio/intro.mp3","sourcePath":"../../BGM/01. Intro - before_the_great_dawn.mp3","bytes":4268679,"sha256":"8E6003E00A37705225CD6B9067A0F0C228C821B0B4D2C993F8E1FEA051A85BD4"},
     {"path":"assets/audio/bgm01.mp3","sourcePath":"../../BGM/02. bgm01 - yellow_plastic_swings.mp3","bytes":4319461,"sha256":"F7C7314AA6DD13F028B17A8351971221632A85CAA6ED9A1577189B2414C0D9D5"},
     {"path":"assets/audio/bgm02.mp3","sourcePath":"../../BGM/02. bgm02 - the_first_bloom.mp3","bytes":4286234,"sha256":"61FAC0B18756BA86F7A1812B5DE15CD42112034BB3B6D3985B73188E0D16F868"},
     {"path":"assets/audio/bgm03.mp3","sourcePath":"../../BGM/02. bgm03 - seven_miles_to_spring.mp3","bytes":4283099,"sha256":"59EF60125E93C24361F6A3DFCD7ECCB1A89600CE9616D097DA8D2D4FD1964004"},
+    {"path":"assets/audio/bgm04.mp3","sourcePath":"../../BGM/Glass_Horizon.mp3","bytes":4264918,"sha256":"5E1BD152EDA2F201A30AEA2621FEB3E3054862571D2DE3932B6C272FBE196274"},
+    {"path":"assets/audio/bgm05.mp3","sourcePath":"../../BGM/Highest_Point_of_the_Swing.mp3","bytes":4264918,"sha256":"ECF596A373F8BA2AD0BC6479F35B9DFBDAF29EFCDF5283841900F578D4B125EB"},
+    {"path":"assets/audio/bgm06.mp3","sourcePath":"../../BGM/Painted_Ponies_Turning.mp3","bytes":4229182,"sha256":"33A7ABF45540236422C5F679DCA315529EC2E2EDFD81C4F64E5EF1B3E6E39518"},
     {"path":"assets/audio/select.wav","sourcePath":"tool/generate_puzzle_sounds.dart","bytes":3352,"sha256":"1592F34E972AC5209D397BF51C478A3CB694F71E1EF6500C4F9E20A92AA5EC67"},
     {"path":"assets/audio/swap.wav","sourcePath":"tool/generate_puzzle_sounds.dart","bytes":5778,"sha256":"A6B3D076EAB4A41C389AE4046583EA0FED0B6E3279E2DCC41095EC5D867E00A7"},
     {"path":"assets/audio/pop.wav","sourcePath":"tool/generate_puzzle_sounds.dart","bytes":7982,"sha256":"C0698E6557DE926A0EA12388747E1C980DD048F82DB062514562498B55D9A9EC"},

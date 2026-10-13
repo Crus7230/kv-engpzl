@@ -34,7 +34,7 @@ class GameAudioBridge(private val activity: MainActivity, messenger: BinaryMesse
     private var preparing = false
     private var entries = emptyList<Map<String, Any>>()
     private var download = emptyMap<String, Any>()
-    private val packId = "audio-v1"
+    private val packId = "audio-v2"
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
         focused = change == AudioManager.AUDIOFOCUS_GAIN
         if (focused) resumeMusic() else {
@@ -86,21 +86,21 @@ class GameAudioBridge(private val activity: MainActivity, messenger: BinaryMesse
 
     private fun directory() = File(activity.filesDir, "kvm_asset_packs/$packId")
     private fun safeFile(dir: File, path: String): File {
-        check(Regex("assets/audio/(intro|bgm0[123])\\.mp3|assets/audio/(select|swap|pop|special)\\.wav").matches(path))
+        check(Regex("assets/audio/(intro|bgm0[1-6])\\.mp3|assets/audio/(select|swap|pop|special)\\.wav").matches(path))
         val target = File(dir, path).canonicalFile
         check(target.path.startsWith(dir.canonicalPath + File.separator))
         return target
     }
     private fun validateManifest() {
-        check(entries.size == 8 && entries.map { it["path"] }.toSet().size == 8)
+        check(entries.size == 11 && entries.map { it["path"] }.toSet().size == 11)
         for (entry in entries) {
             safeFile(directory(), entry["path"] as String)
             check((entry["bytes"] as Number).toLong() in 1..8_000_000)
             check(Regex("[a-fA-F0-9]{64}").matches(entry["sha256"] as String))
         }
-        check((download["bytes"] as Number).toLong() in 1..24_000_000)
+        check((download["bytes"] as Number).toLong() in 1..32_000_000)
         check(Regex("[a-fA-F0-9]{64}").matches(download["sha256"] as String))
-        check(download["url"] == "https://github.com/Crus7230/kv-engpzl/releases/download/media-audio-v1/KVM-audio-v1.zip")
+        check(download["url"] == "https://github.com/Crus7230/kv-engpzl/releases/download/media-audio-v2/KVM-audio-v2.zip")
     }
     private fun digest(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")

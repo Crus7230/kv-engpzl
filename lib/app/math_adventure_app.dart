@@ -1001,7 +1001,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       builder: (context) => AlertDialog(
         title: const Text('탐험 음악을 받을까요?'),
         content: const Text(
-          '음악과 효과음 약 17MB를 최초 한 번만 받습니다. 모바일 데이터가 사용될 수 있습니다. 받지 않아도 모든 스테이지를 진행할 수 있습니다.',
+          '음악 7곡과 효과음 약 30MB를 팩당 한 번만 받습니다. 모바일 데이터가 사용될 수 있습니다. 받지 않아도 모든 스테이지를 진행할 수 있습니다.',
         ),
         actions: [
           TextButton(
@@ -1059,7 +1059,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                             try {
                               await _audio.downloadAssets();
                               audioMessage =
-                                  '음원을 저장했습니다. 다음 앱 업데이트에서는 다시 받지 않습니다.';
+                                  '음원을 저장했습니다. 같은 팩을 사용하는 앱 업데이트에서는 다시 받지 않습니다.';
                             } catch (_) {
                               audioMessage =
                                   '음원을 받지 못했습니다. 네트워크와 음원 배포 상태를 확인한 뒤 다시 시도해 주세요.';

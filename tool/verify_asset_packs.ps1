@@ -3,7 +3,7 @@ $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 foreach ($pack in @(
     @('assets\asset_manifest.json', 'build\asset-pack\r1-media-v3\KVM-r1-media-v3.zip', 31),
-    @('assets\audio_manifest.json', 'build\audio-pack\audio-v1\KVM-audio-v1.zip', 8)
+    @('assets\audio_manifest.json', 'build\audio-pack\audio-v2\KVM-audio-v2.zip', 11)
 )) {
     $manifest = Get-Content -LiteralPath (Join-Path $projectRoot $pack[0]) -Raw -Encoding UTF8 | ConvertFrom-Json
     $archivePath = Join-Path $projectRoot $pack[1]

@@ -24,14 +24,14 @@ class AudioOptions extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       if (!mediaAvailable) ...[
-        const Text('음원 팩이 없습니다. 다운로드하지 않아도 탐험과 저장은 가능합니다.'),
+        const Text('현재 버전의 음원 팩이 없습니다. 다운로드하지 않아도 탐험과 저장은 가능합니다.'),
         if (onDownload != null)
           OutlinedButton.icon(
             key: const Key('download-audio'),
             onPressed: downloading ? null : onDownload,
             icon: const Icon(Icons.download_rounded),
             label: Text(
-              downloading ? '음원 다운로드·검증 중…' : '음원 받기 · 약 17MB, 최초 1회',
+              downloading ? '음원 다운로드·검증 중…' : '음원 받기 · 약 30MB, 팩당 1회',
             ),
           ),
         if (message != null)

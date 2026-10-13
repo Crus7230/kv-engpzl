@@ -110,6 +110,9 @@ const audioTracks = [
   AudioTrack('bgm01', 'Yellow Plastic Swings', 'assets/audio/bgm01.mp3'),
   AudioTrack('bgm02', 'The First Bloom', 'assets/audio/bgm02.mp3'),
   AudioTrack('bgm03', 'Seven Miles to Spring', 'assets/audio/bgm03.mp3'),
+  AudioTrack('bgm04', 'Glass Horizon', 'assets/audio/bgm04.mp3'),
+  AudioTrack('bgm05', 'Highest Point of the Swing', 'assets/audio/bgm05.mp3'),
+  AudioTrack('bgm06', 'Painted Ponies Turning', 'assets/audio/bgm06.mp3'),
 ];
 
 enum AudioScene { intro, adventure }
