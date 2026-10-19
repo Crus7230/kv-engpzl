@@ -279,7 +279,7 @@ void main() {
             'review-card-nextday_800x360_text100',
           );
         }
-        await tester.tap(find.text('기억의 씨앗'));
+        await tester.tap(find.byKey(const ValueKey('world-review')));
         await tester.pumpAndSettle();
         expect(find.byType(MemorySeedsScreen), findsOneWidget);
         await tester.tap(find.byKey(const ValueKey('memory-seed-play')));
@@ -316,7 +316,7 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();
         await _boot(tester, store, DateTime(2026, 10, 12));
-        await tester.tap(find.text('오늘의 탐험'));
+        await tester.tap(find.byKey(const ValueKey('world-explore')));
         await tester.pumpAndSettle();
         await tester.tap(find.text('이어서 탐험하기'));
         await tester.pumpAndSettle();
@@ -386,7 +386,7 @@ void main() {
     final store = await _seedStore(seed);
     final boundary = GlobalKey();
     await _boot(tester, store, DateTime(2026, 10, 11), boundaryKey: boundary);
-    await tester.tap(find.text('오늘의 탐험'));
+    await tester.tap(find.byKey(const ValueKey('world-explore')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('탐험 시작하기'));
     await tester.pumpAndSettle();

@@ -38,6 +38,7 @@ class RandomDiscoveryFixture {
       );
     }
     final profile = DiscoveryChallengeProfile.forStage(stage);
+    final enableSeeker = variant.fixtureId.endsWith('-random6');
     final rules = stage.boardMechanicPlan.bindings.map((b) => b.rule);
     final power = rules.whereType<LinePowerRule>().firstOrNull;
     final blocker = rules.whereType<AdjacentHitBlockerRule>().firstOrNull;
@@ -90,6 +91,7 @@ class RandomDiscoveryFixture {
       requiredTargetIds: tokenIds,
       moves: stage.moveLimit,
       enableLinePowers: power != null,
+      enableSeekerPowers: enableSeeker,
       enableBurstPowers: power?.enableBurst ?? false,
       enableColorPowers: power?.enableColor ?? false,
       enablePowerCombinations: power?.enableCombinations ?? false,
@@ -122,7 +124,13 @@ class RandomDiscoveryFixture {
                   row[c - 2].matchKey == key ||
               r >= 2 &&
                   rows[r - 1][c].matchKey == key &&
-                  rows[r - 2][c].matchKey == key);
+                  rows[r - 2][c].matchKey == key ||
+              enableSeeker &&
+                  r >= 1 &&
+                  c >= 1 &&
+                  row[c - 1].matchKey == key &&
+                  rows[r - 1][c].matchKey == key &&
+                  rows[r - 1][c - 1].matchKey == key);
           row.add(
             DiscoveryPiece.gem(
               id: '${variant.fixtureId}-$candidate-$r-$c',
@@ -200,13 +208,17 @@ class RandomDiscoveryFixture {
     }
 
     for (var step = 0; step < limit; step++) {
-      final current = replay().state;
+      final currentEngine = replay();
+      final current = currentEngine.state;
       if (current.isCompleted) return List.unmodifiable(path);
       if (current.isDeadBoard || current.isOutOfMoves) return null;
       DiscoverySwapPair? best;
       DiscoveryTurnResult? bestTurn;
       var bestScore = double.negativeInfinity;
-      for (final move in DiscoveryBoardHintSolver.legalSwaps(current.board)) {
+      for (final move in DiscoveryBoardHintSolver.legalSwaps(
+        current.board,
+        includeSquares: currentEngine.enableSeekerPowers,
+      )) {
         final engine = replay();
         final turn = engine.swap(move.from, move.to);
         if (!turn.isAccepted) continue;

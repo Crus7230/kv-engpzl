@@ -181,7 +181,7 @@ void main() {
         ),
       );
       await _boot(tester, store);
-      await _tap(tester, find.text('오늘의 탐험'));
+      await _tap(tester, find.byKey(const ValueKey('world-explore')));
       await _tap(tester, find.text('탐험 시작하기'));
       expect(_session(tester).stage.id, 'r01-c01-s10');
       await _solve(tester, _session(tester));

@@ -135,6 +135,7 @@ void main() {
                 DiscoveryLinePowerKind.column => '세로 직선 파워',
                 DiscoveryLinePowerKind.burst => 'L/T형 범위 폭발',
                 DiscoveryLinePowerKind.color => '5매치 색상 파워',
+                DiscoveryLinePowerKind.seeker => '2×2 유도탄',
               };
               final nodes = find.byWidgetPredicate(
                 (widget) =>
@@ -150,6 +151,7 @@ void main() {
                     DiscoveryLinePowerKind.column => Icons.swap_vert_rounded,
                     DiscoveryLinePowerKind.burst => Icons.flare_rounded,
                     DiscoveryLinePowerKind.color => Icons.palette_rounded,
+                    DiscoveryLinePowerKind.seeker => Icons.near_me_rounded,
                   }),
                 ),
                 findsNWidgets(cells),

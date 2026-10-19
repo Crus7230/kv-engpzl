@@ -835,6 +835,46 @@ class _BoardEffectPainter extends CustomPainter {
     if (cascade != null && phase.kind == DiscoveryMotionPhaseKind.powerSweep) {
       for (final power in cascade.activatedPowers) {
         final origin = center(power.index);
+        if (power.direction == DiscoveryLinePowerKind.seeker) {
+          final targetIndex =
+              power.targetIndex ??
+              power.affectedIndices
+                  .where((index) => index != power.index)
+                  .firstOrNull;
+          if (targetIndex == null) continue;
+          final target = center(targetIndex);
+          final control = Offset(
+            (origin.dx + target.dx) / 2,
+            math.max(
+              extent * .15,
+              math.min(origin.dy, target.dy) - extent * .8,
+            ),
+          );
+          Offset flight(double t) =>
+              origin * ((1 - t) * (1 - t)) +
+              control * (2 * (1 - t) * t) +
+              target * (t * t);
+          final t = Curves.easeInOutCubic.transform(progress);
+          final head = flight(t);
+          final tail = flight(math.max(0, t - .18));
+          paint
+            ..color = const Color(0xFFFFE6A6).withValues(alpha: .85)
+            ..strokeWidth = extent * .12
+            ..strokeCap = StrokeCap.round;
+          canvas.drawLine(tail, head, paint);
+          canvas.drawCircle(head, extent * .12, Paint()..color = Colors.white);
+          if (progress > .7) {
+            canvas.drawCircle(
+              target,
+              extent * (.18 + .25 * pulse),
+              Paint()
+                ..color = const Color(0xFFFFDA70).withValues(alpha: pulse)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2,
+            );
+          }
+          continue;
+        }
         if (power.isCombination ||
             power.direction == DiscoveryLinePowerKind.burst ||
             power.direction == DiscoveryLinePowerKind.color) {

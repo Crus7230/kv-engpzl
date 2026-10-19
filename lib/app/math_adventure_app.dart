@@ -136,6 +136,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     with WidgetsBindingObserver {
   late final ProgressRepository _repository;
   late final AudioController _audio;
+  AudioSettings? _liveAudioSettings;
   bool _startupReady = false;
   bool _audioDecisionAsked = false;
   bool _foreground = true;
@@ -619,7 +620,8 @@ class _MathAdventureAppState extends State<MathAdventureApp>
                 ((rows == 5 && columns == 5) ||
                     (rows == 6 && columns == 6) ||
                     (saved['rulesVersion'] == 4 ||
-                            saved['rulesVersion'] == 5) &&
+                            saved['rulesVersion'] == 5 ||
+                            saved['rulesVersion'] == 6) &&
                         rows == 7 &&
                         columns == 7)
           ? DiscoveryBoardConfig(rows: rows, columns: columns)
@@ -631,7 +633,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
         isDailyReview: _isDailyReview,
         boardConfig: config,
         savedSession: saved,
-        newSessionRulesVersion: 5,
+        newSessionRulesVersion: 6,
         onContinue: () => unawaited(_complete()),
         onSaveError: _onSaveError,
       );
@@ -1027,95 +1029,184 @@ class _MathAdventureAppState extends State<MathAdventureApp>
     if (accept == true && mounted && context.mounted) await _settings(context);
   }
 
+  Future<bool> _applyAudioSettings(AudioSettings value) async {
+    if (!mounted) return false;
+    setState(() => _liveAudioSettings = value);
+    _audio.configure(value, _audio.scene);
+    try {
+      final saved = await _repository.update(
+        (save) => save.copyWith(audio: value),
+      );
+      if (mounted) {
+        setState(() {
+          _save = saved;
+          if (identical(_liveAudioSettings, value)) _liveAudioSettings = null;
+        });
+      }
+      return true;
+    } catch (error) {
+      if (mounted && identical(_liveAudioSettings, value)) {
+        setState(() => _liveAudioSettings = null);
+        _audio.configure(_save!.audio, _audio.scene);
+      }
+      _onSaveError(error);
+      return false;
+    }
+  }
+
   Future<void> _settings(BuildContext context) async {
     var settings = _save!.accessibility;
-    var audio = _save!.audio;
+    var audio = _liveAudioSettings ?? _save!.audio;
     var downloading = false;
     String? audioMessage;
     final apply = await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, updateDialog) => AlertDialog(
-          title: const Text('음악·효과음 및 접근성'),
-          content: SizedBox(
-            width: 360,
-            child: SingleChildScrollView(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, updateDialog) => Dialog(
+          key: const ValueKey('responsive-settings-dialog'),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: SizedBox(
+            width: 640,
+            height: (MediaQuery.sizeOf(context).height - 16).clamp(
+              120.0,
+              416.0,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(10),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  AudioOptions(
-                    settings: audio,
-                    onChanged: (value) => updateDialog(() => audio = value),
-                    mediaAvailable: _audio.mediaAvailable,
-                    downloading: downloading,
-                    message: audioMessage,
-                    onDownload: !_audio.supportsDownload
-                        ? null
-                        : () async {
-                            updateDialog(() {
-                              downloading = true;
-                              audioMessage = null;
-                            });
-                            try {
-                              await _audio.downloadAssets();
-                              audioMessage =
-                                  '음원을 저장했습니다. 같은 팩을 사용하는 앱 업데이트에서는 다시 받지 않습니다.';
-                            } catch (_) {
-                              audioMessage =
-                                  '음원을 받지 못했습니다. 네트워크와 음원 배포 상태를 확인한 뒤 다시 시도해 주세요.';
-                            } finally {
-                              if (context.mounted)
-                                updateDialog(() => downloading = false);
-                            }
-                          },
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '음악·효과음 및 접근성',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: '설정 닫기',
+                        onPressed: () => Navigator.pop(context, false),
+                        icon: const Icon(Icons.close_rounded),
+                        constraints: const BoxConstraints.tightFor(
+                          width: 44,
+                          height: 44,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  SwitchListTile(
-                    title: const Text('움직임 줄이기'),
-                    value: settings.reducedMotion,
-                    onChanged: (v) => updateDialog(
-                      () => settings = settings.copyWith(reducedMotion: v),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      key: const ValueKey('settings-scroll'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          AudioOptions(
+                            settings: audio,
+                            onChanged: (value) async {
+                              updateDialog(() => audio = value);
+                              final saved = await _applyAudioSettings(value);
+                              if (!saved &&
+                                  context.mounted &&
+                                  identical(audio, value)) {
+                                updateDialog(() {
+                                  audio = _save!.audio;
+                                  audioMessage =
+                                      '음악 설정을 저장하지 못해 이전 설정으로 돌아왔습니다.';
+                                });
+                              }
+                            },
+                            mediaAvailable: _audio.mediaAvailable,
+                            downloading: downloading,
+                            message: audioMessage,
+                            onDownload: !_audio.supportsDownload
+                                ? null
+                                : () async {
+                                    updateDialog(() {
+                                      downloading = true;
+                                      audioMessage = null;
+                                    });
+                                    try {
+                                      await _audio.downloadAssets();
+                                      audioMessage =
+                                          '음원을 저장했습니다. 같은 팩은 다시 받지 않습니다.';
+                                    } catch (_) {
+                                      audioMessage =
+                                          '음원을 받지 못했습니다. 네트워크를 확인하고 다시 시도해 주세요.';
+                                    } finally {
+                                      if (context.mounted)
+                                        updateDialog(() => downloading = false);
+                                    }
+                                  },
+                          ),
+                          const Divider(height: 20),
+                          const Text(
+                            '접근성 · 아래 설정은 저장 버튼으로 적용',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          SwitchListTile(
+                            title: const Text('움직임 줄이기'),
+                            value: settings.reducedMotion,
+                            onChanged: (v) => updateDialog(
+                              () => settings = settings.copyWith(
+                                reducedMotion: v,
+                              ),
+                            ),
+                          ),
+                          SwitchListTile(
+                            title: const Text('색상 구분 돕기'),
+                            value: settings.colorAssist,
+                            onChanged: (v) => updateDialog(
+                              () =>
+                                  settings = settings.copyWith(colorAssist: v),
+                            ),
+                          ),
+                          const Text('글자 크기'),
+                          Slider(
+                            value: settings.textScale.clamp(1, 1.3),
+                            min: 1,
+                            max: 1.3,
+                            divisions: 3,
+                            label: '${(settings.textScale * 100).round()}%',
+                            onChanged: (v) => updateDialog(
+                              () => settings = settings.copyWith(textScale: v),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  SwitchListTile(
-                    title: const Text('색상 구분 돕기'),
-                    value: settings.colorAssist,
-                    onChanged: (v) => updateDialog(
-                      () => settings = settings.copyWith(colorAssist: v),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('닫기'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('접근성 저장'),
+                      ),
+                    ],
                   ),
-                  const Text('글자 크기'),
-                  Slider(
-                    value: settings.textScale.clamp(1, 1.3),
-                    min: 1,
-                    max: 1.3,
-                    divisions: 3,
-                    label: '${(settings.textScale * 100).round()}%',
-                    onChanged: (v) => updateDialog(
-                      () => settings = settings.copyWith(textScale: v),
-                    ),
-                  ),
-                  const Text('출석이 끊겨도 정원은 사라지지 않아요. 알림·광고·결제는 없습니다.'),
                 ],
               ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('저장'),
-            ),
-          ],
         ),
       ),
     );
     if (apply != true) return;
     try {
-      await _update((s) => s.copyWith(accessibility: settings, audio: audio));
+      // Audio is already live and saved. Never overwrite a newer audio change
+      // with the dialog's original snapshot when saving accessibility.
+      await _update((s) => s.copyWith(accessibility: settings));
     } catch (error) {
       _onSaveError(error);
     }
@@ -1131,7 +1222,7 @@ class _MathAdventureAppState extends State<MathAdventureApp>
       final settings = _save?.accessibility;
       if (_save != null) {
         _audio.configure(
-          _save!.audio,
+          _liveAudioSettings ?? _save!.audio,
           _startupReady && _assetBundle != null
               ? AudioScene.adventure
               : AudioScene.intro,
@@ -1462,11 +1553,13 @@ class _MathAdventureAppState extends State<MathAdventureApp>
             playerCharacterId: save.playerCharacterId,
             randomChallenge:
                 save.activeSession == null ||
-                save.activeSession!['rulesVersion'] == 5,
+                (save.activeSession!['rulesVersion'] == 5 ||
+                    save.activeSession!['rulesVersion'] == 6),
             stage: _usesPrototype || _stage.id == verticalSliceStage.id
                 ? null
                 : save.activeSession != null &&
-                      save.activeSession!['rulesVersion'] != 5
+                      (save.activeSession!['rulesVersion'] != 5 &&
+                          save.activeSession!['rulesVersion'] != 6)
                 ? _stage
                 : DiscoveryChallengeProfile.stageFor(_stage),
             isReview: _isDailyReview || _stage.chapterId.endsWith('-c04'),

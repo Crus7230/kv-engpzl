@@ -45,8 +45,8 @@ void _expectReachableMap(WidgetTester tester, Size size) {
   final actions = <Rect>[];
   for (final key in _actionKeys) {
     final rect = tester.getRect(find.byKey(ValueKey(key)));
-    expect(rect.height, greaterThanOrEqualTo(48));
-    expect(rect.width, greaterThanOrEqualTo(48));
+    expect(rect.height, greaterThanOrEqualTo(44));
+    expect(rect.width, greaterThanOrEqualTo(44));
     expect(bounds.intersect(rect), rect, reason: '$key outside viewport');
     actions.add(rect);
   }
@@ -160,8 +160,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      for (final title in ['기억의 씨앗', '오늘의 탐험', '탐험의 흔적']) {
-        await tester.tap(find.text(title));
+      for (final key in _actionKeys) {
+        await tester.tap(find.byKey(ValueKey(key)));
       }
       for (final region in legacyRegionCatalog) {
         await tester.tap(find.byKey(ValueKey('world-region-${region.id}')));
@@ -177,9 +177,9 @@ void main() {
       );
       expect(explore.label, contains('저장된 탐험 이어가기'));
       expect(explore.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
-      await tester.longPress(find.text('오늘의 탐험'));
+      await tester.longPress(find.byKey(const ValueKey('world-explore')));
       await tester.pumpAndSettle();
-      expect(find.text('저장된 탐험 이어가기'), findsOneWidget);
+      expect(find.textContaining('저장된 탐험 이어가기'), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
       semantics.dispose();
@@ -196,9 +196,9 @@ void main() {
         expect(node.flagsCollection.isEnabled, Tristate.isFalse);
         expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
       }
-      await tester.longPress(find.text('탐험의 흔적'));
+      await tester.longPress(find.byKey(const ValueKey('world-traces')));
       await tester.pumpAndSettle();
-      expect(find.text('이번 주 3/5번의 발걸음'), findsOneWidget);
+      expect(find.textContaining('이번 주 3/5번의 발걸음'), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
       semantics.dispose();

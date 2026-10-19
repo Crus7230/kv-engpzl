@@ -138,15 +138,13 @@ void main() {
           ),
         ),
       );
-      const pickerKey = Key('audio-track-음악 선택');
-      expect(
-        tester.widget<DropdownButton<String>>(find.byKey(pickerKey)).items,
-        hasLength(8),
-      );
-      await tester.tap(find.byKey(pickerKey));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text(track.label).last);
-      await tester.tap(find.text(track.label).last);
+      expect(find.byKey(const Key('audio-track-default')), findsOneWidget);
+      for (final item in audioTracks) {
+        expect(find.byKey(Key('audio-track-${item.id}')), findsOneWidget);
+      }
+      final tile = find.byKey(Key('audio-track-${track.id}'));
+      await tester.ensureVisible(tile);
+      await tester.tap(tile);
       await tester.pumpAndSettle();
       expect(settings.musicTrackId, track.id);
       expect(settings.trackFor(AudioScene.intro), track.id);

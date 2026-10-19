@@ -12,6 +12,7 @@ import '../lib/features/discovery/domain/discovery_piece_source.dart';
 void main(List<String> args) {
   _verifyBoardDensityPolicy();
   final smoke = args.contains('--smoke');
+  final rulesVersion = args.contains('--seeker') ? 6 : 5;
   final seedCount = args.contains('--seeds')
       ? int.parse(args[args.indexOf('--seeds') + 1])
       : 1;
@@ -51,6 +52,7 @@ void main(List<String> args) {
         final variant = DiscoveryChallengeProfile.variantFor(
           stage,
           config,
+          rulesVersion: rulesVersion,
           seed:
               (original.seed + sample * 2654435761 + config.rows * 97) &
               0xffffffff,
@@ -68,6 +70,8 @@ void main(List<String> args) {
           requiredTargetIds: stage.buriedTokenIds,
           moves: stage.moveLimit,
           enableLinePowers: runtime.enableLinePowers,
+          enableSeekerPowers:
+              rulesVersion >= 6 && !DiscoveryChallengeProfile.isTutorial(stage),
           requiredLinePowerActivations: runtime.requiredLinePowerActivations,
           enableBurstPowers: runtime.enableBurstPowers,
           enableColorPowers: runtime.enableColorPowers,
@@ -142,7 +146,7 @@ void main(List<String> args) {
     }
   }
   stdout.writeln(
-    'Verified $count independently generated V5 boards and dual gates (${timer.elapsedMilliseconds}ms).',
+    'Verified $count independently generated V$rulesVersion boards and dual gates (${timer.elapsedMilliseconds}ms).',
   );
   if (earlyCount > 0)
     stdout.writeln(

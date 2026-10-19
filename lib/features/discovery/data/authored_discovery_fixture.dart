@@ -53,7 +53,9 @@ class AuthoredDiscoveryFixture {
   }) {
     final config = variant.config;
     final excavation = variant.fixtureId.endsWith('-excavation4');
-    final randomChallenge = variant.fixtureId.endsWith('-random5');
+    final randomChallenge =
+        variant.fixtureId.endsWith('-random5') ||
+        variant.fixtureId.endsWith('-random6');
     if (!(config.rows == config.columns &&
         (config.rows == 5 ||
             config.rows == 6 ||

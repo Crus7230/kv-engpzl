@@ -19,10 +19,14 @@ class DiscoveryPowerResolver {
     this.enableBurst = false,
     this.enableColor = false,
     this.enableCombinations = false,
+    this.enableLines = true,
+    this.enableSeeker = false,
   });
   final bool enableBurst;
   final bool enableColor;
   final bool enableCombinations;
+  final bool enableLines;
+  final bool enableSeeker;
 
   DiscoveryPowerResolution resolve(
     DiscoveryBoard board,
@@ -30,6 +34,7 @@ class DiscoveryPowerResolver {
     List<DiscoveryPosition> preferred, {
     DiscoveryPosition? from,
     DiscoveryPosition? to,
+    Set<String> priorityColors = const {},
   }) {
     final hits = {...naturalHits};
     final created = _create(board, preferred);
@@ -41,6 +46,7 @@ class DiscoveryPowerResolver {
       DiscoveryLinePower kind,
       Iterable<DiscoveryPosition> cells, {
       DiscoveryPowerCombination? combination,
+      DiscoveryPosition? targetPosition,
     }) {
       final affected = cells.where(board.contains).toSet().toList()
         ..sort(_order);
@@ -51,8 +57,42 @@ class DiscoveryPowerResolver {
           direction: kind,
           combination: combination,
           affectedPositions: List.unmodifiable(affected),
+          targetPosition: targetPosition,
         ),
       );
+    }
+
+    DiscoveryPosition? seek() {
+      final candidates = board.positions
+          .where(
+            (p) =>
+                !hits.contains(p) &&
+                (board.pieceAt(p) != null || board.cellAt(p).blockerLayers > 0),
+          )
+          .toList();
+      int priority(DiscoveryPosition p) {
+        final cell = board.cellAt(p);
+        if (cell.buriedTarget != null || cell.piece?.carriedTarget != null)
+          return 0;
+        if (cell.iceLayers > 0) return 1;
+        if (cell.blockerLayers > 0) return 2;
+        if (priorityColors.contains(cell.piece?.matchKey)) return 3;
+        return 4;
+      }
+
+      candidates.sort((a, b) {
+        final rank = priority(a).compareTo(priority(b));
+        return rank == 0 ? _order(a, b) : rank;
+      });
+      return candidates.firstOrNull;
+    }
+
+    void fire(DiscoveryPosition origin) {
+      final target = seek();
+      emit(origin, DiscoveryLinePower.seeker, [
+        origin,
+        if (target != null) target,
+      ], targetPosition: target);
     }
 
     if (from != null && to != null) {
@@ -82,20 +122,32 @@ class DiscoveryPowerResolver {
               .toList();
           for (final p in colored) {
             if (p != from && p != to)
-              converted[p] = partnerPower == DiscoveryLinePower.burst
+              converted[p] = partnerPower == DiscoveryLinePower.seeker
+                  ? DiscoveryLinePower.seeker
+                  : partnerPower == DiscoveryLinePower.burst
                   ? DiscoveryLinePower.burst
                   : (p.row + p.column).isEven
                   ? DiscoveryLinePower.row
                   : DiscoveryLinePower.column;
           }
           final cells = <DiscoveryPosition>{from, to, ...colored};
+          DiscoveryPosition? seekerTarget;
+          if (partnerPower == DiscoveryLinePower.seeker) {
+            hits.addAll(cells);
+            seekerTarget = seek();
+            if (seekerTarget != null) cells.add(seekerTarget);
+          }
           // Include the consumed partner's own footprint as well.
-          cells.addAll(_footprint(board, partner, partnerPower));
+          if (partnerPower != DiscoveryLinePower.seeker)
+            cells.addAll(_footprint(board, partner, partnerPower));
           emit(
             origin,
             DiscoveryLinePower.color,
             cells,
-            combination: partnerPower == DiscoveryLinePower.burst
+            targetPosition: seekerTarget,
+            combination: partnerPower == DiscoveryLinePower.seeker
+                ? DiscoveryPowerCombination.colorSeeker
+                : partnerPower == DiscoveryLinePower.burst
                 ? DiscoveryPowerCombination.colorBurst
                 : DiscoveryPowerCombination.colorLine,
           );
@@ -114,6 +166,33 @@ class DiscoveryPowerResolver {
             combination: DiscoveryPowerCombination.colorGem,
           );
         }
+      } else if (a != null &&
+          b != null &&
+          enableCombinations &&
+          (a == DiscoveryLinePower.seeker || b == DiscoveryLinePower.seeker)) {
+        processed.addAll([from, to]);
+        hits.addAll([from, to]);
+        final target = seek();
+        final cells = <DiscoveryPosition>{from, to, if (target != null) target};
+        if (a == DiscoveryLinePower.seeker && b == DiscoveryLinePower.seeker) {
+          hits.addAll(cells);
+          final second = seek();
+          if (second != null) cells.add(second);
+        } else {
+          final partner = a == DiscoveryLinePower.seeker ? to : from;
+          cells.addAll(
+            _footprint(board, partner, board.pieceAt(partner)!.linePower!),
+          );
+        }
+        emit(
+          to,
+          DiscoveryLinePower.seeker,
+          cells,
+          combination: a == b
+              ? DiscoveryPowerCombination.seekerPair
+              : DiscoveryPowerCombination.seekerSpecial,
+          targetPosition: target,
+        );
       } else if (a != null && b != null && enableCombinations) {
         processed.addAll([from, to]);
         final bothBurst =
@@ -156,7 +235,11 @@ class DiscoveryPowerResolver {
       for (final p in pending) {
         processed.add(p);
         final kind = converted[p] ?? board.pieceAt(p)!.linePower!;
-        emit(p, kind, _footprint(board, p, kind));
+        if (kind == DiscoveryLinePower.seeker) {
+          fire(p);
+        } else {
+          emit(p, kind, _footprint(board, p, kind));
+        }
       }
     }
     return DiscoveryPowerResolution(created, hits, events);
@@ -195,6 +278,7 @@ class DiscoveryPowerResolver {
       ], DiscoveryLinePower.column);
     }
     final result = <DiscoveryPosition, DiscoveryPiece>{};
+    final reserved = <DiscoveryPosition>{};
     while (runs.isNotEmpty) {
       final group = [runs.removeAt(0)];
       final cells = group.first.positions.toSet();
@@ -220,7 +304,9 @@ class DiscoveryPowerResolver {
           ? DiscoveryLinePower.color
           : enableBurst && crossing
           ? DiscoveryLinePower.burst
-          : four?.direction;
+          : enableLines
+          ? four?.direction
+          : null;
       if (kind == null) continue;
       final candidates =
           (kind == DiscoveryLinePower.color
@@ -233,6 +319,20 @@ class DiscoveryPowerResolver {
       final anchor =
           preferred.where(candidates.contains).firstOrNull ?? candidates.last;
       result[anchor] = board.pieceAt(anchor)!.withLinePower(kind);
+      reserved.addAll(cells);
+    }
+    if (enableSeeker) {
+      for (final cells in discoverySquareMatches(board)) {
+        if (cells.any(reserved.contains) ||
+            cells.any((p) => board.pieceAt(p)?.linePower != null))
+          continue;
+        final anchor =
+            preferred.where(cells.contains).firstOrNull ?? cells.last;
+        result[anchor] = board
+            .pieceAt(anchor)!
+            .withLinePower(DiscoveryLinePower.seeker);
+        reserved.addAll(cells);
+      }
     }
     return result;
   }
@@ -255,6 +355,7 @@ class DiscoveryPowerResolver {
         (q) => board.pieceAt(q)?.matchKey == board.pieceAt(p)?.matchKey,
       ),
     ],
+    DiscoveryLinePower.seeker => [p],
   };
   Iterable<DiscoveryPosition> _square(DiscoveryPosition p, int radius) sync* {
     for (var r = p.row - radius; r <= p.row + radius; r++) {
@@ -281,4 +382,29 @@ class DiscoveryPowerResolver {
   ];
   static int _order(DiscoveryPosition a, DiscoveryPosition b) =>
       a.row != b.row ? a.row.compareTo(b.row) : a.column.compareTo(b.column);
+}
+
+/// Only uncovered, matchable gems form squares; math fragments and blocked
+/// cells never form a square. Shared by match detection and power creation.
+Iterable<List<DiscoveryPosition>> discoverySquareMatches(
+  DiscoveryBoard board,
+) sync* {
+  for (var row = 0; row < board.rowCount - 1; row++) {
+    for (var column = 0; column < board.columnCount - 1; column++) {
+      final cells = [
+        DiscoveryPosition(row, column),
+        DiscoveryPosition(row, column + 1),
+        DiscoveryPosition(row + 1, column),
+        DiscoveryPosition(row + 1, column + 1),
+      ];
+      final key = board.matchKeyAt(cells.first);
+      if (key != null &&
+          cells.every(
+            (p) =>
+                board.pieceAt(p)?.kind == DiscoveryPieceKind.gem &&
+                board.matchKeyAt(p) == key,
+          ))
+        yield cells;
+    }
+  }
 }

@@ -56,21 +56,38 @@ abstract interface class DiscoveryObjectiveSource {
   List<DiscoveryObjectiveStatus> get discoveryObjectives;
 }
 
+abstract interface class DiscoverySeekerSource {
+  bool get supportsSeekerPowers;
+}
+
 class DiscoveryObjectiveStatus {
   const DiscoveryObjectiveStatus({
     required this.label,
     required this.current,
     required this.goal,
+    this.visualKind = DiscoveryObjectiveVisualKind.fragment,
+    this.gemKind,
   });
   final String label;
   final int current;
   final int goal;
+  final DiscoveryObjectiveVisualKind visualKind;
+  final DiscoveryGemKind? gemKind;
   bool get isCompleted => current >= goal;
+}
+
+enum DiscoveryObjectiveVisualKind {
+  fragment,
+  ice,
+  blocker,
+  gem,
+  moves,
+  falling,
 }
 
 enum DiscoveryGemKind { berry, ocean, citrus, grape, leaf, sun }
 
-enum DiscoveryLinePowerKind { row, column, burst, color }
+enum DiscoveryLinePowerKind { row, column, burst, color, seeker }
 
 class DiscoveryGemCell {
   const DiscoveryGemCell({

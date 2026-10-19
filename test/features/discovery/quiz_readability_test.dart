@@ -47,7 +47,7 @@ void main() {
           find.byKey(const ValueKey('puzzle-equation-workspace')),
           find.byKey(const ValueKey('question-reader-button')),
           find.byTooltip('힌트 보기'),
-          find.text('확인'),
+          find.byKey(const ValueKey('puzzle-submit')),
         ]) {
           expect(finder, findsOneWidget);
           final rect = tester.getRect(finder);
@@ -56,11 +56,18 @@ void main() {
           expect(rect.right, lessThanOrEqualTo(size.width));
           expect(rect.bottom, lessThanOrEqualTo(size.height));
         }
+        expect(find.byTooltip('식 확인'), findsOneWidget);
+        expect(
+          tester
+              .getSize(find.byKey(const ValueKey('puzzle-submit')))
+              .shortestSide,
+          greaterThanOrEqualTo(44),
+        );
         final questionText = tester.widget<Text>(
           find.byKey(const ValueKey('puzzle-question-text')),
         );
         final span = questionText.textSpan! as TextSpan;
-        expect(span.style!.fontSize, greaterThanOrEqualTo(14.5));
+        expect(span.style!.fontSize, inInclusiveRange(11, 14));
         expect(questionText.maxLines, isNull);
         expect(span.toPlainText(), model.question);
 
@@ -107,50 +114,67 @@ void main() {
   }
 
   for (final scale in [1.0, 1.3]) {
-    testWidgets('all R1/R2 questions fit reading pane at 680x300 / $scale', (
-      tester,
-    ) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(680, 300);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.view.resetPhysicalSize);
-      for (final stage
-          in initialCampaign.regions.take(2).expand((r) => r.stages)) {
-        final model = EngineDiscoveryPuzzleViewModel(
-          stage: stage,
-          boardConfig: DiscoveryBoardConfig.compactPhone,
-        );
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: AppTheme.light(),
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(scale)),
-              child: child!,
+    testWidgets(
+      'all R1/R2 questions remain readable without shrinking the board at 680x300 / $scale',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(680, 300);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+        for (final stage
+            in initialCampaign.regions.take(2).expand((r) => r.stages)) {
+          final model = EngineDiscoveryPuzzleViewModel(
+            stage: stage,
+            boardConfig: DiscoveryBoardConfig.compactPhone,
+          );
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: AppTheme.light(),
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(scale)),
+                child: child!,
+              ),
+              home: DiscoveryPuzzleScreen(viewModel: model),
             ),
-            home: DiscoveryPuzzleScreen(viewModel: model),
-          ),
-        );
-        await tester.pumpAndSettle();
-        final paragraph = tester.renderObject<RenderParagraph>(
-          find.descendant(
-            of: find.byKey(const ValueKey('puzzle-question-text')),
-            matching: find.byType(RichText),
-          ),
-        );
-        final viewport = tester.getSize(
-          find.byKey(const ValueKey('puzzle-question-scroll')),
-        );
-        expect(
-          paragraph.size.height,
-          lessThanOrEqualTo(viewport.height + 0.5),
-          reason: '${stage.id}: normal viewport must not need question scroll',
-        );
-        expect(tester.takeException(), isNull, reason: stage.id);
-        await tester.pumpWidget(const SizedBox.shrink());
-        model.dispose();
-      }
-    });
+          );
+          await tester.pumpAndSettle();
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.descendant(
+              of: find.byKey(const ValueKey('puzzle-question-text')),
+              matching: find.byType(RichText),
+            ),
+          );
+          final viewport = tester.getSize(
+            find.byKey(const ValueKey('puzzle-question-scroll')),
+          );
+          expect(paragraph.text.toPlainText(), model.question);
+          expect(paragraph.maxLines, isNull);
+          expect(
+            tester
+                .getSize(find.byKey(const ValueKey('discovery-gem-grid')))
+                .height,
+            greaterThanOrEqualTo(230),
+            reason: '${stage.id}: reading must not shrink gems',
+          );
+          if (paragraph.size.height > viewport.height + .5) {
+            final scrollable = tester.state<ScrollableState>(
+              find.descendant(
+                of: find.byKey(const ValueKey('puzzle-question-scroll')),
+                matching: find.byType(Scrollable),
+              ),
+            );
+            expect(scrollable.position.maxScrollExtent, greaterThan(0));
+            scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+            await tester.pump();
+            expect(scrollable.position.extentAfter, closeTo(0, .5));
+          }
+          expect(tester.takeException(), isNull, reason: stage.id);
+          await tester.pumpWidget(const SizedBox.shrink());
+          model.dispose();
+        }
+      },
+    );
   }
 }

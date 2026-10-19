@@ -1,7 +1,7 @@
 enum DiscoveryPieceKind { gem, number, mathOperator, parenthesis }
 
 /// Historical name retained for checkpoints; burst/color extend the family.
-enum DiscoveryLinePower { row, column, burst, color }
+enum DiscoveryLinePower { row, column, burst, color, seeker }
 
 enum DiscoveryPowerCombination {
   lineLine,
@@ -11,6 +11,9 @@ enum DiscoveryPowerCombination {
   colorLine,
   colorBurst,
   colorColor,
+  seekerPair,
+  seekerSpecial,
+  colorSeeker,
 }
 
 class DiscoveryBoardConfig {
@@ -374,11 +377,13 @@ class DiscoveryPowerEvent {
     required this.direction,
     this.combination,
     this.affectedPositions = const [],
+    this.targetPosition,
   });
   final DiscoveryPosition position;
   final DiscoveryLinePower direction;
   final DiscoveryPowerCombination? combination;
   final List<DiscoveryPosition> affectedPositions;
+  final DiscoveryPosition? targetPosition;
 }
 
 class DiscoveryBlockerHit {

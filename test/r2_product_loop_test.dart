@@ -74,7 +74,7 @@ void main() {
       expect(world.availableRegionIds, contains('region-02-pattern'));
       expect(world.unlockedRegionIds, isNot(contains('region-02-pattern')));
       expect(world.availableRegionIds, isNot(contains('region-03-unit')));
-      await tester.tap(find.text('오늘의 탐험'));
+      await tester.tap(find.byKey(const ValueKey('world-explore')));
       await tester.pumpAndSettle();
       expect(
         tester
@@ -114,7 +114,7 @@ void main() {
             .unlockedRegionIds,
         contains('region-02-pattern'),
       );
-      await tester.tap(find.text('오늘의 탐험'));
+      await tester.tap(find.byKey(const ValueKey('world-explore')));
       await tester.pumpAndSettle();
       expect(
         tester
@@ -136,7 +136,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
       await _boot(tester, store);
-      await tester.tap(find.text('오늘의 탐험'));
+      await tester.tap(find.byKey(const ValueKey('world-explore')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('이어서 탐험하기').last);
       await tester.pumpAndSettle();

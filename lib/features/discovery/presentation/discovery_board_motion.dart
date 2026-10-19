@@ -41,12 +41,14 @@ class DiscoveryMotionPower {
   const DiscoveryMotionPower({
     required this.index,
     required this.direction,
+    this.targetIndex,
     this.affectedIndices = const [],
     this.isCombination = false,
   });
 
   final int index;
   final DiscoveryLinePowerKind direction;
+  final int? targetIndex;
   final List<int> affectedIndices;
   final bool isCombination;
 }
@@ -223,7 +225,16 @@ DiscoveryMotionTimeline discoveryMotionTimeline(
           kind: DiscoveryMotionPhaseKind.powerSweep,
           before: before,
           after: before,
-          duration: Duration(milliseconds: cascade.index == 0 ? 105 : 85),
+          duration: Duration(
+            milliseconds:
+                cascade.activatedPowers.any(
+                  (power) => power.direction == DiscoveryLinePowerKind.seeker,
+                )
+                ? 280
+                : cascade.index == 0
+                ? 105
+                : 85,
+          ),
           cascade: cascade,
         ),
       );

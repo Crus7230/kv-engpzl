@@ -47,10 +47,12 @@ class DiscoveryBoardHintSolver {
     required DiscoveryEngine Function(List<DiscoverySwapPair> extraSwaps)
     replay,
   }) {
-    final state = replay(const []).state;
+    final initial = replay(const []);
+    final state = initial.state;
+    final includeSquares = initial.enableSeekerPowers;
     if (state.isCompleted || state.isOutOfMoves || state.isDeadBoard)
       return null;
-    final firstMoves = legalSwaps(state.board);
+    final firstMoves = legalSwaps(state.board, includeSquares: includeSquares);
     if (firstMoves.isEmpty) return null;
     final fallback = DiscoveryHintSuggestion(
       from: firstMoves.first.from,
@@ -67,7 +69,7 @@ class DiscoveryBoardHintSolver {
       final next = <List<DiscoverySwapPair>>[];
       for (final prefix in frontier) {
         final board = prefix.isEmpty ? state.board : replay(prefix).state.board;
-        for (final move in legalSwaps(board)) {
+        for (final move in legalSwaps(board, includeSquares: includeSquares)) {
           if (evaluated >= maxEvaluatedSwaps) return fallback;
           evaluated += 1;
           final branch = replay(prefix);
@@ -157,7 +159,10 @@ class DiscoveryBoardHintSolver {
 
   /// The engine always settles cascades, so a new match must involve one of
   /// the two swapped positions. Returned pairs are adjacent and in bounds.
-  static List<DiscoverySwapPair> legalSwaps(DiscoveryBoard board) {
+  static List<DiscoverySwapPair> legalSwaps(
+    DiscoveryBoard board, {
+    bool includeSquares = false,
+  }) {
     final keys = <List<String?>>[
       for (var row = 0; row < board.rowCount; row++)
         [
@@ -166,6 +171,16 @@ class DiscoveryBoardHintSolver {
         ],
     ];
     final moves = <DiscoverySwapPair>[];
+    final gems = includeSquares
+        ? <List<bool>>[
+            for (var r = 0; r < board.rowCount; r++)
+              [
+                for (var c = 0; c < board.columnCount; c++)
+                  board.pieceAt(DiscoveryPosition(r, c))?.kind ==
+                      DiscoveryPieceKind.gem,
+              ],
+          ]
+        : const <List<bool>>[];
     for (final from in board.positions) {
       for (final to in [
         DiscoveryPosition(from.row, from.column + 1),
@@ -175,17 +190,58 @@ class DiscoveryBoardHintSolver {
         final first = keys[from.row][from.column];
         keys[from.row][from.column] = keys[to.row][to.column];
         keys[to.row][to.column] = first;
+        if (includeSquares) {
+          final firstGem = gems[from.row][from.column];
+          gems[from.row][from.column] = gems[to.row][to.column];
+          gems[to.row][to.column] = firstGem;
+        }
         if (board.pieceAt(from)?.linePower != null ||
             board.pieceAt(to)?.linePower != null ||
             _hasMatchAt(keys, from) ||
-            _hasMatchAt(keys, to)) {
+            _hasMatchAt(keys, to) ||
+            includeSquares &&
+                (_hasSquareAt(keys, gems, from) ||
+                    _hasSquareAt(keys, gems, to))) {
           moves.add((from: from, to: to));
         }
         keys[to.row][to.column] = keys[from.row][from.column];
         keys[from.row][from.column] = first;
+        if (includeSquares) {
+          final firstGem = gems[to.row][to.column];
+          gems[to.row][to.column] = gems[from.row][from.column];
+          gems[from.row][from.column] = firstGem;
+        }
       }
     }
     return moves;
+  }
+
+  static bool _hasSquareAt(
+    List<List<String?>> keys,
+    List<List<bool>> gems,
+    DiscoveryPosition p,
+  ) {
+    final key = keys[p.row][p.column];
+    if (key == null) return false;
+    for (final row in [p.row - 1, p.row]) {
+      for (final column in [p.column - 1, p.column]) {
+        if (row < 0 ||
+            column < 0 ||
+            row + 1 >= keys.length ||
+            column + 1 >= keys.first.length)
+          continue;
+        if (gems[row][column] &&
+            gems[row + 1][column] &&
+            gems[row][column + 1] &&
+            gems[row + 1][column + 1] &&
+            keys[row][column] == key &&
+            keys[row + 1][column] == key &&
+            keys[row][column + 1] == key &&
+            keys[row + 1][column + 1] == key)
+          return true;
+      }
+    }
+    return false;
   }
 
   static bool _hasMatchAt(

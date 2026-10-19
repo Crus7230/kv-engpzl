@@ -207,6 +207,81 @@ class _GameHeader extends StatelessWidget {
     final visibleBlockCount = viewModel.discoveredBlocks
         .where((block) => !motionLock.isPending(block.id))
         .length;
+    if (shortHeight || viewModel is DiscoveryObjectiveSource) {
+      final source = viewModel is DiscoveryObjectiveSource
+          ? viewModel as DiscoveryObjectiveSource
+          : null;
+      return Padding(
+        key: const ValueKey('puzzle-game-header'),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              SizedBox.square(
+                dimension: 44,
+                child: IconButton(
+                  tooltip: '스테이지 나가기',
+                  onPressed: onExit,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 44,
+                    height: 44,
+                  ),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 21),
+                ),
+              ),
+              Expanded(
+                child: Tooltip(
+                  message:
+                      '${viewModel.stageLabel} · ${viewModel.difficultyLabel}',
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        viewModel.stageLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: shortHeight ? 11.5 : 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        '발굴 ${viewModel.boardRows}×${viewModel.boardColumns}',
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          color: AppColors.mutedInk,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (source != null && source.discoveryObjectives.isNotEmpty)
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * .54,
+                  ),
+                  child: _DiscoveryObjectiveStrip(source: source),
+                ),
+              if (viewModel is DiscoverySeekerSource &&
+                  (viewModel as DiscoverySeekerSource).supportsSeekerPowers)
+                const _SeekerGuideButton(),
+              Tooltip(
+                message: '남은 이동 ${viewModel.movesLeft}회',
+                child: _HeaderMetric(
+                  icon: Icons.swap_horiz_rounded,
+                  label: '${viewModel.movesLeft}',
+                  color: const Color(0xFFE56A42),
+                  compactHeight: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: dense ? 2 : 10),
       child: Row(
@@ -252,6 +327,9 @@ class _GameHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (viewModel is DiscoverySeekerSource &&
+              (viewModel as DiscoverySeekerSource).supportsSeekerPowers)
+            const _SeekerGuideButton(),
           Tooltip(
             message: viewModel.difficultyLabel,
             child: _HeaderMetric(
@@ -271,12 +349,13 @@ class _GameHeader extends StatelessWidget {
             ),
             const SizedBox(width: 8),
           ],
-          _HeaderMetric(
-            icon: Icons.inventory_2_rounded,
-            label: '$visibleBlockCount/${viewModel.requiredBlockCount}',
-            color: AppColors.primary,
-            compactHeight: shortHeight,
-          ),
+          if (!shortHeight)
+            _HeaderMetric(
+              icon: Icons.inventory_2_rounded,
+              label: '$visibleBlockCount/${viewModel.requiredBlockCount}',
+              color: AppColors.primary,
+              compactHeight: shortHeight,
+            ),
           SizedBox(width: dense ? 4 : 8),
           _HeaderMetric(
             icon: Icons.swap_horiz_rounded,
@@ -288,6 +367,35 @@ class _GameHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SeekerGuideButton extends StatelessWidget {
+  const _SeekerGuideButton();
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: const ValueKey('seeker-guide'),
+    tooltip: '2×2 유도탄 사용법',
+    constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+    padding: EdgeInsets.zero,
+    icon: const Icon(Icons.near_me_rounded, size: 21, color: AppColors.primary),
+    onPressed: () => showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('2×2 유도탄'),
+        content: const SingleChildScrollView(
+          child: Text(
+            '같은 색 보석 4개를 2×2로 맞추면 유도탄이 생깁니다. 유도탄을 옆 보석과 바꾸면 숨은 풀이 조각을 우선해 목표 한 칸을 타격합니다. 두 겹 봉인은 한 겹씩 줄어들며, 수식과 탐험 목표도 모두 완성해야 합니다.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _HeaderMetric extends StatelessWidget {
@@ -363,61 +471,32 @@ class _ThreePaneGameLayout extends StatelessWidget {
           );
         }
 
-        final compactSafe = constraints.maxWidth < 600;
+        final compactSafe = constraints.maxWidth < 720;
         final gap = compactSafe
             ? 4.0
             : dense
             ? 6.0
             : 12.0;
-        final minimumQuestionWidth = compactSafe ? 132.0 : 164.0;
-        final minimumWorkspaceWidth = compactSafe ? 180.0 : 218.0;
-        final minimumBoardWidth = compactSafe ? 120.0 : 168.0;
+        final minimumQuestionWidth = compactSafe ? 112.0 : 160.0;
+        final minimumWorkspaceWidth = compactSafe ? 164.0 : 188.0;
         final availableWidth = constraints.maxWidth - gap * 2;
         final maximumBoardWidth =
             availableWidth - minimumQuestionWidth - minimumWorkspaceWidth;
-        var boardWidth = math.min(
-          constraints.maxHeight,
-          math.min(
-            shortHeight ? 246.0 : constraints.maxWidth * 0.38,
-            maximumBoardWidth,
-          ),
+        final boardWidth = math.min(
+          constraints.maxHeight + 6,
+          maximumBoardWidth,
         );
         var questionWidth = math.max(
           minimumQuestionWidth,
-          (availableWidth - boardWidth) * 0.47,
+          (availableWidth - boardWidth) * 0.48,
         );
         questionWidth = math.min(
           questionWidth,
           availableWidth - boardWidth - minimumWorkspaceWidth,
         );
 
-        // Give reading space priority over decorative board area. Keep the
-        // actual 5x5/6x6/7x7 board intact; only its on-screen size changes.
-        final maximumQuestionWidth =
-            availableWidth - minimumBoardWidth - minimumWorkspaceWidth;
-        final readingHeight = math.max(
-          1.0,
-          constraints.maxHeight - (dense ? 62 : 148),
-        );
-        final measure = TextPainter(
-          text: _HighlightedQuestion.spanFor(
-            context,
-            viewModel.question,
-            compact: dense,
-          ),
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-        );
-        while (questionWidth < maximumQuestionWidth) {
-          measure.layout(maxWidth: math.max(1.0, questionWidth - 12));
-          if (measure.height <= readingHeight) break;
-          questionWidth = math.min(maximumQuestionWidth, questionWidth + 12);
-          boardWidth = math.min(
-            boardWidth,
-            availableWidth - questionWidth - minimumWorkspaceWidth,
-          );
-        }
-        measure.dispose();
+        // Long questions can scroll or use the reader, but never shrink the
+        // live board. Its entire usable height is reserved before side panes.
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -580,7 +659,13 @@ class _QuestionPanel extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontSize: dense ? 14 : 17),
+                              ?.copyWith(
+                                fontSize: shortHeight
+                                    ? 11
+                                    : dense
+                                    ? 14
+                                    : 17,
+                              ),
                         ),
                       ),
                       _QuestionReaderButton(viewModel: viewModel),
@@ -794,12 +879,18 @@ class _HighlightedQuestion extends StatelessWidget {
     String text, {
     required bool compact,
   }) {
-    // Respect the user's text scale instead of making accessibility text
-    // smaller to fit. Extremely small panes can scroll or use the full reader.
+    final media = MediaQuery.of(context);
+    final usableWidth = media.size.width - media.padding.horizontal;
+    final usableHeight = media.size.height - media.padding.vertical;
+    final viewportFactor = math
+        .min(usableWidth / 800, usableHeight / 360)
+        .clamp(.8, 1.0);
+    // Adapt the base size, then preserve the user's accessibility text scale.
+    // The separate reading dialog intentionally retains its larger type.
     final baseStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
       color: AppColors.ink,
-      fontSize: compact ? 14.5 : 17,
-      height: compact ? 1.35 : 1.5,
+      fontSize: compact ? 14 * viewportFactor : 17,
+      height: compact ? 1.3 : 1.5,
       fontWeight: FontWeight.w600,
     );
     final highlightStyle = baseStyle?.copyWith(
@@ -920,64 +1011,60 @@ class _DiscoveryBoardPanel extends StatelessWidget {
         ),
         child: Column(
           children: [
-            SizedBox(
-              height: shortHeight
-                  ? 18
-                  : dense
-                  ? 24
-                  : 32,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.grid_view_rounded,
-                    size: shortHeight ? 16 : 19,
-                    color: Colors.white,
-                  ),
-                  SizedBox(width: shortHeight ? 3 : 5),
-                  Expanded(
-                    child: Text(
-                      '발굴 ${visibleRows}×$visibleColumns',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontSize: shortHeight
-                            ? 12
-                            : dense
-                            ? 14
-                            : 17,
+            if (!shortHeight && viewModel is! DiscoveryObjectiveSource)
+              SizedBox(
+                height: shortHeight
+                    ? 18
+                    : dense
+                    ? 24
+                    : 32,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.grid_view_rounded,
+                      size: shortHeight ? 16 : 19,
+                      color: Colors.white,
+                    ),
+                    SizedBox(width: shortHeight ? 3 : 5),
+                    Expanded(
+                      child: Text(
+                        '발굴 ${visibleRows}×$visibleColumns',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: Colors.white,
+                              fontSize: shortHeight
+                                  ? 12
+                                  : dense
+                                  ? 14
+                                  : 17,
+                            ),
                       ),
                     ),
-                  ),
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: shortHeight ? 5 : 7,
-                      vertical: shortHeight ? 1 : 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${viewModel.movesLeft}회',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: shortHeight ? 10.5 : 12,
-                        fontWeight: FontWeight.w800,
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: shortHeight ? 5 : 7,
+                        vertical: shortHeight ? 1 : 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${viewModel.movesLeft}회',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: shortHeight ? 10.5 : 12,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            SizedBox(height: shortHeight ? 1 : 2),
-            if (viewModel is DiscoveryObjectiveSource &&
-                (viewModel as DiscoveryObjectiveSource)
-                    .discoveryObjectives
-                    .isNotEmpty)
-              _DiscoveryObjectiveStrip(
-                source: viewModel as DiscoveryObjectiveSource,
-              ),
+            if (!shortHeight && viewModel is! DiscoveryObjectiveSource)
+              const SizedBox(height: 2),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -1012,54 +1099,186 @@ class _DiscoveryObjectiveStrip extends StatelessWidget {
   final DiscoveryObjectiveSource source;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final goals = source.discoveryObjectives;
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 2),
-        child: Wrap(
-          spacing: 3,
-          runSpacing: 2,
-          children: [
-            for (final goal in goals)
-              SizedBox(
-                width: (constraints.maxWidth - 3) / 2,
-                child: Semantics(
-                  label:
-                      '${goal.label}, ${goal.current}/${goal.goal}, ${goal.isCompleted ? '완료' : '진행 중'}',
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: goal.isCompleted
-                          ? const Color(0xFF225B49)
-                          : const Color(0xFF252342),
-                      borderRadius: BorderRadius.circular(5),
+  Widget build(BuildContext context) {
+    final goals = source.discoveryObjectives;
+    void showDetails() => showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const ValueKey('puzzle-objective-details'),
+        title: const Text('이번 탐험 목표'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('표시된 목표와 풀이 블록을 모두 모은 뒤 식을 완성하세요.'),
+                const SizedBox(height: 8),
+                for (final goal in source.discoveryObjectives)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: _DiscoveryObjectiveIcon(goal: goal),
+                    title: Text(goal.label),
+                    subtitle: Text(switch (goal.visualKind) {
+                      DiscoveryObjectiveVisualKind.fragment =>
+                        '봉인이나 얼음 속 조각, 내려오는 조각을 찾아 모으세요.',
+                      DiscoveryObjectiveVisualKind.ice =>
+                        '얼음 옆에서 매치하거나 특수 블록으로 타격하세요.',
+                      DiscoveryObjectiveVisualKind.gem =>
+                        '같은 모양·색의 보석을 제거하세요. 연쇄와 특수 블록도 포함됩니다.',
+                      DiscoveryObjectiveVisualKind.blocker =>
+                        '장애물 옆에서 매치하거나 특수 블록으로 길을 여세요.',
+                      DiscoveryObjectiveVisualKind.moves =>
+                        '유효한 교환을 진행하면 목표가 올라갑니다.',
+                      DiscoveryObjectiveVisualKind.falling =>
+                        '위에서 내려오는 조각이 실린 보석을 제거하세요.',
+                    }),
+                    trailing: Text(
+                      '${goal.current}/${goal.goal}${goal.isCompleted ? ' ✓' : ''}',
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 3,
-                        vertical: 2,
-                      ),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '${goal.isCompleted ? '✓ ' : ''}${goal.label} ${goal.current}/${goal.goal}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('닫기'),
+          ),
+        ],
+      ),
+    );
+    return SingleChildScrollView(
+      key: const ValueKey('puzzle-objectives'),
+      scrollDirection: Axis.horizontal,
+      primary: false,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var index = 0; index < goals.length; index++)
+            Semantics(
+              liveRegion: true,
+              button: true,
+              label:
+                  '${goals[index].label}, ${goals[index].current}/${goals[index].goal}, ${goals[index].isCompleted ? '완료' : '진행 중'}. 목표 설명 보기',
+              onTap: showDetails,
+              child: ExcludeSemantics(
+                child: Tooltip(
+                  message:
+                      '${goals[index].label} · ${goals[index].current}/${goals[index].goal}',
+                  child: InkWell(
+                    key: ValueKey('puzzle-objective-$index'),
+                    onTap: showDetails,
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 56,
+                      height: 44,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 3,
+                          vertical: 6,
+                        ),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  children: [
+                                    _DiscoveryObjectiveIcon(goal: goals[index]),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      '${goals[index].current}/${goals[index].goal}',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: goals[index].isCompleted
+                                            ? AppColors.success
+                                            : AppColors.ink,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value:
+                                    (goals[index].current /
+                                            math.max(1, goals[index].goal))
+                                        .clamp(0, 1),
+                                minHeight: 3,
+                                color: goals[index].isCompleted
+                                    ? AppColors.success
+                                    : AppColors.primary,
+                                backgroundColor: AppColors.outline,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-          ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscoveryObjectiveIcon extends StatelessWidget {
+  const _DiscoveryObjectiveIcon({required this.goal});
+  final DiscoveryObjectiveStatus goal;
+
+  @override
+  Widget build(BuildContext context) {
+    if (goal.visualKind == DiscoveryObjectiveVisualKind.gem &&
+        goal.gemKind != null) {
+      final style = _gemStyleFor(goal.gemKind!);
+      return Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [style.lightColor, style.color]),
+          borderRadius: BorderRadius.circular(6),
         ),
+        child: Icon(style.icon, size: 14, color: Colors.white),
       );
-    },
-  );
+    }
+    final (icon, color) = switch (goal.visualKind) {
+      DiscoveryObjectiveVisualKind.ice => (
+        Icons.ac_unit_rounded,
+        const Color(0xFF2180AE),
+      ),
+      DiscoveryObjectiveVisualKind.blocker => (
+        Icons.terrain_rounded,
+        AppColors.mutedInk,
+      ),
+      DiscoveryObjectiveVisualKind.moves => (
+        Icons.swap_horiz_rounded,
+        AppColors.operator,
+      ),
+      DiscoveryObjectiveVisualKind.falling => (
+        Icons.move_down_rounded,
+        AppColors.primary,
+      ),
+      DiscoveryObjectiveVisualKind.fragment => (
+        Icons.extension_rounded,
+        AppColors.primary,
+      ),
+      DiscoveryObjectiveVisualKind.gem => (
+        Icons.diamond_rounded,
+        AppColors.primary,
+      ),
+    };
+    return Icon(icon, size: 20, color: color);
+  }
 }
 
 class _GemGrid extends StatelessWidget {
@@ -1204,7 +1423,7 @@ class _GemButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _gemStyle(cell.kind);
+    final style = _gemStyleFor(cell.kind);
     final colorAssist = MediaQuery.highContrastOf(context);
     final sealKind = cell.iceLayers > 0 ? null : cell.sealKind;
     final sealLabel = switch (sealKind) {
@@ -1226,6 +1445,7 @@ class _GemButton extends StatelessWidget {
             DiscoveryLinePowerKind.column => ', 세로 직선 파워',
             DiscoveryLinePowerKind.burst => ', L/T형 범위 폭발',
             DiscoveryLinePowerKind.color => ', 5매치 색상 파워',
+            DiscoveryLinePowerKind.seeker => ', 2×2 유도탄, 교환하면 목표 한 칸 타격',
             null => '',
           }}'
           '${cell.blockerLayers > 0 ? ', 장애물 ${cell.blockerLayers}층, 교환 불가, 인접 매치로 제거' : ''}'
@@ -1313,6 +1533,8 @@ class _GemButton extends StatelessWidget {
                                   Icons.flare_rounded,
                                 DiscoveryLinePowerKind.color =>
                                   Icons.palette_rounded,
+                                DiscoveryLinePowerKind.seeker =>
+                                  Icons.near_me_rounded,
                               },
                               color: Colors.white,
                               size: iconSize * .8,
@@ -1434,47 +1656,47 @@ class _GemButton extends StatelessWidget {
       ),
     );
   }
+}
 
-  _GemStyle _gemStyle(DiscoveryGemKind kind) {
-    return switch (kind) {
-      DiscoveryGemKind.berry => const _GemStyle(
-        name: '베리색',
-        color: Color(0xFFE44867),
-        lightColor: Color(0xFFFF7C93),
-        icon: Icons.favorite_rounded,
-      ),
-      DiscoveryGemKind.ocean => const _GemStyle(
-        name: '바다색',
-        color: Color(0xFF2E74D1),
-        lightColor: Color(0xFF6EB8FF),
-        icon: Icons.water_drop_rounded,
-      ),
-      DiscoveryGemKind.citrus => const _GemStyle(
-        name: '귤색',
-        color: Color(0xFFE87928),
-        lightColor: Color(0xFFFFB13D),
-        icon: Icons.circle,
-      ),
-      DiscoveryGemKind.grape => const _GemStyle(
-        name: '포도색',
-        color: Color(0xFF7751D1),
-        lightColor: Color(0xFFA888F2),
-        icon: Icons.auto_awesome_rounded,
-      ),
-      DiscoveryGemKind.leaf => const _GemStyle(
-        name: '잎색',
-        color: Color(0xFF2F966E),
-        lightColor: Color(0xFF69C79F),
-        icon: Icons.eco_rounded,
-      ),
-      DiscoveryGemKind.sun => const _GemStyle(
-        name: '햇빛색',
-        color: Color(0xFFE0A51B),
-        lightColor: Color(0xFFFFD84E),
-        icon: Icons.star_rounded,
-      ),
-    };
-  }
+_GemStyle _gemStyleFor(DiscoveryGemKind kind) {
+  return switch (kind) {
+    DiscoveryGemKind.berry => const _GemStyle(
+      name: '베리색',
+      color: Color(0xFFE44867),
+      lightColor: Color(0xFFFF7C93),
+      icon: Icons.favorite_rounded,
+    ),
+    DiscoveryGemKind.ocean => const _GemStyle(
+      name: '바다색',
+      color: Color(0xFF2E74D1),
+      lightColor: Color(0xFF6EB8FF),
+      icon: Icons.water_drop_rounded,
+    ),
+    DiscoveryGemKind.citrus => const _GemStyle(
+      name: '귤색',
+      color: Color(0xFFE87928),
+      lightColor: Color(0xFFFFB13D),
+      icon: Icons.circle,
+    ),
+    DiscoveryGemKind.grape => const _GemStyle(
+      name: '포도색',
+      color: Color(0xFF7751D1),
+      lightColor: Color(0xFFA888F2),
+      icon: Icons.auto_awesome_rounded,
+    ),
+    DiscoveryGemKind.leaf => const _GemStyle(
+      name: '잎색',
+      color: Color(0xFF2F966E),
+      lightColor: Color(0xFF69C79F),
+      icon: Icons.eco_rounded,
+    ),
+    DiscoveryGemKind.sun => const _GemStyle(
+      name: '햇빛색',
+      color: Color(0xFFE0A51B),
+      lightColor: Color(0xFFFFD84E),
+      icon: Icons.star_rounded,
+    ),
+  };
 }
 
 class _IceTilePainter extends CustomPainter {
@@ -1585,7 +1807,7 @@ class _EquationWorkspace extends StatelessWidget {
           final rowHeight = ultraTight
               ? 36.0
               : veryTight
-              ? 44.0
+              ? 38.0
               : tight
               ? 50.0
               : 58.0;
@@ -1600,7 +1822,7 @@ class _EquationWorkspace extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!ultraTight)
+                if (!veryTight)
                   SizedBox(
                     height: veryTight
                         ? 20
@@ -1655,16 +1877,19 @@ class _EquationWorkspace extends StatelessWidget {
                       ? 3
                       : 6,
                 ),
-                Expanded(
-                  child: _FeedbackStrip(
-                    message: awaitingTokens
-                        ? '봉인이 열리고 있어요. 조각이 도착하면 식을 만들어요.'
-                        : viewModel.feedbackMessage,
-                    tone: awaitingTokens
-                        ? DiscoveryFeedbackTone.reward
-                        : viewModel.feedbackTone,
-                    dense: tight,
-                    maxLines: 3,
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: veryTight ? 58 : 92),
+                    child: _FeedbackStrip(
+                      message: awaitingTokens
+                          ? '봉인이 열리고 있어요. 조각이 도착하면 식을 만들어요.'
+                          : viewModel.feedbackMessage,
+                      tone: awaitingTokens
+                          ? DiscoveryFeedbackTone.reward
+                          : viewModel.feedbackTone,
+                      dense: tight,
+                      maxLines: 3,
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -2162,45 +2387,62 @@ class _WorkspaceActions extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Expanded(
-            child: FilledButton.icon(
-              onPressed: motionLock.busy
-                  ? null
-                  : viewModel.isAnswerCorrect
-                  ? viewModel is DiscoveryCompletionHandler
-                        ? (viewModel as DiscoveryCompletionHandler)
-                              .continueToResult
-                        : () => _showLearningReviewDialog(context, viewModel)
-                  : viewModel.canCheckAnswer
-                  ? () {
-                      viewModel.checkAnswer();
-                      if (viewModel.isAnswerCorrect)
-                        AudioScope.maybeOf(
-                          context,
-                        )?.haptic(PuzzleHaptic.success);
-                    }
-                  : null,
-              icon: Icon(
-                viewModel.isAnswerCorrect
-                    ? Icons.menu_book_rounded
-                    : Icons.check_rounded,
-                size: 20,
-              ),
-              style: compactHeight
-                  ? FilledButton.styleFrom(
-                      minimumSize: const Size(44, 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    )
-                  : null,
-              label: Text(
-                viewModel.isAnswerCorrect
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final onPressed = motionLock.busy
+                    ? null
+                    : viewModel.isAnswerCorrect
+                    ? viewModel is DiscoveryCompletionHandler
+                          ? (viewModel as DiscoveryCompletionHandler)
+                                .continueToResult
+                          : () => _showLearningReviewDialog(context, viewModel)
+                    : viewModel.canCheckAnswer
+                    ? () {
+                        viewModel.checkAnswer();
+                        if (viewModel.isAnswerCorrect)
+                          AudioScope.maybeOf(
+                            context,
+                          )?.haptic(PuzzleHaptic.success);
+                      }
+                    : null;
+                final icon = Icon(
+                  viewModel.isAnswerCorrect
+                      ? Icons.menu_book_rounded
+                      : Icons.check_rounded,
+                  size: 20,
+                );
+                final style = compactHeight
+                    ? FilledButton.styleFrom(
+                        minimumSize: const Size(44, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      )
+                    : null;
+                final label = viewModel.isAnswerCorrect
                     ? viewModel is DiscoveryCompletionHandler
                           ? '결과 보기'
                           : '풀이 보기'
                     : dense
                     ? '확인'
-                    : '식 확인',
-              ),
+                    : '식 확인';
+                return Tooltip(
+                  message: viewModel.isAnswerCorrect ? label : '식 확인',
+                  child: constraints.maxWidth < 104
+                      ? FilledButton(
+                          key: const ValueKey('puzzle-submit'),
+                          onPressed: onPressed,
+                          style: style,
+                          child: icon,
+                        )
+                      : FilledButton.icon(
+                          key: const ValueKey('puzzle-submit'),
+                          onPressed: onPressed,
+                          icon: icon,
+                          style: style,
+                          label: Text(label, maxLines: 1),
+                        ),
+                );
+              },
             ),
           ),
         ],

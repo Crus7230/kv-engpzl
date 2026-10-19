@@ -250,9 +250,12 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        expect(find.textContaining('풀이 블록 0/'), findsOneWidget);
-        expect(find.textContaining('파란 보석 0/20'), findsOneWidget);
-        expect(find.textContaining('초록 보석 0/12'), findsOneWidget);
+        expect(
+          find.byTooltip('풀이 블록 · 0/${model.stage.buriedTokenIds.length}'),
+          findsOneWidget,
+        );
+        expect(find.byTooltip('파란 보석 · 0/20'), findsOneWidget);
+        expect(find.byTooltip('초록 보석 · 0/12'), findsOneWidget);
       });
     }
   }

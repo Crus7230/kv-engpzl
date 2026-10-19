@@ -101,6 +101,8 @@ class WorldMapScreen extends StatelessWidget {
               builder: (context, constraints) {
                 final largeText =
                     MediaQuery.textScalerOf(context).scale(13) > 15;
+                final compactActions =
+                    constraints.maxHeight < 280 || constraints.maxWidth < 720;
                 return Stack(
                   fit: StackFit.expand,
                   children: [
@@ -110,24 +112,35 @@ class WorldMapScreen extends StatelessWidget {
                       restoredNodeIds: restoredNodeIds,
                       onSelectRegion: onSelectRegion,
                       showGuide: statusMessage == null,
-                      // Only very short safe areas need a separate control gutter.
-                      bottomClearance: constraints.maxHeight < 240 ? 54 : 0,
+                      // A slim side rail keeps short screens' map height intact
+                      // without covering region markers or their labels.
+                      bottomClearance: 0,
+                      rightClearance: compactActions ? 52 : 0,
                     ),
                     Positioned(
-                      left: 6,
+                      left: compactActions ? null : 6,
+                      right: compactActions ? 4 : null,
                       bottom: 4,
                       child: SizedBox(
                         width: math.min(
                           constraints.maxWidth - 12,
-                          largeText ? 414 : 366,
+                          compactActions
+                              ? 44
+                              : largeText
+                              ? 414
+                              : 366,
                         ),
-                        height: 48,
-                        child: Row(
+                        height: compactActions ? 144 : 48,
+                        child: Flex(
+                          direction: compactActions
+                              ? Axis.vertical
+                              : Axis.horizontal,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Expanded(
                               child: _WorldMapAction(
                                 key: const ValueKey('world-review'),
+                                compact: compactActions,
                                 icon: Icons.spa_outlined,
                                 title: '기억의 씨앗',
                                 detail:
@@ -138,10 +151,14 @@ class WorldMapScreen extends StatelessWidget {
                                 onTap: onReview,
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(
+                              width: compactActions ? 0 : 6,
+                              height: compactActions ? 6 : 0,
+                            ),
                             Expanded(
                               child: _WorldMapAction(
                                 key: const ValueKey('world-explore'),
+                                compact: compactActions,
                                 icon: Icons.explore_outlined,
                                 title: '오늘의 탐험',
                                 detail: explorationDetail ?? '한 문제로 시작하기',
@@ -149,10 +166,14 @@ class WorldMapScreen extends StatelessWidget {
                                 highlighted: true,
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(
+                              width: compactActions ? 0 : 6,
+                              height: compactActions ? 6 : 0,
+                            ),
                             Expanded(
                               child: _WorldMapAction(
                                 key: const ValueKey('world-traces'),
+                                compact: compactActions,
                                 icon: onCompanions == null
                                     ? Icons.local_florist_outlined
                                     : Icons.signpost_outlined,
@@ -1055,6 +1076,7 @@ class _WorldMap extends StatelessWidget {
     required this.onSelectRegion,
     required this.showGuide,
     required this.bottomClearance,
+    required this.rightClearance,
   });
 
   final Set<String> unlockedRegionIds;
@@ -1063,6 +1085,7 @@ class _WorldMap extends StatelessWidget {
   final ValueChanged<String> onSelectRegion;
   final bool showGuide;
   final double bottomClearance;
+  final double rightClearance;
 
   @override
   Widget build(BuildContext context) => ClipRRect(
@@ -1073,7 +1096,7 @@ class _WorldMap extends StatelessWidget {
         builder: (context, constraints) {
           const sourceSize = Size(6000, 2413);
           final destination = Size(
-            constraints.maxWidth,
+            math.max(0, constraints.maxWidth - rightClearance),
             math.max(0, constraints.maxHeight - bottomClearance),
           );
           final fitted = applyBoxFit(BoxFit.contain, sourceSize, destination);
@@ -1279,6 +1302,7 @@ class _WorldMapAction extends StatelessWidget {
     required this.detail,
     required this.onTap,
     this.highlighted = false,
+    this.compact = false,
     super.key,
   });
 
@@ -1287,6 +1311,7 @@ class _WorldMapAction extends StatelessWidget {
   final String detail;
   final VoidCallback? onTap;
   final bool highlighted;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1301,7 +1326,7 @@ class _WorldMapAction extends StatelessWidget {
       enabled: onTap != null,
       label: '$title · $detail',
       child: Tooltip(
-        message: detail,
+        message: '$title · $detail',
         excludeFromSemantics: true,
         child: Material(
           color: primary ? GardenColors.green : GardenColors.paper,
@@ -1318,8 +1343,11 @@ class _WorldMapAction extends StatelessWidget {
             borderRadius: BorderRadius.circular(24),
             child: ExcludeSemantics(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 10),
                 child: Row(
+                  mainAxisAlignment: compact
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment.start,
                   children: [
                     Icon(
                       icon,
@@ -1330,20 +1358,21 @@ class _WorldMapAction extends StatelessWidget {
                           : GardenColors.muted,
                       size: 18,
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          height: 1.15,
-                          fontWeight: FontWeight.w800,
-                          color: foreground,
+                    if (!compact) const SizedBox(width: 6),
+                    if (!compact)
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.15,
+                            fontWeight: FontWeight.w800,
+                            color: foreground,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),

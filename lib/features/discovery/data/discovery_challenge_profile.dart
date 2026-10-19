@@ -94,8 +94,11 @@ class DiscoveryChallengeProfile {
     StageDefinition stage,
     DiscoveryBoardConfig config, {
     int? seed,
+    int rulesVersion = 5,
   }) {
     final legacy = DiscoveryExcavationProfile.variantFor(stage, config);
+    if (rulesVersion != 5 && rulesVersion != 6)
+      throw ArgumentError.value(rulesVersion, 'rulesVersion');
     final boardSeed = seed ?? legacy.seed;
     if (boardSeed < 0 || boardSeed > 0xffffffff) {
       throw ArgumentError.value(
@@ -107,7 +110,7 @@ class DiscoveryChallengeProfile {
     return BoardLayoutVariant(
       config: config,
       fixtureId:
-          '${stage.id}-${config.rows}x${config.columns}-$boardSeed-random5',
+          '${stage.id}-${config.rows}x${config.columns}-$boardSeed-random$rulesVersion',
       seed: boardSeed,
       // The independent random candidate is validated at construction.
       isVerified: true,

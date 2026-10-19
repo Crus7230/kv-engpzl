@@ -137,7 +137,11 @@ void main() {
       final stages = region.stages.toList();
       final garden = gardenDefinitions.first;
       await _boot(tester, store, DateTime(2026, 10, 11));
-      await _tap(tester, find.text('오늘의 탐험'), 'first daily exploration');
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('world-explore')),
+        'first daily exploration',
+      );
       final restored = <String>{};
 
       for (var index = 0; index < stages.length; index++) {
@@ -306,7 +310,7 @@ void main() {
       expect(resumed.restoredNodeIds, afterDecoration.restoredNodeIds);
       expect(resumed.decorationChoices, afterDecoration.decorationChoices);
       expect(resumed.viewedStoryIds, afterDecoration.viewedStoryIds);
-      expect(find.byTooltip('R02-C01 S01'), findsOneWidget);
+      expect(find.byTooltip('오늘의 탐험 · R02-C01 S01'), findsOneWidget);
       final world = tester.widget<WorldMapScreen>(find.byType(WorldMapScreen));
       expect(world.explorationDetail, 'R02-C01 S01');
       expect(world.onExplore, isNotNull);
@@ -314,7 +318,11 @@ void main() {
 
       // The next day's review is a real replay, not a falsely advertised new
       // stage. It must complete without duplicating garden restoration rewards.
-      await _tap(tester, find.text('기억의 씨앗'), 'next-day review');
+      await _tap(
+        tester,
+        find.byKey(const ValueKey('world-review')),
+        'next-day review',
+      );
       await _tap(
         tester,
         find.byKey(const ValueKey('memory-seed-play')),

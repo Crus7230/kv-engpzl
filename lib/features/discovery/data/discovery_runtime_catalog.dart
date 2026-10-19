@@ -161,7 +161,8 @@ DiscoveryStageRuntime _authoredRuntime(StageDefinition stage, Puzzle puzzle) {
   };
   final fixtures = <String, AuthoredDiscoveryFixture>{};
   AuthoredDiscoveryFixture fixture(BoardLayoutVariant variant) {
-    if (variant.fixtureId.endsWith('-random5') &&
+    if ((variant.fixtureId.endsWith('-random5') ||
+            variant.fixtureId.endsWith('-random6')) &&
         !fixtures.containsKey(variant.fixtureId) &&
         fixtures.length >= 4) {
       fixtures.remove(fixtures.keys.first);
@@ -205,6 +206,9 @@ DiscoveryStageRuntime _authoredRuntime(StageDefinition stage, Puzzle puzzle) {
               enableLinePowers: stage.boardMechanicPlan.mechanicIds.contains(
                 BoardMechanicId.linePower,
               ),
+              enableSeekerPowers:
+                  variant.fixtureId.endsWith('-random6') &&
+                  !DiscoveryChallengeProfile.isTutorial(stage),
               requiredLinePowerActivations: power?.requiredActivations ?? 0,
               enableBurstPowers: power?.enableBurst ?? false,
               enableColorPowers: power?.enableColor ?? false,

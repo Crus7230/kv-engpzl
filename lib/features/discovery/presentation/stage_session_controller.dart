@@ -63,7 +63,11 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
   static int _savedRulesVersion(Map<String, dynamic> session) {
     final version = session['rulesVersion'] ?? 1;
     if (version is! int ||
-        (version != 1 && version != 3 && version != 4 && version != 5)) {
+        (version != 1 &&
+            version != 3 &&
+            version != 4 &&
+            version != 5 &&
+            version != 6)) {
       throw const FormatException('Unknown puzzle rules version.');
     }
     return version;
@@ -71,8 +75,8 @@ class StageSessionController extends EngineDiscoveryPuzzleViewModel
 
   static int? _boardSeedFor(Map<String, dynamic>? saved, int newVersion) {
     if (saved == null)
-      return newVersion == 5 ? Random.secure().nextInt(0x100000000) : null;
-    if (_savedRulesVersion(saved) != 5) return null;
+      return newVersion >= 5 ? Random.secure().nextInt(0x100000000) : null;
+    if (_savedRulesVersion(saved) < 5) return null;
     final seed = saved['boardSeed'];
     if (seed is! int || seed < 0 || seed > 0xffffffff) {
       throw const FormatException('Invalid random board seed.');

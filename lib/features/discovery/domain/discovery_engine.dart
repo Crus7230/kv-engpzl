@@ -13,6 +13,7 @@ class DiscoveryEngine {
     this.enableBurstPowers = false,
     this.enableColorPowers = false,
     this.enablePowerCombinations = false,
+    this.enableSeekerPowers = false,
     this.requiredPowerKind,
     this.requiredCombinationActivations = 0,
     this.requiredBlockerClears = 0,
@@ -40,12 +41,14 @@ class DiscoveryEngine {
         (enableBurstPowers ||
                 enableColorPowers ||
                 enablePowerCombinations ||
-                requiredPowerKind != null) &&
+                requiredPowerKind != null &&
+                    requiredPowerKind != DiscoveryLinePower.seeker) &&
             !enableLinePowers ||
         requiredCombinationActivations > 0 && !enablePowerCombinations ||
         enablePowerCombinations && (!enableBurstPowers || !enableColorPowers) ||
         requiredPowerKind == DiscoveryLinePower.burst && !enableBurstPowers ||
-        requiredPowerKind == DiscoveryLinePower.color && !enableColorPowers) {
+        requiredPowerKind == DiscoveryLinePower.color && !enableColorPowers ||
+        requiredPowerKind == DiscoveryLinePower.seeker && !enableSeekerPowers) {
       throw ArgumentError(
         'Special objectives require their enabled mechanics.',
       );
@@ -53,7 +56,8 @@ class DiscoveryEngine {
     if (initialBoard.visiblePieces.any(
       (piece) =>
           piece.linePower == DiscoveryLinePower.burst && !enableBurstPowers ||
-          piece.linePower == DiscoveryLinePower.color && !enableColorPowers,
+          piece.linePower == DiscoveryLinePower.color && !enableColorPowers ||
+          piece.linePower == DiscoveryLinePower.seeker && !enableSeekerPowers,
     )) {
       throw ArgumentError('Initial special pieces require enabled mechanics.');
     }
@@ -73,7 +77,12 @@ class DiscoveryEngine {
       );
     }
     if (!enableLinePowers &&
-        initialBoard.visiblePieces.any((piece) => piece.linePower != null)) {
+        initialBoard.visiblePieces.any(
+          (piece) =>
+              piece.linePower != null &&
+              !(piece.linePower == DiscoveryLinePower.seeker &&
+                  enableSeekerPowers),
+        )) {
       throw ArgumentError('Initial powers require the line-power mechanic.');
     }
     _ensureUniqueVisibleIds(initialBoard);
@@ -156,6 +165,7 @@ class DiscoveryEngine {
   final bool enableBurstPowers;
   final bool enableColorPowers;
   final bool enablePowerCombinations;
+  final bool enableSeekerPowers;
   final DiscoveryLinePower? requiredPowerKind;
   final int requiredCombinationActivations;
   final int requiredBlockerClears;
@@ -191,7 +201,7 @@ class DiscoveryEngine {
 
     var candidate = _swapPieces(_board, from, to);
     var matches = _findMatches(candidate);
-    if (enableLinePowers) {
+    if (enableLinePowers || enableSeekerPowers) {
       if (candidate.pieceAt(from)?.linePower != null) matches.add(from);
       if (candidate.pieceAt(to)?.linePower != null) matches.add(to);
     }
@@ -225,19 +235,30 @@ class DiscoveryEngine {
           ? _createLinePowers(candidate, cascadeIndex == 0 ? [to, from] : [])
           : <DiscoveryPosition, DiscoveryPiece>{};
       final activated = <DiscoveryPowerEvent>[];
-      if (enableLinePowers &&
-          (enableBurstPowers || enableColorPowers || enablePowerCombinations)) {
+      if (enableSeekerPowers ||
+          enableLinePowers &&
+              (enableBurstPowers ||
+                  enableColorPowers ||
+                  enablePowerCombinations)) {
         final resolution =
             DiscoveryPowerResolver(
               enableBurst: enableBurstPowers,
               enableColor: enableColorPowers,
               enableCombinations: enablePowerCombinations,
+              enableLines: enableLinePowers,
+              enableSeeker: enableSeekerPowers,
             ).resolve(
               candidate,
               matches,
               cascadeIndex == 0 ? [to, from] : [],
               from: cascadeIndex == 0 ? from : null,
               to: cascadeIndex == 0 ? to : null,
+              priorityColors: {
+                for (final goal in _objectives)
+                  if (goal.kind == DiscoveryObjectiveKind.color &&
+                      (nextColors[goal.matchKey] ?? 0) < goal.goal)
+                    goal.matchKey!,
+              },
             );
         created = resolution.created;
         matches = resolution.hits;
@@ -577,6 +598,10 @@ class DiscoveryEngine {
       }
     }
 
+    if (enableSeekerPowers) {
+      for (final square in discoverySquareMatches(board))
+        matches.addAll(square);
+    }
     return matches;
   }
 
@@ -746,7 +771,7 @@ class DiscoveryEngine {
       if (!board.canSwapAt(position)) continue;
       final right = DiscoveryPosition(position.row, position.column + 1);
       if (board.canSwapAt(right) &&
-          (enableLinePowers &&
+          ((enableLinePowers || enableSeekerPowers) &&
                   (board.pieceAt(position)?.linePower != null ||
                       board.pieceAt(right)?.linePower != null) ||
               _findMatches(_swapPieces(board, position, right)).isNotEmpty)) {
@@ -754,7 +779,7 @@ class DiscoveryEngine {
       }
       final below = DiscoveryPosition(position.row + 1, position.column);
       if (board.canSwapAt(below) &&
-          (enableLinePowers &&
+          ((enableLinePowers || enableSeekerPowers) &&
                   (board.pieceAt(position)?.linePower != null ||
                       board.pieceAt(below)?.linePower != null) ||
               _findMatches(_swapPieces(board, position, below)).isNotEmpty)) {
